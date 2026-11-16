@@ -142,5 +142,68 @@ service cloud.firestore {
     // No direct client access to join codes, membership requests,
     // membership mappings, or legacy collections.
     // All other paths are denied by default.
+
+    function isVaultOwner(vaultId) {
+      return signedIn()
+        && request.auth.uid == vaultId
+        && exists(/databases/$(database)/documents/vaultsV2/$(vaultId))
+        && get(/databases/$(database)/documents/vaultsV2/$(vaultId)).data.ownerUid == vaultId;
+    }
+
+    function isApprovedSharedDevice(vaultId, memberUid, deviceId) {
+      return exists(
+          /databases/$(database)/documents/vaultsV2/$(vaultId)/members/$(memberUid)/devices/$(deviceId)
+        )
+        && get(
+          /databases/$(database)/documents/vaultsV2/$(vaultId)/members/$(memberUid)/devices/$(deviceId)
+        ).data.status == 'approved'
+        && get(
+          /databases/$(database)/documents/vaultsV2/$(vaultId)/members/$(memberUid)/devices/$(deviceId)
+        ).data.vaultId == vaultId
+        && get(
+          /databases/$(database)/documents/vaultsV2/$(vaultId)/members/$(memberUid)/devices/$(deviceId)
+        ).data.memberUid == memberUid;
+    }
+
+    // Device public keys are readable by their member and the vault owner.
+    // All writes go through authenticated Cloud Functions.
+    match /vaultsV2/{vaultId}/members/{memberUid}/devices/{deviceId} {
+      allow get, list: if isVaultMember(vaultId)
+        && (request.auth.uid == vaultId || request.auth.uid == memberUid);
+      allow create, update, delete: if false;
+    }
+
+    // Shared-key envelopes can only be created by the vault owner, and only
+    // for a device that has already been explicitly approved. Envelopes are
+    // immutable; revocation is handled by a trusted function.
+    match /vaultsV2/{vaultId}/members/{memberUid}/sharedKeyEnvelopes/{deviceId} {
+      allow get: if isVaultMember(vaultId)
+        && (request.auth.uid == vaultId || request.auth.uid == memberUid)
+        && isApprovedSharedDevice(vaultId, memberUid, deviceId);
+      allow list: if false;
+      allow create: if isVaultOwner(vaultId)
+        && isVaultMember(vaultId)
+        && isApprovedSharedDevice(vaultId, memberUid, deviceId)
+        && request.resource.data.keys().hasAll([
+          'vaultId', 'memberUid', 'deviceId', 'keyVersion',
+          'algorithm', 'wrappedKey', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'vaultId', 'memberUid', 'deviceId', 'keyVersion',
+          'algorithm', 'wrappedKey', 'createdAt'
+        ])
+        && request.resource.data.vaultId == vaultId
+        && request.resource.data.memberUid == memberUid
+        && request.resource.data.deviceId == deviceId
+        && request.resource.data.keyVersion is int
+        && request.resource.data.keyVersion > 0
+        && request.resource.data.algorithm == 'RSA-OAEP-256'
+        && request.resource.data.wrappedKey is string
+        && request.resource.data.wrappedKey.size() >= 300
+        && request.resource.data.wrappedKey.size() <= 2048
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
   }
 }
