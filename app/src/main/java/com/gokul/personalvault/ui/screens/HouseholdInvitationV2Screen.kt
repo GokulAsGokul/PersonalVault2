@@ -48,6 +48,8 @@ import java.util.Date
 @Composable
 fun HouseholdInvitationV2Screen(
     onBack: () -> Unit,
+    vaultId: String,
+    memberUid: String,
     repository: HouseholdInvitationRepositoryV2 = remember {
         HouseholdInvitationRepositoryV2()
     }
@@ -121,6 +123,8 @@ fun HouseholdInvitationV2Screen(
                     "The household owner must approve the joining request.",
                 style = MaterialTheme.typography.bodyMedium
             )
+
+            SharedDeviceApprovalPanelV2(vaultId = vaultId, memberUid = memberUid)
 
             // OWNER: GENERATE JOIN CODE
             Card(
