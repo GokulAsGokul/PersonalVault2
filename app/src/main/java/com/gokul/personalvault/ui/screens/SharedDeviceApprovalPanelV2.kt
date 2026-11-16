@@ -65,7 +65,8 @@ fun SharedDeviceApprovalPanelV2(
             deviceStatus = "Your vault is still loading."
             return@LaunchedEffect
         }
-        deviceId = repository.currentDeviceId(context, vaultId, memberUid)
+        val thisDeviceId = repository.currentDeviceId(context, vaultId, memberUid)
+        deviceId = thisDeviceId
         repository.registerThisDevice(context, vaultId, memberUid) { result ->
             result.fold(
                 onSuccess = { status ->
