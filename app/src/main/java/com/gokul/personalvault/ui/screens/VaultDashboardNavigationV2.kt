@@ -87,7 +87,9 @@ fun VaultDashboardNavigationV2(
                     onSignOut = onSignOut
                 )
                 selected == VaultV2Destination.HOUSEHOLD -> HouseholdInvitationV2Screen(
-                    onBack = { selected = VaultV2Destination.HOME }
+                    onBack = { selected = VaultV2Destination.HOME },
+                    vaultId = vaultId,
+                    memberUid = memberUid
                 )
                 selected == VaultV2Destination.SETTINGS -> RecoveryPasswordV2Screen(
                     hasUnlockedVault = vaultUnlocked,
