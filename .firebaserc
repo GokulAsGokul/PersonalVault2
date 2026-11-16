@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "personalapp-63e8b",
+    "development": "personalvault2-development"
+  },
+  "targets": {},
+  "etags": {}
+}
