@@ -183,22 +183,6 @@ fun SharedDeviceApprovalPanelV2(
                                     },
                                     enabled = !busy
                                 ) { Text("Grant shared access") }
-                                OutlinedButton(
-                                    onClick = {
-                                        busy = true
-                                        repository.revokeDevice(device.memberUid, device.deviceId) { result ->
-                                            busy = false
-                                            result.fold(
-                                                onSuccess = {
-                                                    message = "Device access revoked. Previously downloaded keys cannot be remotely recalled."
-                                                    refreshDevices()
-                                                },
-                                                onFailure = { message = it.localizedMessage ?: "Unable to revoke device." }
-                                            )
-                                        }
-                                    },
-                                    enabled = !busy
-                                ) { Text("Revoke") }
                             }
                         }
                     }
