@@ -144,6 +144,27 @@ class SharedDeviceApprovalRepositoryV2(
             .addOnFailureListener { callback(Result.failure(it)) }
     }
 
+    /** Unlocks the existing owner envelope, or creates the first shared key envelope. */
+    fun ensureOwnerSharedKey(
+        vaultId: String,
+        ownerUid: String,
+        deviceId: String,
+        callback: (Result<Unit>) -> Unit
+    ) {
+        val envelopeRef = memberEnvelope(vaultId, ownerUid, deviceId)
+        envelopeRef.get()
+            .addOnSuccessListener { existing ->
+                if (existing.exists()) {
+                    unlockThisDevice(vaultId, ownerUid, deviceId, callback)
+                } else {
+                    initializeSharedKeyOnOwnerDevice(
+                        vaultId, ownerUid, deviceId, callback
+                    )
+                }
+            }
+            .addOnFailureListener { callback(Result.failure(it)) }
+    }
+
     /**
      * Creates the first shared key on an owner device and stores only an RSA
      * envelope in Firestore. The plaintext AES key remains in memory.
