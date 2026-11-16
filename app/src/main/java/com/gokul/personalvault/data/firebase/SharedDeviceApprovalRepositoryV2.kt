@@ -1,6 +1,7 @@
 package com.gokul.personalvault.data.firebase
 
 import android.content.Context
+import android.os.Build
 import com.gokul.personalvault.HouseholdCrypto
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -24,6 +25,7 @@ class SharedDeviceApprovalRepositoryV2(
         val deviceId: String,
         val status: String,
         val algorithm: String,
+        val deviceLabel: String,
         val publicKey: String,
         val createdAt: Long?
     )
@@ -68,7 +70,8 @@ class SharedDeviceApprovalRepositoryV2(
                 "vaultId" to vaultId,
                 "deviceId" to deviceId,
                 "publicKey" to publicKey,
-                "algorithm" to RSA_ALGORITHM
+                "algorithm" to RSA_ALGORITHM,
+                "deviceLabel" to "${Build.MANUFACTURER} ${Build.MODEL}".take(80)
             ))
         }.onFailure {
             callback(Result.failure(it))
@@ -105,6 +108,7 @@ class SharedDeviceApprovalRepositoryV2(
                         deviceId = deviceId,
                         status = map["status"] as? String ?: "unknown",
                         algorithm = map["algorithm"] as? String ?: "",
+                        deviceLabel = map["deviceLabel"] as? String ?: "Android device",
                         publicKey = map["publicKey"] as? String ?: "",
                         createdAt = (map["createdAt"] as? Number)?.toLong()
                     )
