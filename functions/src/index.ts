@@ -716,45 +716,4 @@ export const approveV2SharedDevice = onCall(async (request) => {
   return {status: "approved", memberUid, deviceId};
 });
 
-/** Owner revokes one device. Previously downloaded keys cannot be remotely recalled. */
-export const revokeV2SharedDevice = onCall(async (request) => {
-  const {uid} = requireIdentity(request);
-  const data = (request.data ?? {}) as CallableData;
-  const memberUid = requireString(data.memberUid, "Member UID");
-  const deviceId = requireString(data.deviceId, "Device ID", 80);
 
-  if (!DEVICE_ID_PATTERN.test(deviceId)) {
-    throw new HttpsError("invalid-argument", "Device ID format is invalid.");
-  }
-  if (memberUid === uid) {
-    throw new HttpsError("failed-precondition", "The active owner device cannot revoke itself.");
-  }
-
-  const vaultRef = db.collection(OWNER_VAULTS).doc(uid);
-  const deviceRef = vaultRef.collection("members").doc(memberUid)
-    .collection("devices").doc(deviceId);
-  const envelopeRef = vaultRef.collection("members").doc(memberUid)
-    .collection("sharedKeyEnvelopes").doc(deviceId);
-
-  await db.runTransaction(async (tx) => {
-    const [vault, device, envelope] = await Promise.all([
-      tx.get(vaultRef),
-      tx.get(deviceRef),
-      tx.get(envelopeRef),
-    ]);
-    const members = assertValidOwnerVault(vault, uid);
-    if (!members.includes(memberUid) || !device.exists) {
-      throw new HttpsError("not-found", "Member device not found.");
-    }
-    tx.update(deviceRef, {
-      status: "revoked",
-      revokedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    if (envelope.exists) {
-      tx.delete(envelopeRef);
-    }
-  });
-
-  return {status: "revoked", memberUid, deviceId};
-});
