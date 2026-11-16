@@ -1,0 +1,146 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isVaultMember(vaultId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/vaultsV2/$(vaultId))
+        && request.auth.uid in get(
+          /databases/$(database)/documents/vaultsV2/$(vaultId)
+        ).data.memberUids;
+    }
+
+    // V2 vault root documents
+    match /vaultsV2/{vaultId} {
+
+      // A user can read their own vault, or a vault they have joined.
+      allow get: if signedIn()
+        && (
+          vaultId == request.auth.uid
+          || isVaultMember(vaultId)
+        );
+
+      // Clients cannot enumerate vaults.
+      allow list: if false;
+
+      // A user can create only their own initial vault.
+      allow create: if signedIn()
+        && vaultId == request.auth.uid
+        && request.resource.data.keys().hasAll([
+          'ownerUid',
+          'memberUids',
+          'schemaVersion',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'ownerUid',
+          'memberUids',
+          'schemaVersion',
+          'createdAt'
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.schemaVersion == 2
+        && request.resource.data.createdAt == request.time;
+
+      // Membership changes must go through trusted Cloud Functions.
+      allow update, delete: if false;
+
+      // Member-specific recovery data
+      match /members/{memberUid}/recoveryBackups/{backupId} {
+
+        function isOwnApprovedRecoveryPath() {
+          return signedIn()
+            && memberUid == request.auth.uid
+            && isVaultMember(vaultId);
+        }
+
+        // The member can read only their own recovery backup.
+        allow get: if isOwnApprovedRecoveryPath();
+        allow list: if false;
+
+        // Recovery backups are append-only.
+        allow create: if isOwnApprovedRecoveryPath()
+          && request.resource.data.keys().hasAll([
+            'version',
+            'kdf',
+            'cipher',
+            'salt',
+            'nonce',
+            'ciphertext',
+            'createdAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'version',
+            'kdf',
+            'cipher',
+            'salt',
+            'nonce',
+            'ciphertext',
+            'createdAt'
+          ])
+          && request.resource.data.version == 2
+          && request.resource.data.kdf == 'Argon2id'
+          && request.resource.data.cipher == 'AES-256-GCM'
+          && request.resource.data.salt is string
+          && request.resource.data.salt.size() == 24
+          && request.resource.data.nonce is string
+          && request.resource.data.nonce.size() == 16
+          && request.resource.data.ciphertext is string
+          && request.resource.data.ciphertext.size() == 64
+          && request.resource.data.createdAt == request.time;
+
+        allow update, delete: if false;
+      }
+
+      // Pointer to the active recovery backup for this member.
+      match /members/{memberUid}/recoveryState/current {
+
+        function isOwnApprovedRecoveryPath() {
+          return signedIn()
+            && memberUid == request.auth.uid
+            && isVaultMember(vaultId);
+        }
+
+        function validRecoveryPointer() {
+          return request.resource.data.keys().hasAll([
+              'activeBackupId',
+              'updatedAt'
+            ])
+            && request.resource.data.keys().hasOnly([
+              'activeBackupId',
+              'updatedAt'
+            ])
+            && request.resource.data.activeBackupId is string
+            && request.resource.data.activeBackupId.size() > 0
+            && request.resource.data.updatedAt == request.time
+            && exists(
+              /databases/$(database)/documents/vaultsV2/$(vaultId)/members/$(memberUid)/recoveryBackups/$(request.resource.data.activeBackupId)
+            );
+        }
+
+        allow get: if isOwnApprovedRecoveryPath();
+        allow list: if false;
+
+        allow create: if isOwnApprovedRecoveryPath()
+          && validRecoveryPointer();
+
+        allow update: if isOwnApprovedRecoveryPath()
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['activeBackupId', 'updatedAt'])
+          && validRecoveryPointer();
+
+        allow delete: if false;
+      }
+    }
+
+    // No direct client access to join codes, membership requests,
+    // membership mappings, or legacy collections.
+    // All other paths are denied by default.
+  }
+}
