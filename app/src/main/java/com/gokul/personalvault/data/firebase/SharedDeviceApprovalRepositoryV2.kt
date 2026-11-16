@@ -124,16 +124,6 @@ class SharedDeviceApprovalRepositoryV2(
         callback
     )
 
-    fun revokeDevice(
-        memberUid: String,
-        deviceId: String,
-        callback: (Result<Unit>) -> Unit
-    ) = ownerDeviceAction(
-        "revokeV2SharedDevice",
-        mapOf("memberUid" to memberUid, "deviceId" to deviceId),
-        callback
-    )
-
     private fun ownerDeviceAction(
         functionName: String,
         payload: Map<String, Any>,
