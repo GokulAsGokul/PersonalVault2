@@ -585,6 +585,7 @@ export const registerV2SharedDevice = onCall(async (request) => {
   const deviceId = requireString(data.deviceId, "Device ID", 80);
   const publicKey = requireString(data.publicKey, "Device public key", 8192);
   const algorithm = requireString(data.algorithm, "Key algorithm", 64);
+  const deviceLabel = requireString(data.deviceLabel, "Device label", 80);
 
   if (!DEVICE_ID_PATTERN.test(deviceId)) {
     throw new HttpsError("invalid-argument", "Device ID format is invalid.");
@@ -635,6 +636,7 @@ export const registerV2SharedDevice = onCall(async (request) => {
     deviceId,
     publicKey,
     algorithm,
+    deviceLabel,
     status,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -660,6 +662,7 @@ export const listV2SharedDevices = onCall(async (request) => {
         deviceId: doc.id,
         status: data.status ?? "unknown",
         algorithm: data.algorithm ?? "",
+        deviceLabel: data.deviceLabel ?? "Android device",
         publicKey: data.status === "approved" ? data.publicKey ?? "" : "",
         createdAt: timestampMillis(data.createdAt),
       });
