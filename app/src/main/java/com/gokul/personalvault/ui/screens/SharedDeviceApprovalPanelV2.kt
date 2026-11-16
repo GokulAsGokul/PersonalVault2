@@ -77,7 +77,7 @@ fun SharedDeviceApprovalPanelV2(
                     }
                     if (isOwner) {
                         repository.ensureOwnerSharedKey(
-                            vaultId, memberUid, deviceId
+                            vaultId, memberUid, thisDeviceId
                         ) { keyResult ->
                             keyResult.fold(
                                 onSuccess = { message = "Shared vault key is ready on this owner device." },
