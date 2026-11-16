@@ -568,3 +568,193 @@ export const getMyV2Vault = onCall(async (request) => {
     schemaVersion: 2,
   };
 });
+
+
+const DEVICE_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/;
+const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * A member registers this installation's RSA public key. The private key
+ * never leaves Android Keystore. The owner device is approved automatically;
+ * every other member device starts pending owner approval.
+ */
+export const registerV2SharedDevice = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const deviceId = requireString(data.deviceId, "Device ID", 80);
+  const publicKey = requireString(data.publicKey, "Device public key", 8192);
+  const algorithm = requireString(data.algorithm, "Key algorithm", 64);
+
+  if (!DEVICE_ID_PATTERN.test(deviceId)) {
+    throw new HttpsError("invalid-argument", "Device ID format is invalid.");
+  }
+  if (algorithm !== "RSA-OAEP-256") {
+    throw new HttpsError("invalid-argument", "Unsupported device key algorithm.");
+  }
+  if (!BASE64_PATTERN.test(publicKey)) {
+    throw new HttpsError("invalid-argument", "Device public key encoding is invalid.");
+  }
+
+  const publicKeyBytes = Buffer.from(publicKey, "base64");
+  if (publicKeyBytes.length < 256 || publicKeyBytes.length > 4096) {
+    throw new HttpsError("invalid-argument", "Device public key size is invalid.");
+  }
+
+  const vaultRef = db.collection(OWNER_VAULTS).doc(vaultId);
+  const vault = await vaultRef.get();
+  const members = assertValidOwnerVault(vault, vaultId);
+  if (!members.includes(uid)) {
+    throw new HttpsError("permission-denied", "You are not an approved vault member.");
+  }
+
+  const deviceRef = vaultRef.collection("members").doc(uid)
+    .collection("devices").doc(deviceId);
+  const existing = await deviceRef.get();
+  if (existing.exists) {
+    if (existing.get("publicKey") !== publicKey ||
+        existing.get("algorithm") !== algorithm) {
+      throw new HttpsError(
+        "already-exists",
+        "This device ID is already registered with a different key. Register a new device."
+      );
+    }
+    if (existing.get("status") === "revoked") {
+      throw new HttpsError(
+        "permission-denied",
+        "This device was revoked. Register a new device installation."
+      );
+    }
+    return {status: existing.get("status") ?? "pending", deviceId};
+  }
+
+  const status = uid === vaultId ? "approved" : "pending";
+  await deviceRef.create({
+    vaultId,
+    memberUid: uid,
+    deviceId,
+    publicKey,
+    algorithm,
+    status,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return {status, deviceId};
+});
+
+/** Owner lists registered devices and their approval states. */
+export const listV2SharedDevices = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const vault = await db.collection(OWNER_VAULTS).doc(uid).get();
+  const members = assertValidOwnerVault(vault, uid);
+  const devices: Array<Record<string, unknown>> = [];
+
+  for (const memberUid of members) {
+    const snapshot = await db.collection(OWNER_VAULTS).doc(uid)
+      .collection("members").doc(memberUid).collection("devices").get();
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      devices.push({
+        memberUid,
+        deviceId: doc.id,
+        status: data.status ?? "unknown",
+        algorithm: data.algorithm ?? "",
+        publicKey: data.status === "approved" ? data.publicKey ?? "" : "",
+        createdAt: timestampMillis(data.createdAt),
+      });
+    });
+  }
+
+  return {devices};
+});
+
+/** Owner approves one pending member installation, not the whole account. */
+export const approveV2SharedDevice = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const memberUid = requireString(data.memberUid, "Member UID");
+  const deviceId = requireString(data.deviceId, "Device ID", 80);
+
+  if (!DEVICE_ID_PATTERN.test(deviceId)) {
+    throw new HttpsError("invalid-argument", "Device ID format is invalid.");
+  }
+  if (memberUid === uid) {
+    throw new HttpsError("invalid-argument", "Owner devices are approved automatically.");
+  }
+
+  const vaultRef = db.collection(OWNER_VAULTS).doc(uid);
+  const deviceRef = vaultRef.collection("members").doc(memberUid)
+    .collection("devices").doc(deviceId);
+
+  await db.runTransaction(async (tx) => {
+    const [vault, device] = await Promise.all([
+      tx.get(vaultRef),
+      tx.get(deviceRef),
+    ]);
+    const members = assertValidOwnerVault(vault, uid);
+    if (!members.includes(memberUid)) {
+      throw new HttpsError("permission-denied", "This account is not a vault member.");
+    }
+    if (!device.exists || device.get("memberUid") !== memberUid ||
+        device.get("vaultId") !== uid) {
+      throw new HttpsError("not-found", "Registered device not found.");
+    }
+    if (device.get("status") !== "pending") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Only a pending device can be approved."
+      );
+    }
+    tx.update(deviceRef, {
+      status: "approved",
+      approvedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return {status: "approved", memberUid, deviceId};
+});
+
+/** Owner revokes one device. Previously downloaded keys cannot be remotely recalled. */
+export const revokeV2SharedDevice = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const memberUid = requireString(data.memberUid, "Member UID");
+  const deviceId = requireString(data.deviceId, "Device ID", 80);
+
+  if (!DEVICE_ID_PATTERN.test(deviceId)) {
+    throw new HttpsError("invalid-argument", "Device ID format is invalid.");
+  }
+  if (memberUid === uid) {
+    throw new HttpsError("failed-precondition", "The active owner device cannot revoke itself.");
+  }
+
+  const vaultRef = db.collection(OWNER_VAULTS).doc(uid);
+  const deviceRef = vaultRef.collection("members").doc(memberUid)
+    .collection("devices").doc(deviceId);
+  const envelopeRef = vaultRef.collection("members").doc(memberUid)
+    .collection("sharedKeyEnvelopes").doc(deviceId);
+
+  await db.runTransaction(async (tx) => {
+    const [vault, device, envelope] = await Promise.all([
+      tx.get(vaultRef),
+      tx.get(deviceRef),
+      tx.get(envelopeRef),
+    ]);
+    const members = assertValidOwnerVault(vault, uid);
+    if (!members.includes(memberUid) || !device.exists) {
+      throw new HttpsError("not-found", "Member device not found.");
+    }
+    tx.update(deviceRef, {
+      status: "revoked",
+      revokedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (envelope.exists) {
+      tx.delete(envelopeRef);
+    }
+  });
+
+  return {status: "revoked", memberUid, deviceId};
+});
