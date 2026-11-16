@@ -144,10 +144,10 @@ fun SharedDeviceApprovalPanelV2(
                     HorizontalDivider()
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            if (device.memberUid == memberUid) "Your device" else "Household member device",
+                            if (device.memberUid == memberUid) "Your device" else device.deviceLabel,
                             style = MaterialTheme.typography.bodyMedium
                         )
-                        Text("Device: ${device.deviceId.take(8)}…", style = MaterialTheme.typography.bodySmall)
+                        Text("Device ID: ${device.deviceId.take(8)}…", style = MaterialTheme.typography.bodySmall)
                         Text("Status: ${device.status}", style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (device.status == "pending") {
