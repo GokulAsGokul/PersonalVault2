@@ -53,4 +53,5 @@ dependencies {
     implementation("org.bouncycastle:bcprov-jdk18on:1.86")
     testImplementation("junit:junit:4.13.2")
     implementation("com.google.firebase:firebase-functions")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
 }

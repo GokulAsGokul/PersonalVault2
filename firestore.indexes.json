@@ -1,3 +1,4 @@
+
 {
   "indexes": [
     {
@@ -15,6 +16,20 @@
         {
           "fieldPath": "createdAt",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "passwords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "scope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ownerUid",
+          "order": "ASCENDING"
         }
       ]
     }
