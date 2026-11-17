@@ -65,7 +65,7 @@ class SharedDeviceApprovalRepositoryV2(
     ) {
         runCatching {
             val deviceId = currentDeviceId(context, vaultId, memberUid)
-            val publicKey = HouseholdCrypto.exportPublicKey(memberUid)
+            val publicKey = HouseholdCrypto.exportPublicKey(memberUid, deviceId)
             Triple(deviceId, publicKey, mapOf(
                 "vaultId" to vaultId,
                 "deviceId" to deviceId,
@@ -182,7 +182,7 @@ class SharedDeviceApprovalRepositoryV2(
                     HouseholdCrypto.createHouseholdKey(vaultId)
                     val wrapped = HouseholdCrypto.wrapHouseholdKeyForMember(
                         vaultId,
-                        HouseholdCrypto.exportPublicKey(ownerUid)
+                        HouseholdCrypto.exportPublicKey(ownerUid, deviceId)
                     )
                     writeEnvelope(
                         envelopeRef,
@@ -280,6 +280,7 @@ class SharedDeviceApprovalRepositoryV2(
                 try {
                     HouseholdCrypto.unwrapHouseholdKey(
                         firebaseUid = memberUid,
+                        deviceId = deviceId,
                         householdId = vaultId,
                         wrappedKeyBase64 = wrappedKey
                     )
