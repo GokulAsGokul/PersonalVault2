@@ -20,7 +20,7 @@ import javax.crypto.spec.SecretKeySpec
 /**
  * Household-level encryption helper.
  *
- * - Each Firebase account/device has an RSA key pair in Android Keystore.
+ * - Each app installation has an RSA key pair in Android Keystore, keyed by Firebase UID + device ID.
  * - The household AES-256 key is wrapped separately for each member's public key.
  * - The household AES key is kept in memory only after unwrap/create.
  * - Password record payloads are encrypted with AES-256-GCM and householdId as AAD.
@@ -80,11 +80,12 @@ object HouseholdCrypto {
         }
     }
 
-    /** Creates an RSA key pair once per Firebase UID on this Android installation. */
+    /** Creates an RSA key pair once per Firebase UID + installation device ID. */
     @Synchronized
-    fun ensureDeviceKeyPair(firebaseUid: String): KeyPair {
+    fun ensureDeviceKeyPair(firebaseUid: String, deviceId: String): KeyPair {
         require(firebaseUid.isNotBlank()) { "Firebase UID is required." }
-        val alias = aliasFor(firebaseUid)
+        require(deviceId.isNotBlank()) { "Device ID is required." }
+        val alias = aliasFor(firebaseUid, deviceId)
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
         if (keyStore.containsAlias(alias)) {
@@ -111,9 +112,9 @@ object HouseholdCrypto {
         return generator.generateKeyPair()
     }
 
-    /** Public key string suitable for publishing in the member's Firestore profile. */
-    fun exportPublicKey(firebaseUid: String): String {
-        val publicKey = ensureDeviceKeyPair(firebaseUid).public
+    /** Public key string suitable for publishing in this installation's device document. */
+    fun exportPublicKey(firebaseUid: String, deviceId: String): String {
+        val publicKey = ensureDeviceKeyPair(firebaseUid, deviceId).public
         return Base64.encodeToString(publicKey.encoded, Base64.NO_WRAP)
     }
 
@@ -147,15 +148,18 @@ object HouseholdCrypto {
 
     /** Member operation: unwrap their own Firestore envelope using this device's private key. */
     @Synchronized
+    /** Unwraps an envelope using the private key belonging to this exact installation. */
     fun unwrapHouseholdKey(
         firebaseUid: String,
+        deviceId: String,
         householdId: String,
         wrappedKeyBase64: String
     ) {
         require(firebaseUid.isNotBlank()) { "Firebase UID is required." }
+        require(deviceId.isNotBlank()) { "Device ID is required." }
         require(householdId.isNotBlank()) { "Household ID is required." }
 
-        val keyPair = ensureDeviceKeyPair(firebaseUid)
+        val keyPair = ensureDeviceKeyPair(firebaseUid, deviceId)
         val cipher = Cipher.getInstance(RSA_TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, keyPair.private, oaepParameters())
         val keyBytes = cipher.doFinal(Base64.decode(wrappedKeyBase64, Base64.DEFAULT))
@@ -227,10 +231,11 @@ object HouseholdCrypto {
         sessionHouseholdKey = keyBytes.copyOf()
     }
 
-    private fun aliasFor(firebaseUid: String): String {
-        // Hash UID to avoid putting raw account identifiers in Keystore alias names.
+    /** Hash both identifiers; never put account or installation IDs in alias names. */
+    private fun aliasFor(firebaseUid: String, deviceId: String): String {
+        val identity = "$firebaseUid:$deviceId"
         val digest = java.security.MessageDigest.getInstance("SHA-256")
-            .digest(firebaseUid.toByteArray(StandardCharsets.UTF_8))
+            .digest(identity.toByteArray(StandardCharsets.UTF_8))
         val suffix = Base64.encodeToString(
             digest,
             Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
