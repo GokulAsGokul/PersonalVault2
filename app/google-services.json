@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "961873450675",
+    "project_id": "personalvault2-development",
+    "storage_bucket": "personalvault2-development.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:961873450675:android:4308c2315f082dba2882c6",
+        "android_client_info": {
+          "package_name": "com.gokul.personalvault"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxJh4t9XpVSm_ScX7OlcWrFPn82dOSyBM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

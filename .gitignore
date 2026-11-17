@@ -1,9 +1,26 @@
+# Android / Gradle
 .gradle/
-.idea/
-local.properties
-.DS_Store
-build/
 **/build/
-google-services.json
+local.properties
+
+# Android Studio
+.idea/
+.idea/caches/
+.idea/shelf/
+.idea/workspace.xml
+.idea/tasks.xml
+
+# Firebase emulator logs
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+
+# Node.js
+node_modules/
+functions/lib/
+
+# Environment and secrets
+.env
+.env.*
 *.jks
 *.keystore
