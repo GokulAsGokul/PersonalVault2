@@ -25,7 +25,9 @@ object SharedVaultKeyExchange {
         onResult: (Boolean, String) -> Unit
     ) {
         try {
-            val publicKey = HouseholdCrypto.exportPublicKey(firebaseUid)
+            // Legacy single-device flow: UID doubles as its legacy device identifier.
+            // V2 device approval uses the real installation ID in SharedDeviceApprovalRepositoryV2.
+            val publicKey = HouseholdCrypto.exportPublicKey(firebaseUid, firebaseUid)
             val data = mapOf(
                 "uid" to firebaseUid,
                 "publicKey" to publicKey,
@@ -177,6 +179,7 @@ object SharedVaultKeyExchange {
                 try {
                     HouseholdCrypto.unwrapHouseholdKey(
                         firebaseUid = firebaseUid,
+                        deviceId = firebaseUid,
                         householdId = vaultId,
                         wrappedKeyBase64 = wrappedKey
                     )
