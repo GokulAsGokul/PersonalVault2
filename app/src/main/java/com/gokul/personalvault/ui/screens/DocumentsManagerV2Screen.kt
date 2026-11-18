@@ -38,6 +38,7 @@ import com.gokul.personalvault.data.model.DocumentRecordV2
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.util.Locale
 
 private enum class DocumentSortV2 { NAME_ASC, NAME_DESC, NEWEST, OLDEST, LARGEST, SMALLEST }
@@ -501,7 +502,8 @@ private fun DocumentCardV2(
 private fun enqueueDocumentDownload(context: Context, url: String, originalName: String) {
     val base = originalName.substringBeforeLast('.', originalName).replace(Regex("[^A-Za-z0-9._ -]"), "_")
     val extension = originalName.substringAfterLast('.', "")
-    val safeName = if (extension.isBlank()) base else "$base.$extension"
+    val suffix = System.currentTimeMillis().toString()
+    val safeName = if (extension.isBlank()) "$base ($suffix)" else "$base ($suffix).$extension"
     val request = DownloadManager.Request(Uri.parse(url))
         .setTitle(originalName)
         .setDescription("Downloading document from Personal Vault")
