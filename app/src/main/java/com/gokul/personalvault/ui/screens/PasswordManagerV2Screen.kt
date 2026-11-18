@@ -31,7 +31,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -49,6 +48,7 @@ import android.content.Context
 import android.view.WindowManager
 import android.os.Handler
 import android.os.Looper
+import java.util.concurrent.atomic.AtomicBoolean
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalView
 import android.os.VibrationEffect
@@ -79,7 +79,6 @@ fun PasswordManagerV2Screen(
     memberUid: String
 ) {
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val hostView = LocalView.current
 
@@ -93,12 +92,25 @@ fun PasswordManagerV2Screen(
 
     fun copyCredential(label: String, value: String) {
         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText(label, value)
+        val clip = ClipData.newPlainText("Personal Vault • $label", value)
         manager.setPrimaryClip(clip)
+
+        // Do not read the clipboard after the app loses focus: Android restricts
+        // background clipboard reads. Instead, track whether another app replaces it.
+        val replacedByAnotherCopy = AtomicBoolean(false)
+        val listener = ClipboardManager.OnPrimaryClipChangedListener {
+            replacedByAnotherCopy.set(true)
+        }
+        manager.addPrimaryClipChangedListener(listener)
+
         Handler(Looper.getMainLooper()).postDelayed({
-            val current = manager.primaryClip
-            if (current != null && current.itemCount > 0 && current.getItemAt(0).coerceToText(context).toString() == value) {
-                manager.setPrimaryClip(ClipData.newPlainText("", ""))
+            manager.removePrimaryClipChangedListener(listener)
+            if (!replacedByAnotherCopy.get()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    manager.clearPrimaryClip()
+                } else {
+                    manager.setPrimaryClip(ClipData.newPlainText("", ""))
+                }
             }
         }, 30_000L)
     }
