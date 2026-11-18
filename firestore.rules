@@ -246,9 +246,12 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
               'scope', 'title', 'titleLower', 'categoryId', 'description',
-              'updatedAt', 'isDeleted', 'deletedAt', 'purgeAt'
+              'updatedAt'
             ])
           && validDocumentRecord()
+          && request.resource.data.isDeleted == resource.data.isDeleted
+          && request.resource.data.deletedAt == resource.data.deletedAt
+          && request.resource.data.purgeAt == resource.data.purgeAt
           && request.resource.data.updatedAt == request.time;
 
         // Physical file deletion is restricted to trusted Admin SDK code.
