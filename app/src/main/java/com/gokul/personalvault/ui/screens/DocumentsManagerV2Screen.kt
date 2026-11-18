@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gokul.personalvault.VaultExternalActivityState
 import com.gokul.personalvault.data.firebase.DocumentRepositoryV2
 import com.gokul.personalvault.data.model.BuiltInDocumentCategoriesV2
 import com.gokul.personalvault.data.model.DocumentRecordV2
@@ -113,30 +114,44 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        // The system picker has returned, including when the user cancels.
+        VaultExternalActivityState.documentPickerActive = false
         if (uris.isNotEmpty()) scope.launch {
             uploading = true
             progress = 0f
-            var completed = 0
-            val failures = mutableListOf<String>()
-            uris.forEachIndexed { index, uri ->
-                val filename = repository.readDisplayName(context.contentResolver, uri)
-                message = "Uploading ${index + 1} of ${uris.size}: $filename"
-                try {
-                    val title = filename.substringBeforeLast('.', filename)
-                    repository.upload(
-                        vaultId, memberUid, uri, context.contentResolver, title,
-                        if (category == "all") "other" else category, "",
-                        if (visibility == "SHARED") "SHARED" else "PERSONAL"
-                    ) { value -> progress = (completed + value) / uris.size.toFloat() }
-                    completed++
-                } catch (error: Exception) {
-                    failures.add("$filename: ${error.message ?: "Upload failed"}")
+            message = "Preparing ${uris.size} file(s)..."
+            try {
+                var completed = 0
+                val failures = mutableListOf<String>()
+                uris.forEachIndexed { index, uri ->
+                    val filename = try {
+                        repository.readDisplayName(context.contentResolver, uri)
+                    } catch (error: Exception) {
+                        "Selected file ${index + 1}"
+                    }
+                    message = "Uploading ${index + 1} of ${uris.size}: $filename"
+                    try {
+                        val title = filename.substringBeforeLast('.', filename)
+                        repository.upload(
+                            vaultId, memberUid, uri, context.contentResolver, title,
+                            if (category == "all") "other" else category, "",
+                            if (visibility == "SHARED") "SHARED" else "PERSONAL"
+                        ) { value -> progress = (completed + value) / uris.size.toFloat() }
+                        completed++
+                    } catch (error: Exception) {
+                        failures.add("$filename: ${error.localizedMessage ?: error.message ?: "Upload failed"}")
+                    }
                 }
+                progress = 1f
+                message = if (failures.isEmpty()) "$completed file(s) uploaded."
+                    else "$completed uploaded; ${failures.size} failed. " + failures.joinToString(" | ")
+            } catch (error: Exception) {
+                message = "Upload could not start: ${error.localizedMessage ?: error.message ?: "Unknown error"}"
+            } finally {
+                uploading = false
             }
-            uploading = false
-            progress = 1f
-            message = if (failures.isEmpty()) "$completed file(s) uploaded."
-                else "$completed uploaded; ${failures.size} failed. " + failures.joinToString(" | ")
+        } else {
+            message = "No files selected."
         }
     }
 
@@ -184,7 +199,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         containerColor = Color(0xFFF4F6FB),
         floatingActionButton = {
             if (!recycleBin) FloatingActionButton(
-                onClick = { picker.launch(arrayOf("*/*")) },
+                onClick = { VaultExternalActivityState.documentPickerActive = true; picker.launch(arrayOf("*/*")) },
                 containerColor = Color(0xFF315CDB), contentColor = Color.White
             ) { Icon(Icons.Outlined.Add, contentDescription = "Add document") }
         }
