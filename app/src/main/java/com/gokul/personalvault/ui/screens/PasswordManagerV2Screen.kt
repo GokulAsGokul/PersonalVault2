@@ -4,6 +4,7 @@ package com.gokul.personalvault.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -38,11 +39,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val PvNavy = Color(0xFF0B2D5C)
-private val PvBlue = Color(0xFF2463C5)
-private val PvBackground = Color(0xFFF7F8FA)
-private val PvText = Color(0xFF172033)
-private val PvMuted = Color(0xFF667085)
+private val PvNavy = Color(0xFF27358F)
+private val PvBlue = Color(0xFF4267D5)
+private val PvTeal = Color(0xFF0F9D9A)
+private val PvBackground = Color(0xFFF5F6FC)
+private val PvText = Color(0xFF182033)
+private val PvMuted = Color(0xFF687187)
+private val PvLavender = Color(0xFFEAEAFF)
 
 @Composable
 fun PasswordManagerV2Screen(
@@ -144,136 +147,75 @@ fun PasswordManagerV2Screen(
     ) { padding ->
 
         Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(PvBackground)
-                .padding(horizontal = 20.dp)
+            Modifier.fillMaxSize().padding(padding).background(PvBackground).padding(horizontal = 18.dp)
         ) {
-            Spacer(Modifier.height(18.dp))
-
-            Text(
-                "PASSWORD MANAGER",
-                color = PvMuted,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Text(
-                "Your passwords",
-                color = PvText,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-
-            Text(
-                "${records.count { it.scope == selectedScope }} saved credentials",
-                color = PvMuted,
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            Spacer(Modifier.height(18.dp))
-
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Color(0xFFE9EDF3),
-                        RoundedCornerShape(14.dp)
-                    )
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                ScopeTabV2(
-                    "Personal",
-                    selectedScope == PasswordRecordV2.SCOPE_PERSONAL,
-                    Modifier.weight(1f)
-                ) {
-                    selectedScope = PasswordRecordV2.SCOPE_PERSONAL
-                    selectedCategory = "All"
-                }
-
-                ScopeTabV2(
-                    "Shared",
-                    selectedScope == PasswordRecordV2.SCOPE_SHARED,
-                    Modifier.weight(1f)
-                ) {
-                    selectedScope = PasswordRecordV2.SCOPE_SHARED
-                    selectedCategory = "All"
-                }
-            }
-
             Spacer(Modifier.height(14.dp))
-
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = {
-                    Text("Search website or username")
-                },
-                leadingIcon = {
-                    Icon(Icons.Outlined.Search, null, tint = PvMuted)
-                },
-                shape = RoundedCornerShape(14.dp)
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                listOf("All")
-                    .plus(PasswordRecordV2.CATEGORIES.take(4))
-                    .forEach { category ->
-                        FilterChip(
-                            selected = selectedCategory == category,
-                            onClick = { selectedCategory = category },
-                            label = { Text(category) }
-                        )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(16.dp), color = PvLavender, modifier = Modifier.size(48.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Lock, null, tint = PvNavy, modifier = Modifier.size(27.dp))
                     }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Password Manager", color = PvText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Your secure, encrypted passwords", color = PvMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                Text("⋮", color = PvMuted, style = MaterialTheme.typography.headlineMedium)
             }
-
+            Spacer(Modifier.height(18.dp))
+            Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = PvLavender) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Lock, null, tint = PvNavy, modifier = Modifier.size(30.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Your vault is protected", color = PvText, fontWeight = FontWeight.Bold)
+                        Text("${records.size} saved credentials • encrypted storage", color = PvMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Surface(shape = CircleShape, color = Color(0xFFD8F1E8)) {
+                        Icon(Icons.Outlined.Lock, null, tint = Color(0xFF16805D), modifier = Modifier.padding(10.dp).size(21.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+                singleLine = true, placeholder = { Text("Search passwords or usernames…") },
+                leadingIcon = { Icon(Icons.Outlined.Search, null, tint = PvMuted) },
+                trailingIcon = { if (search.isNotEmpty()) TextButton(onClick = { search = "" }) { Text("Clear") } },
+                shape = RoundedCornerShape(18.dp),
+                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color.White, focusedContainerColor = Color.White)
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth().background(Color(0xFFE9EAF5), RoundedCornerShape(15.dp)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                ScopeTabV2("Personal", selectedScope == PasswordRecordV2.SCOPE_PERSONAL, Modifier.weight(1f)) {
+                    selectedScope = PasswordRecordV2.SCOPE_PERSONAL; selectedCategory = "All"
+                }
+                ScopeTabV2("Shared", selectedScope == PasswordRecordV2.SCOPE_SHARED, Modifier.weight(1f)) {
+                    selectedScope = PasswordRecordV2.SCOPE_SHARED; selectedCategory = "All"
+                }
+            }
             Spacer(Modifier.height(10.dp))
-
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("All").plus(PasswordRecordV2.CATEGORIES).forEach { category ->
+                    FilterChip(selected = selectedCategory == category, onClick = { selectedCategory = category }, label = { Text(category) }, shape = RoundedCornerShape(50))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${visibleRecords.size} passwords", color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.weight(1f))
+                Text("A–Z", color = PvNavy, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            }
             if (message.isNotBlank()) {
-                Text(
-                    message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Text(message, color = if (message.contains("Unable")) MaterialTheme.colorScheme.error else PvTeal, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(6.dp))
             }
-
             when {
-                loading -> {
-                    Box(
-                        Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = PvBlue)
-                    }
-                }
-
-                visibleRecords.isEmpty() -> {
-                    EmptyPasswordsV2(selectedScope)
-                }
-
-                else -> {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(9.dp),
-                        contentPadding = PaddingValues(bottom = 92.dp)
-                    ) {
-                        items(
-                            visibleRecords,
-                            key = { it.id }
-                        ) { record ->
-                            PasswordRowV2(record) {
-                                selectedRecord = record
-                            }
-                        }
-                    }
+                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = PvBlue) }
+                visibleRecords.isEmpty() -> EmptyPasswordsV2(selectedScope)
+                else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(11.dp), contentPadding = PaddingValues(top = 4.dp, bottom = 100.dp)) {
+                    items(visibleRecords, key = { it.id }) { record -> PasswordRowV2(record) { selectedRecord = record } }
                 }
             }
         }
@@ -424,63 +366,40 @@ private fun ScopeTabV2(
 }
 
 @Composable
-private fun PasswordRowV2(
-    record: PasswordRecordV2,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        color = Color.White,
-        shape = RoundedCornerShape(15.dp),
-        shadowElevation = 1.dp
-    ) {
-        Row(
-            Modifier.padding(
-                horizontal = 14.dp,
-                vertical = 13.dp
-            ),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(42.dp)
-                    .background(Color(0xFFEAF0FA), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.Key, null, tint = PvNavy)
-            }
-
-            Spacer(Modifier.width(12.dp))
-
-            Column(Modifier.weight(1f)) {
-                Text(
-                    record.websiteApp,
-                    color = PvText,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Text(
-                    record.username,
-                    color = PvMuted,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    record.category,
-                    color = PvMuted,
-                    style = MaterialTheme.typography.labelSmall
-                )
-
-                Text(
-                    if (record.isShared) "SHARED" else "PERSONAL",
-                    color = PvBlue,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
+private fun PasswordRowV2(record: PasswordRecordV2, onClick: () -> Unit) {
+    val accent = if (record.isShared) Color(0xFF8B63E8) else PvTeal
+    Surface(Modifier.fillMaxWidth().clickable(onClick = onClick), color = Color.White, shape = RoundedCornerShape(20.dp), shadowElevation = 2.dp) {
+        Row(Modifier.height(IntrinsicSize.Min)) {
+            Box(Modifier.width(5.dp).fillMaxHeight().background(accent))
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(shape = RoundedCornerShape(13.dp), color = if (record.isShared) Color(0xFFF0EAFE) else Color(0xFFE5F5F3), modifier = Modifier.size(46.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.Key, null, tint = if (record.isShared) Color(0xFF7046C4) else PvTeal, modifier = Modifier.size(24.dp))
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(record.websiteApp, color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                        Text(record.username.ifBlank { "Username not added" }, color = PvMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                    }
+                    Surface(shape = RoundedCornerShape(50), color = if (record.isShared) Color(0xFFEFE8FF) else Color(0xFFDDF3ED)) {
+                        Text(if (record.isShared) "SHARED" else "PERSONAL", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = if (record.isShared) Color(0xFF6841B8) else Color(0xFF08785C), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Lock, null, tint = PvMuted, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("••••••••••••", color = PvMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Surface(shape = RoundedCornerShape(50), color = Color(0xFFF0F2F8)) {
+                        Text(record.category, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = PvNavy, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Outlined.Visibility, null, tint = PvNavy, modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("Tap to view details, copy or manage", color = PvMuted, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
