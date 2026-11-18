@@ -42,6 +42,15 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import android.os.Build
+import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.view.WindowManager
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalView
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -72,6 +81,27 @@ fun PasswordManagerV2Screen(
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    val hostView = LocalView.current
+
+    // Protect the Password Manager and its dialogs from screenshots and recents previews.
+    DisposableEffect(hostView) {
+        val activity = hostView.context.findActivity()
+        val window = activity?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+    }
+
+    fun copyCredential(label: String, value: String) {
+        val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText(label, value)
+        manager.setPrimaryClip(clip)
+        Handler(Looper.getMainLooper()).postDelayed({
+            val current = manager.primaryClip
+            if (current != null && current.itemCount > 0 && current.getItemAt(0).coerceToText(context).toString() == value) {
+                manager.clearPrimaryClip()
+            }
+        }, 30_000L)
+    }
 
     var records by remember {
         mutableStateOf<List<PasswordRecordV2>>(emptyList())
@@ -322,14 +352,14 @@ fun PasswordManagerV2Screen(
             record = record,
             onDismiss = { selectedRecord = null },
             onCopyUsername = {
-                clipboard.setText(AnnotatedString(record.username))
+                copyCredential("Username", record.username)
                 message = "Username copied."
             },
             canManage = record.ownerUid == memberUid,
             onEdit = { recordToEdit = record; selectedRecord = null },
             onDelete = { recordToDelete = record; selectedRecord = null },
             onCopyPassword = {
-                clipboard.setText(AnnotatedString(record.password))
+                copyCredential("Password", record.password)
                 message = "Password copied."
             }
         )
@@ -430,6 +460,12 @@ private fun ScopeTabV2(
 @Composable
 private fun PasswordRowV2(record: PasswordRecordV2, memberUid: String, onClick: () -> Unit) {
     var showCardPassword by rememberSaveable(record.id) { mutableStateOf(false) }
+    LaunchedEffect(showCardPassword) {
+        if (showCardPassword) {
+            kotlinx.coroutines.delay(15_000L)
+            showCardPassword = false
+        }
+    }
     val isMine = record.ownerUid == memberUid
     val accent = if (record.isShared) Color(0xFF8B63E8) else PvTeal
     Surface(
@@ -939,6 +975,12 @@ private fun PasswordDetailsDialogV2(
     var showPassword by remember(record.id) {
         mutableStateOf(false)
     }
+    LaunchedEffect(showPassword) {
+        if (showPassword) {
+            kotlinx.coroutines.delay(15_000L)
+            showPassword = false
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1020,4 +1062,10 @@ private fun PasswordDetailsDialogV2(
             }
         }
     )
+}
+
+private tailrec fun android.content.Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
