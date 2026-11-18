@@ -109,9 +109,9 @@ service cloud.firestore {
 
         function validRecoveryPointer() {
           return request.resource.data.keys().hasAll([
-              'activeBackupId',
-              'updatedAt'
-            ])
+            'activeBackupId',
+            'updatedAt'
+          ])
             && request.resource.data.keys().hasOnly([
               'activeBackupId',
               'updatedAt'
@@ -132,10 +132,100 @@ service cloud.firestore {
 
         allow update: if isOwnApprovedRecoveryPath()
           && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['activeBackupId', 'updatedAt'])
+            .hasOnly(['activeBackupId', 'updatedAt'])
           && validRecoveryPointer();
 
         allow delete: if false;
+      }
+
+      // Password records - V2
+      match /passwords/{passwordId} {
+
+        function validPasswordScope() {
+          return request.resource.data.scope == 'PERSONAL'
+            || request.resource.data.scope == 'SHARED';
+        }
+
+        function validEncryptedPassword() {
+          return request.resource.data.keys().hasAll([
+            'schemaVersion',
+            'ownerUid',
+            'scope',
+            'encryptionKeySource',
+            'payloadVersion',
+            'algorithm',
+            'encryptedPayload',
+            'createdAt',
+            'editedAt'
+          ])
+            && request.resource.data.keys().hasOnly([
+              'schemaVersion',
+              'ownerUid',
+              'scope',
+              'encryptionKeySource',
+              'payloadVersion',
+              'algorithm',
+              'encryptedPayload',
+              'createdAt',
+              'editedAt'
+            ])
+            && request.resource.data.schemaVersion == 2
+            && request.resource.data.ownerUid is string
+            && request.resource.data.scope is string
+            && validPasswordScope()
+            && (
+              (
+                request.resource.data.scope == 'PERSONAL'
+                && request.resource.data.encryptionKeySource == 'MEMBER_MASTER'
+              )
+              ||
+              (
+                request.resource.data.scope == 'SHARED'
+                && request.resource.data.encryptionKeySource == 'HOUSEHOLD'
+              )
+            )
+            && request.resource.data.payloadVersion == 2
+            && request.resource.data.algorithm == 'AES-256-GCM'
+            && request.resource.data.encryptedPayload is string
+            && request.resource.data.encryptedPayload.size() >= 40
+            && request.resource.data.encryptedPayload.size() <= 100000
+            && request.resource.data.createdAt is timestamp
+            && request.resource.data.editedAt is timestamp;
+        }
+
+        // Household members can read shared records.
+        // Personal records are readable only by their owner.
+        allow get, list: if isVaultMember(vaultId)
+          && (
+            resource.data.scope == 'SHARED'
+            || (
+              resource.data.scope == 'PERSONAL'
+              && resource.data.ownerUid == request.auth.uid
+            )
+          );
+
+        // A user can create a password record only in their own name.
+        allow create: if isVaultMember(vaultId)
+          && validEncryptedPassword()
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.editedAt == request.time;
+
+        // Only the original creator can update a record, including
+        // changing its scope between PERSONAL and SHARED.
+        allow update: if isVaultMember(vaultId)
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(['scope', 'encryptedPayload', 'editedAt'])
+          && validEncryptedPassword()
+          && request.resource.data.editedAt == request.time;
+
+        // Only the original creator can delete a record.
+        allow delete: if isVaultMember(vaultId)
+          && resource.data.ownerUid == request.auth.uid;
       }
     }
 
@@ -162,7 +252,10 @@ service cloud.firestore {
         ).data.vaultId == vaultId
         && get(
           /databases/$(database)/documents/vaultsV2/$(vaultId)/members/$(memberUid)/devices/$(deviceId)
-        ).data.memberUid == memberUid;
+        ).data.memberUid == memberUid
+        && get(
+          /databases/$(database)/documents/vaultsV2/$(vaultId)/members/$(memberUid)/devices/$(deviceId)
+        ).data.deviceId == deviceId;
     }
 
     // Device public keys are readable by their member and the vault owner.
@@ -204,6 +297,5 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
       allow update, delete: if false;
     }
-
   }
 }
