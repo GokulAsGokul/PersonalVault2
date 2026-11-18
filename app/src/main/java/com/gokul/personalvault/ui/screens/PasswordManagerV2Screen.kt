@@ -584,6 +584,8 @@ private fun PasswordAddDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                PasswordStrengthIndicator(password)
+
                 ExposedDropdownMenuBox(
                     expanded = categoryExpanded,
                     onExpandedChange = {
@@ -679,6 +681,92 @@ private fun PasswordAddDialog(
     )
 }
 
+private enum class PasswordStrengthLevel(val label: String, val color: Color, val segments: Int) {
+    VERY_WEAK("Very weak", Color(0xFFD14343), 1),
+    WEAK("Weak", Color(0xFFE58A32), 2),
+    FAIR("Fair", Color(0xFFD2A52A), 2),
+    STRONG("Strong", Color(0xFF159B70), 3),
+    VERY_STRONG("Very strong", Color(0xFF087F59), 4)
+}
+
+private fun evaluatePasswordStrength(password: String): PasswordStrengthLevel {
+    if (password.isEmpty()) return PasswordStrengthLevel.VERY_WEAK
+    val lower = password.lowercase()
+    val hasLower = password.any { it.isLowerCase() }
+    val hasUpper = password.any { it.isUpperCase() }
+    val hasDigit = password.any { it.isDigit() }
+    val hasSymbol = password.any { !it.isLetterOrDigit() }
+    val variety = listOf(hasLower, hasUpper, hasDigit, hasSymbol).count { it }
+    val repeated = password.length >= 3 && password.all { it == password.first() }
+    val sequential = listOf("123456", "abcdef", "qwerty", "password", "letmein", "admin")
+        .any { lower.contains(it) }
+    val score = (if (password.length >= 8) 1 else 0) +
+        (if (password.length >= 12) 1 else 0) +
+        (if (password.length >= 16) 1 else 0) +
+        variety +
+        (if (repeated) -3 else 0) +
+        (if (sequential) -2 else 0)
+    return when {
+        repeated || password.length < 6 || score <= 2 -> PasswordStrengthLevel.VERY_WEAK
+        score <= 4 -> PasswordStrengthLevel.WEAK
+        score <= 5 -> PasswordStrengthLevel.FAIR
+        score <= 7 -> PasswordStrengthLevel.STRONG
+        else -> PasswordStrengthLevel.VERY_STRONG
+    }
+}
+
+@Composable
+private fun PasswordStrengthIndicator(password: String) {
+    val strength = remember(password) { evaluatePasswordStrength(password) }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Password strength", style = MaterialTheme.typography.labelMedium, color = PvMuted)
+            Spacer(Modifier.weight(1f))
+            Text(
+                strength.label,
+                style = MaterialTheme.typography.labelMedium,
+                color = strength.color,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            repeat(4) { index ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(6.dp)
+                        .background(
+                            color = if (index < strength.segments) strength.color else Color(0xFFE5E7EB),
+                            shape = RoundedCornerShape(50)
+                        )
+                )
+            }
+        }
+        if (password.isNotEmpty()) {
+            Text(
+                when (strength) {
+                    PasswordStrengthLevel.VERY_WEAK -> "Use a longer password with a mix of character types."
+                    PasswordStrengthLevel.WEAK -> "Add length and more character variety."
+                    PasswordStrengthLevel.FAIR -> "Consider a longer, less predictable password."
+                    PasswordStrengthLevel.STRONG -> "Good password. Avoid reusing it on other sites."
+                    PasswordStrengthLevel.VERY_STRONG -> "Excellent strength. Keep it unique to this account."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = PvMuted
+            )
+        }
+    }
+}
+
 @Composable
 private fun PasswordDetailsDialogV2(
     record: PasswordRecordV2,
@@ -736,6 +824,8 @@ private fun PasswordDetailsDialogV2(
                         Icon(Icons.Outlined.ContentCopy, null)
                     }
                 }
+
+                PasswordStrengthIndicator(record.password)
 
                 HorizontalDivider()
 
