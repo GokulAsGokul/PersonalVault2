@@ -3,6 +3,7 @@ package com.gokul.personalvault.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -367,9 +368,14 @@ private fun ScopeTabV2(
     modifier: Modifier,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        color = Color.Transparent,
+        modifier = modifier.clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick
+        ),
+        color = if (selected) Color.White else Color.Transparent,
         shape = RoundedCornerShape(11.dp),
         shadowElevation = 0.dp
     ) {
