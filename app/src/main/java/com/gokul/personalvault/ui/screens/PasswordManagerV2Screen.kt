@@ -32,6 +32,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -499,27 +508,44 @@ private fun PasswordAddDialog(
     var category by remember(initialRecord?.id) { mutableStateOf(initialRecord?.category ?: "Other") }
     var notes by remember(initialRecord?.id) { mutableStateOf(initialRecord?.notes.orEmpty()) }
     var recordScope by remember(initialRecord?.id) {
-        mutableStateOf(initialRecord?.scope ?: PasswordRecordV2.SCOPE_PERSONAL)
+        mutableStateOf(initialRecord?.scope ?: PasswordRecordV2.SCOPE_SHARED)
     }
     var showPassword by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    var validationAttempt by remember { mutableIntStateOf(0) }
+    var websiteError by remember { mutableStateOf("") }
+    var passwordError by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    val shake = remember { Animatable(0f) }
+    LaunchedEffect(validationAttempt) {
+        if (validationAttempt > 0) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getSystemService(VibratorManager::class.java)?.defaultVibrator else @Suppress("DEPRECATION") (context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) vibrator?.vibrate(VibrationEffect.createOneShot(45, VibrationEffect.DEFAULT_AMPLITUDE)) else @Suppress("DEPRECATION") vibrator?.vibrate(45)
+            shake.snapTo(0f)
+            listOf(-9f, 9f, -7f, 7f, -4f, 4f, 0f).forEach { shake.animateTo(it, tween(35)) }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = {
             if (!saving) onDismiss()
         },
-        title = { Text(if (initialRecord == null) "Add password" else "Edit password") },
+        modifier = Modifier.offset(x = shake.value.dp),
+        shape = RoundedCornerShape(28.dp),
+        containerColor = Color(0xFFFCFCFF),
+        title = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(if (initialRecord == null) "Add Password" else "Edit Password", color = PvText, fontWeight = FontWeight.Bold); Text("Securely store your login details", color = PvMuted, style = MaterialTheme.typography.bodySmall) } },
         text = {
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 520.dp)
+                    .heightIn(max = 560.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (initialRecord == null) {
-                    Text("SAVE IN")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = recordScope ==
@@ -540,29 +566,36 @@ private fun PasswordAddDialog(
                     )
                     }
                 } else {
-                    Text("SAVED IN ${initialRecord.scope}")
+                    ScopeTagV2(recordScope)
                 }
 
                 OutlinedTextField(
                     value = website,
-                    onValueChange = { website = it },
+                    onValueChange = { website = it.take(100); websiteError = "" },
                     label = { Text("Website / App *") },
+                    supportingText = { Text("${website.length}/100") },
+                    isError = websiteError.isNotBlank(),
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
                     value = username,
-                    onValueChange = { username = it },
+                    onValueChange = { username = it.take(254) },
                     label = { Text("Username / Email") },
+                    supportingText = { Text("${username.length}/254") },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it },
+                    onValueChange = { password = it.take(256); passwordError = "" },
                     label = { Text("Password *") },
+                    supportingText = { Text("${password.length}/256") },
+                    isError = passwordError.isNotBlank(),
                     singleLine = true,
                     visualTransformation = if (showPassword)
                         VisualTransformation.None
@@ -584,7 +617,7 @@ private fun PasswordAddDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                PasswordStrengthIndicator(password)
+                if (password.isNotBlank()) PasswordStrengthIndicator(password)
 
                 ExposedDropdownMenuBox(
                     expanded = categoryExpanded,
@@ -627,8 +660,9 @@ private fun PasswordAddDialog(
 
                 OutlinedTextField(
                     value = notes,
-                    onValueChange = { notes = it },
+                    onValueChange = { notes = it.take(500) },
                     label = { Text("Notes") },
+                    supportingText = { Text("${notes.length}/500") },
                     minLines = 2,
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
@@ -646,8 +680,11 @@ private fun PasswordAddDialog(
             Button(
                 enabled = !saving,
                 onClick = {
-                    if (website.isBlank() || password.isBlank()) {
-                        error = "Website / App and Password are required."
+                    websiteError = if (website.isBlank()) "Enter a website or app name." else ""
+                    passwordError = if (password.isBlank()) "Enter the password." else ""
+                    if (websiteError.isNotBlank() || passwordError.isNotBlank()) {
+                        error = "Please complete the required fields."
+                        validationAttempt++
                     } else {
                         onSave(
                             website,
@@ -666,7 +703,7 @@ private fun PasswordAddDialog(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text(if (initialRecord == null) "Save password" else "Save changes")
+                    Text("Save")
                 }
             }
         },
@@ -768,6 +805,14 @@ private fun PasswordStrengthIndicator(password: String) {
 }
 
 @Composable
+private fun ScopeTagV2(scope: String) {
+    val shared = scope == PasswordRecordV2.SCOPE_SHARED
+    Surface(color = if (shared) Color(0xFFF0EAFE) else Color(0xFFE5F5F1), shape = RoundedCornerShape(50)) {
+        Text(if (shared) "SHARED" else "PERSONAL", Modifier.padding(horizontal = 11.dp, vertical = 6.dp), color = if (shared) Color(0xFF6841B8) else Color(0xFF08785C), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
 private fun PasswordDetailsDialogV2(
     record: PasswordRecordV2,
     canManage: Boolean,
@@ -783,12 +828,16 @@ private fun PasswordDetailsDialogV2(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(record.websiteApp) },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        containerColor = Color(0xFFFCFCFF),
+        title = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("View Password", color = PvMuted, style = MaterialTheme.typography.labelMedium); Text(record.websiteApp, color = PvText, fontWeight = FontWeight.Bold); ScopeTagV2(record.scope) } },
         text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text("Username / Email")
+            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("Website / App", color = PvMuted, style = MaterialTheme.typography.labelMedium)
+                Text(record.websiteApp, color = PvText, fontWeight = FontWeight.SemiBold)
+                HorizontalDivider()
+                Text("Username / Email", color = PvMuted, style = MaterialTheme.typography.labelMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         record.username.ifBlank { "—" },
@@ -825,16 +874,15 @@ private fun PasswordDetailsDialogV2(
                     }
                 }
 
-                PasswordStrengthIndicator(record.password)
+                if (record.password.isNotBlank()) PasswordStrengthIndicator(record.password)
 
                 HorizontalDivider()
 
-                Text("Category: ${record.category}")
-                Text("Notes: ${record.notes.ifBlank { "—" }}")
-                Text(
-                    "Vault: " +
-                            if (record.isShared) "Shared" else "Personal"
-                )
+                Text("Category", color = PvMuted, style = MaterialTheme.typography.labelMedium)
+                Text(record.category, color = PvText, fontWeight = FontWeight.SemiBold)
+                Text("Notes", color = PvMuted, style = MaterialTheme.typography.labelMedium)
+                Text(record.notes.ifBlank { "—" }, color = PvText)
+                ScopeTagV2(record.scope)
             }
         },
         confirmButton = {
