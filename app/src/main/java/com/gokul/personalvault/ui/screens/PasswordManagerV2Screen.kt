@@ -98,7 +98,7 @@ fun PasswordManagerV2Screen(
         Handler(Looper.getMainLooper()).postDelayed({
             val current = manager.primaryClip
             if (current != null && current.itemCount > 0 && current.getItemAt(0).coerceToText(context).toString() == value) {
-                manager.clearPrimaryClip()
+                manager.setPrimaryClip(ClipData.newPlainText("", ""))
             }
         }, 30_000L)
     }
@@ -398,7 +398,7 @@ fun PasswordManagerV2Screen(
         AlertDialog(
             onDismissRequest = { if (!saving) recordToDelete = null },
             title = { Text("Delete password?") },
-            text = { Text("Delete " + record.websiteApp + "? This action cannot be undone.") },
+            text = { Text("Delete " + record.websiteApp + " from your vault? This removes the record from Firestore and cancels its reminders. Provider backups or retention systems may retain copies temporarily; this is not guaranteed physical erasure.") },
             confirmButton = {
                 TextButton(enabled = !saving, onClick = {
                     scope.launch {
