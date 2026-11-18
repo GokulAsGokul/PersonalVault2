@@ -5,6 +5,8 @@ import {initializeApp} from "firebase-admin/app";
 import {FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
 import {setGlobalOptions} from "firebase-functions";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
+import {onSchedule} from "firebase-functions/v2/scheduler";
+import {getStorage} from "firebase-admin/storage";
 import {createHash, randomInt} from "node:crypto";
 
 initializeApp();
@@ -720,3 +722,84 @@ export const approveV2SharedDevice = onCall(async (request) => {
 });
 
 
+
+
+const DOCUMENT_RETENTION_DAYS = 30;
+const DOCUMENT_BATCH_LIMIT = 100;
+
+/**
+ * Permanently removes document objects and metadata after the fixed
+ * 30-day Recycle Bin retention period. The Admin SDK bypasses client rules.
+ */
+export const purgeExpiredV2Documents = onSchedule(
+  {
+    schedule: "every 24 hours",
+    timeZone: "UTC",
+    region: "asia-south1",
+    maxInstances: 1,
+  },
+  async () => {
+    const now = Timestamp.now();
+    const expired = await db.collectionGroup("documents")
+      .where("isDeleted", "==", true)
+      .where("purgeAt", "<=", now)
+      .limit(DOCUMENT_BATCH_LIMIT)
+      .get();
+
+    for (const doc of expired.docs) {
+      const data = doc.data();
+      const storagePath = typeof data.storagePath === "string" ?
+        data.storagePath : "";
+
+      try {
+        if (storagePath) {
+          await getStorage().bucket().file(storagePath).delete({ignoreNotFound: true});
+        }
+        await doc.ref.delete();
+      } catch (error) {
+        // Keep metadata if Storage deletion fails so a later scheduled
+        // execution can retry rather than orphaning an object.
+        console.error("Failed to purge expired document", doc.ref.path, error);
+      }
+    }
+  }
+);
+
+/**
+ * A household member can remove a custom category only when no document,
+ * including a Recycle Bin item, still references it.
+ */
+export const deleteV2DocumentCategory = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const categoryId = requireString(data.categoryId, "Category ID", 128);
+
+  const vault = await db.collection(OWNER_VAULTS).doc(vaultId).get();
+  const members = assertValidOwnerVault(vault, vaultId);
+  if (!members.includes(uid)) {
+    throw new HttpsError("permission-denied", "You are not a household member.");
+  }
+
+  const categoryRef = db.collection(OWNER_VAULTS).doc(vaultId)
+    .collection("documentCategories").doc(categoryId);
+  const category = await categoryRef.get();
+  if (!category.exists) {
+    throw new HttpsError("not-found", "Custom category not found.");
+  }
+
+  const assigned = await db.collection(OWNER_VAULTS).doc(vaultId)
+    .collection("documents")
+    .where("categoryId", "==", categoryId)
+    .limit(1)
+    .get();
+  if (!assigned.empty) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Reassign or permanently remove documents in this category first."
+    );
+  }
+
+  await categoryRef.delete();
+  return {status: "deleted", categoryId};
+});
