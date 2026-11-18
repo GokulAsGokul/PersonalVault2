@@ -327,13 +327,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     if (clean.isNotEmpty() && !duplicate) {
                         scope.launch {
                             try {
-                                val id = java.util.UUID.randomUUID().toString()
-                                repository.customCategoryCollection(vaultId).document(id).set(
-                                    mapOf("name" to clean, "nameLower" to clean.lowercase(Locale.ROOT),
-                                        "createdByUid" to memberUid,
-                                        "createdAt" to FieldValue.serverTimestamp(),
-                                        "updatedAt" to FieldValue.serverTimestamp())
-                                ).await()
+                                repository.createCategory(vaultId, clean)
                                 newCategory = ""; categoryDialog = false
                             } catch (error: Exception) {
                                 message = error.message ?: "Unable to create category."
