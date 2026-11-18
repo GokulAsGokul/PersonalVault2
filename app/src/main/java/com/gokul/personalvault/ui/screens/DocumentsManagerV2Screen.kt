@@ -63,6 +63,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var message by remember { mutableStateOf("") }
     var categoryDialog by remember { mutableStateOf(false) }
     var newCategory by remember { mutableStateOf("") }
+    var manageCategories by remember { mutableStateOf(false) }
+    var categoryToEdit by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var categoryEditName by remember { mutableStateOf("") }
     var customCategories by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var selectedDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var editingDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
@@ -337,6 +340,60 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 }) { Text("Create") }
             },
             dismissButton = { TextButton(onClick = { categoryDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (manageCategories) {
+        AlertDialog(
+            onDismissRequest = { manageCategories = false; categoryToEdit = null },
+            title = { Text("Manage custom categories") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (customCategories.isEmpty()) Text("No custom categories yet.")
+                    customCategories.forEach { (id, name) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(name, Modifier.weight(1f))
+                            TextButton(onClick = { categoryToEdit = id to name; categoryEditName = name }) { Text("Rename") }
+                            TextButton(onClick = {
+                                scope.launch {
+                                    try {
+                                        repository.deleteCategory(vaultId, id)
+                                        if (category == id) category = "all"
+                                        message = "Category deleted."
+                                    } catch (error: Exception) {
+                                        message = error.message ?: "Reassign documents before deleting this category."
+                                    }
+                                }
+                            }) { Text("Delete") }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { manageCategories = false }) { Text("Done") } }
+        )
+    }
+
+    categoryToEdit?.let { (id, oldName) ->
+        AlertDialog(
+            onDismissRequest = { categoryToEdit = null },
+            title = { Text("Rename category") },
+            text = { OutlinedTextField(categoryEditName, { categoryEditName = it.take(30) },
+                label = { Text("Category name") }, singleLine = true) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val clean = categoryEditName.trim()
+                    val duplicate = customCategories.any { it.first != id && it.second.equals(clean, true) } ||
+                        BuiltInDocumentCategoriesV2.all.any { it.name.equals(clean, true) }
+                    if (clean.isNotEmpty() && !duplicate) scope.launch {
+                        try {
+                            repository.renameCategory(vaultId, id, clean)
+                            categoryToEdit = null
+                            message = "Category renamed."
+                        } catch (error: Exception) { message = error.message ?: "Rename failed." }
+                    } else message = "Enter a unique category name."
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { categoryToEdit = null }) { Text("Cancel") } }
         )
     }
 
