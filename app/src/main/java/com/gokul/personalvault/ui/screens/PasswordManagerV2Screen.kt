@@ -196,7 +196,7 @@ fun PasswordManagerV2Screen(
                 )
             }
             Spacer(Modifier.height(14.dp))
-            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().background(Color(0xFFE9EAF5), RoundedCornerShape(15.dp)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 ScopeTabV2("Personal", selectedScope == PasswordRecordV2.SCOPE_PERSONAL, Modifier.weight(1f)) {
                     selectedScope = PasswordRecordV2.SCOPE_PERSONAL; selectedCategory = "All"
                 }
@@ -369,9 +369,9 @@ private fun ScopeTabV2(
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        color = if (selected) Color.White else Color.Transparent,
+        color = Color.Transparent,
         shape = RoundedCornerShape(11.dp),
-        shadowElevation = if (selected) 1.dp else 0.dp
+        shadowElevation = 0.dp
     ) {
         Box(
             Modifier.padding(vertical = 11.dp),
