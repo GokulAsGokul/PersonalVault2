@@ -169,7 +169,8 @@ object PasswordRepositoryFirestoreV2 {
         username: String,
         password: String,
         category: String,
-        notes: String
+        notes: String,
+        expiryAt: Long? = null
     ): PasswordRecordV2 {
 
         validateSignedInMember(memberUid)
@@ -201,7 +202,8 @@ object PasswordRepositoryFirestoreV2 {
             category = category,
             notes = notes.trim(),
             createdAt = now,
-            editedAt = now
+            editedAt = now,
+            expiryAt = expiryAt
         )
 
         val keySource =
@@ -252,7 +254,8 @@ object PasswordRepositoryFirestoreV2 {
     suspend fun update(
         vaultId: String, memberUid: String, original: PasswordRecordV2,
         websiteApp: String, username: String, password: String,
-        category: String, notes: String
+        category: String, notes: String,
+        expiryAt: Long? = original.expiryAt
     ): PasswordRecordV2 {
         validateSignedInMember(memberUid)
         require(original.ownerUid == memberUid) {
@@ -264,7 +267,7 @@ object PasswordRepositoryFirestoreV2 {
         val updated = original.copy(
             websiteApp = websiteApp.trim(), username = username.trim(),
             password = password, category = category, notes = notes.trim(),
-            editedAt = System.currentTimeMillis()
+            editedAt = System.currentTimeMillis(), expiryAt = expiryAt
         )
         val key = if (original.scope == PasswordRecordV2.SCOPE_PERSONAL) {
             requireVaultKey(vaultId, memberUid)
