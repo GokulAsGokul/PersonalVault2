@@ -193,11 +193,11 @@ service cloud.firestore {
             || request.resource.data.scope == 'SHARED')
           && request.resource.data.title is string
           && request.resource.data.title.size() > 0
-          && request.resource.data.title.size() <= 160
+          && request.resource.data.title.size() <= 30
           && request.resource.data.titleLower == request.resource.data.title.lower()
           && request.resource.data.categoryId is string
           && request.resource.data.description is string
-          && request.resource.data.description.size() <= 50
+          && request.resource.data.description.size() <= 35
           && request.resource.data.originalFileName is string
           && request.resource.data.originalFileName.size() > 0
           && request.resource.data.contentType is string
