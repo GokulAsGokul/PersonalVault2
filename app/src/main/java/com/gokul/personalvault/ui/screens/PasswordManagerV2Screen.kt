@@ -577,7 +577,7 @@ private fun PasswordAddDialog(
         ) { DatePicker(state = datePickerState) }
     }
 
-    if (!showExpiryPicker) AlertDialog(
+    AlertDialog(
         onDismissRequest = {
             if (!saving) onDismiss()
         },
