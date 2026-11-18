@@ -1,0 +1,85 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isVaultMember(vaultId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/vaultsV2/$(vaultId))
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/vaultsV2/$(vaultId)
+        ).data.memberUids;
+    }
+
+    function validDocumentMetadata(vaultId, ownerUid, documentId) {
+      return request.resource.metadata.vaultId == vaultId
+        && request.resource.metadata.ownerUid == ownerUid
+        && request.resource.metadata.documentId == documentId
+        && (
+          request.resource.metadata.scope == 'PERSONAL'
+          || request.resource.metadata.scope == 'SHARED'
+        );
+    }
+
+    // Object path:
+    // vaultsV2/{vaultId}/documents/{ownerUid}/{documentId}
+    match /vaultsV2/{vaultId}/documents/{ownerUid}/{documentId} {
+
+      // Personal files are owner-only. Shared files are readable by
+      // approved household members. Membership is checked against the
+      // authoritative V2 vault document in Firestore.
+      allow read: if isVaultMember(vaultId)
+        && resource.metadata.vaultId == vaultId
+        && resource.metadata.ownerUid == ownerUid
+        && resource.metadata.documentId == documentId
+        && (
+          (
+            resource.metadata.scope == 'PERSONAL'
+            && request.auth.uid == ownerUid
+          )
+          || resource.metadata.scope == 'SHARED'
+        );
+
+      // Upload and replacement are restricted to the original owner.
+      // The 50 MB limit is enforced by Storage Rules as well as the app.
+      // Content type is intentionally not allow-listed so the app can
+      // support the agreed "Other" file type.
+      allow create, update: if isVaultMember(vaultId)
+        && request.auth.uid == ownerUid
+        && request.resource.size > 0
+        && request.resource.size <= 50 * 1024 * 1024
+        && validDocumentMetadata(vaultId, ownerUid, documentId)
+        && request.resource.contentType is string
+        && request.resource.contentType.size() > 0
+        && (
+          request.resource.metadata.scope == 'PERSONAL'
+          || request.resource.metadata.scope == 'SHARED'
+        )
+        && (
+          request.resource.metadata.scope != 'PERSONAL'
+          || request.auth.uid == ownerUid
+        )
+        && (
+          resource == null
+          || (
+            resource.metadata.ownerUid == ownerUid
+            && resource.metadata.vaultId == vaultId
+            && resource.metadata.documentId == documentId
+          )
+        );
+
+      // Permanent deletion is performed by a trusted backend process.
+      // Client deletion only moves Firestore metadata to the Recycle Bin.
+      allow delete: if false;
+    }
+
+    // Deny access to every object path not explicitly covered above.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
