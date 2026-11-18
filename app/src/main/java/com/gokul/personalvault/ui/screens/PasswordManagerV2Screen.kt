@@ -33,11 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import android.Manifest
-import android.content.pm.PackageManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -546,7 +541,6 @@ private fun PasswordAddDialog(
     var websiteError by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf("") }
     val context = LocalContext.current
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val haptics = LocalHapticFeedback.current
     val shake = remember { Animatable(0f) }
     LaunchedEffect(validationAttempt) {
