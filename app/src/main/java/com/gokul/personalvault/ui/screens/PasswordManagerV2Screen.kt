@@ -522,8 +522,18 @@ private fun PasswordAddDialog(
     LaunchedEffect(validationAttempt) {
         if (validationAttempt > 0) {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getSystemService(VibratorManager::class.java)?.defaultVibrator else @Suppress("DEPRECATION") (context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) vibrator?.vibrate(VibrationEffect.createOneShot(45, VibrationEffect.DEFAULT_AMPLITUDE)) else @Suppress("DEPRECATION") vibrator?.vibrate(45)
+            @Suppress("DEPRECATION")
+            val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+            } else {
+                context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createOneShot(45, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(45)
+            }
             shake.snapTo(0f)
             listOf(-9f, 9f, -7f, 7f, -4f, 4f, 0f).forEach { shake.animateTo(it, tween(35)) }
         }
@@ -533,7 +543,6 @@ private fun PasswordAddDialog(
         onDismissRequest = {
             if (!saving) onDismiss()
         },
-        modifier = Modifier.offset(x = shake.value.dp),
         shape = RoundedCornerShape(28.dp),
         containerColor = Color(0xFFFCFCFF),
         title = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(if (initialRecord == null) "Add Password" else "Edit Password", color = PvText, fontWeight = FontWeight.Bold); Text("Securely store your login details", color = PvMuted, style = MaterialTheme.typography.bodySmall) } },
@@ -541,6 +550,7 @@ private fun PasswordAddDialog(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .offset(x = shake.value.dp)
                     .heightIn(max = 560.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
