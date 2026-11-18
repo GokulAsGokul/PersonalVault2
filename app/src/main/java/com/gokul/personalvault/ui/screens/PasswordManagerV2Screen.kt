@@ -18,6 +18,8 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -67,9 +69,11 @@ fun PasswordManagerV2Screen(
         mutableStateOf("All")
     }
 
-    var search by rememberSaveable {
-        mutableStateOf("")
-    }
+    var search by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var showHeaderMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var sortOrder by rememberSaveable { mutableStateOf("A–Z") }
 
     var selectedRecord by remember {
         mutableStateOf<PasswordRecordV2?>(null)
@@ -128,7 +132,14 @@ fun PasswordManagerV2Screen(
                     it.username.contains(search, ignoreCase = true) ||
                     it.category.contains(search, ignoreCase = true)
         }
-        .sortedBy { it.websiteApp.lowercase() }
+         .let { filtered ->
+            when (sortOrder) {
+                "Z–A" -> filtered.sortedByDescending { it.websiteApp.lowercase() }
+                "Newest first" -> filtered.sortedByDescending { it.createdAt }
+                "Oldest first" -> filtered.sortedBy { it.createdAt }
+                else -> filtered.sortedBy { it.websiteApp.lowercase() }
+            }
+        }
 
     Scaffold(
         containerColor = PvBackground,
@@ -159,17 +170,29 @@ fun PasswordManagerV2Screen(
                         Text("${records.size} credentials • Encrypted", color = PvMuted, style = MaterialTheme.typography.labelSmall)
                     }
                 }
-                Text("⋮", color = PvMuted, style = MaterialTheme.typography.titleLarge)
+                IconButton(onClick = { searchExpanded = !searchExpanded; if (!searchExpanded) search = "" }) {
+                    Icon(if (searchExpanded) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (searchExpanded) "Close search" else "Search passwords", tint = PvNavy)
+                }
+                Box {
+                    IconButton(onClick = { showHeaderMenu = true }) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = "More options", tint = PvMuted)
+                    }
+                    DropdownMenu(expanded = showHeaderMenu, onDismissRequest = { showHeaderMenu = false }) {
+                        DropdownMenuItem(text = { Text("Sort passwords") }, onClick = { showHeaderMenu = false; showSortMenu = true })
+                    }
+                }
             }
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
-                singleLine = true, placeholder = { Text("Search passwords or usernames…") },
-                leadingIcon = { Icon(Icons.Outlined.Search, null, tint = PvMuted) },
-                trailingIcon = { if (search.isNotEmpty()) TextButton(onClick = { search = "" }) { Text("Clear") } },
-                shape = RoundedCornerShape(15.dp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color.White, focusedContainerColor = Color.White)
-            )
+            if (searchExpanded) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, placeholder = { Text("Search…") },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null, tint = PvMuted) },
+                    trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Close, "Clear search") } },
+                    shape = RoundedCornerShape(15.dp),
+                    colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color.White, focusedContainerColor = Color.White)
+                )
+            }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth().background(Color(0xFFE9EAF5), RoundedCornerShape(15.dp)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 ScopeTabV2("Personal", selectedScope == PasswordRecordV2.SCOPE_PERSONAL, Modifier.weight(1f)) {
@@ -191,7 +214,16 @@ fun PasswordManagerV2Screen(
             Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${visibleRecords.size} passwords", color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.weight(1f))
-                Text("A–Z", color = PvNavy, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Box {
+                    TextButton(onClick = { showSortMenu = true }) {
+                        Text(sortOrder, color = PvNavy, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    }
+                    DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                        listOf("A–Z", "Z–A", "Newest first", "Oldest first").forEach { option ->
+                            DropdownMenuItem(text = { Text(option) }, onClick = { sortOrder = option; showSortMenu = false })
+                        }
+                    }
+                }
             }
             if (message.isNotBlank()) {
                 Text(message, color = if (message.contains("Unable")) MaterialTheme.colorScheme.error else PvTeal, style = MaterialTheme.typography.bodySmall)
@@ -353,6 +385,7 @@ private fun ScopeTabV2(
 
 @Composable
 private fun PasswordRowV2(record: PasswordRecordV2, memberUid: String, onClick: () -> Unit) {
+    var showCardPassword by rememberSaveable(record.id) { mutableStateOf(false) }
     val accent = if (record.isShared) Color(0xFF8B63E8) else PvTeal
     Surface(Modifier.fillMaxWidth().clickable(onClick = onClick), color = Color.White, shape = RoundedCornerShape(20.dp), shadowElevation = 2.dp) {
         Row(Modifier.height(IntrinsicSize.Min)) {
@@ -377,15 +410,16 @@ private fun PasswordRowV2(record: PasswordRecordV2, memberUid: String, onClick: 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Lock, null, tint = PvMuted, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("••••••••••••", color = PvMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text(if (showCardPassword) record.password else "••••••••••••", color = PvMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1)
                     Surface(shape = RoundedCornerShape(50), color = Color(0xFFF0F2F8)) {
                         Text(record.category, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = PvNavy, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Outlined.Visibility, null, tint = PvNavy, modifier = Modifier.size(20.dp))
+                    IconButton(onClick = { showCardPassword = !showCardPassword }, modifier = Modifier.size(32.dp)) {
+                        Icon(if (showCardPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, contentDescription = if (showCardPassword) "Hide password" else "Show password", tint = PvNavy, modifier = Modifier.size(20.dp))
+                    }
                 }
-                Spacer(Modifier.height(8.dp))
-                Text("Tap to view details, copy or manage", color = PvMuted, style = MaterialTheme.typography.labelSmall)
+ 
             }
         }
     }
