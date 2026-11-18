@@ -148,7 +148,7 @@ object HouseholdCrypto {
 
     /** Member operation: unwrap their own Firestore envelope using this device's private key. */
     @Synchronized
-    /** Unwraps an envelope using the private key belonging to this exact installation. */
+            /** Unwraps an envelope using the private key belonging to this exact installation. */
     fun unwrapHouseholdKey(
         firebaseUid: String,
         deviceId: String,
@@ -212,6 +212,15 @@ object HouseholdCrypto {
 
     fun isUnlocked(householdId: String): Boolean =
         sessionHouseholdId == householdId && sessionHouseholdKey?.size == 32
+
+    /**
+     * Returns a defensive copy of the unlocked household AES-256 key.
+     * The caller is responsible for clearing the returned bytes.
+     */
+    @Synchronized
+    fun copyHouseholdKey(householdId: String): ByteArray {
+        return requireSessionKey(householdId)
+    }
 
     private fun requireSessionKey(householdId: String): ByteArray {
         require(sessionHouseholdId == householdId) {

@@ -1,6 +1,7 @@
 
 package com.gokul.personalvault.data.firebase
 
+import com.gokul.personalvault.HouseholdCrypto
 import com.gokul.personalvault.data.local.VaultKeySessionV2
 import com.gokul.personalvault.data.model.EncryptedPasswordDocumentV2
 import com.gokul.personalvault.data.model.PasswordRecordV2
@@ -20,8 +21,8 @@ object PasswordRepositoryFirestoreV2 {
         get() = FirebaseFirestore.getInstance()
 
     /**
-     * Loads only the personal records owned by this member
-     * and the shared records visible to approved vault members.
+     * Loads personal records owned by this member and shared records
+     * encrypted with the household key.
      */
     suspend fun load(
         vaultId: String,
@@ -30,30 +31,39 @@ object PasswordRepositoryFirestoreV2 {
 
         validateSignedInMember(memberUid)
 
-        val key = requireVaultKey(vaultId, memberUid)
+        val collection = passwordCollection(vaultId)
+
+        val sharedSnapshot = collection
+            .whereEqualTo("scope", PasswordRecordV2.SCOPE_SHARED)
+            .get()
+            .await()
+
+        val personalSnapshot = collection
+            .whereEqualTo("scope", PasswordRecordV2.SCOPE_PERSONAL)
+            .whereEqualTo("ownerUid", memberUid)
+            .get()
+            .await()
+
+        val documents = sharedSnapshot.documents + personalSnapshot.documents
+
+        if (documents.isEmpty()) {
+            return emptyList()
+        }
+
+        val needsPersonalKey = personalSnapshot.documents.isNotEmpty()
+        val needsHouseholdKey = sharedSnapshot.documents.isNotEmpty()
+
+        var personalKey: ByteArray? = null
+        var householdKey: ByteArray? = null
 
         try {
-            val collection = passwordCollection(vaultId)
+            if (needsPersonalKey) {
+                personalKey = requireVaultKey(vaultId, memberUid)
+            }
 
-            val sharedSnapshot = collection
-                .whereEqualTo(
-                    "scope",
-                    PasswordRecordV2.SCOPE_SHARED
-                )
-                .get()
-                .await()
-
-            val personalSnapshot = collection
-                .whereEqualTo(
-                    "scope",
-                    PasswordRecordV2.SCOPE_PERSONAL
-                )
-                .whereEqualTo("ownerUid", memberUid)
-                .get()
-                .await()
-
-            val documents =
-                sharedSnapshot.documents + personalSnapshot.documents
+            if (needsHouseholdKey) {
+                householdKey = requireHouseholdKey(vaultId)
+            }
 
             val records = documents.map { snapshot ->
 
@@ -62,6 +72,51 @@ object PasswordRepositoryFirestoreV2 {
                         ?: throw IllegalStateException(
                             "Password record ${snapshot.id} has an invalid encrypted document."
                         )
+
+                val key = when (
+                    encryptedDocument.encryptionKeySource
+                ) {
+                    EncryptedPasswordDocumentV2.KEY_SOURCE_MEMBER_MASTER -> {
+                        require(
+                            encryptedDocument.scope ==
+                                    PasswordRecordV2.SCOPE_PERSONAL
+                        ) {
+                            "Invalid encryption key source for a personal password."
+                        }
+
+                        personalKey
+                            ?: throw IllegalStateException(
+                                "Personal vault key is unavailable."
+                            )
+                    }
+
+                    EncryptedPasswordDocumentV2.KEY_SOURCE_HOUSEHOLD -> {
+                        require(
+                            encryptedDocument.scope ==
+                                    PasswordRecordV2.SCOPE_SHARED
+                        ) {
+                            "Invalid encryption key source for a shared password."
+                        }
+
+                        householdKey
+                            ?: throw IllegalStateException(
+                                "Household encryption key is unavailable."
+                            )
+                    }
+
+                    EncryptedPasswordDocumentV2.KEY_SOURCE_LEGACY_MEMBER_MASTER -> {
+                        throw IllegalStateException(
+                            "This shared password is from the old test-data format. " +
+                                    "Remove the old shared test records before continuing."
+                        )
+                    }
+
+                    else -> {
+                        throw IllegalStateException(
+                            "Unsupported password encryption key source."
+                        )
+                    }
+                }
 
                 val record = PasswordRecordCryptoV2.decrypt(
                     encryptedPayload = encryptedDocument.encryptedPayload,
@@ -96,15 +151,15 @@ object PasswordRepositoryFirestoreV2 {
             return records.sortedBy { it.websiteApp.lowercase() }
 
         } finally {
-            key.fill(0)
+            personalKey?.fill(0)
+            householdKey?.fill(0)
         }
     }
 
     /**
-     * Creates a new encrypted password document.
-     *
-     * Only the authenticated member can create a record
-     * owned by their own UID.
+     * Creates a password using the correct encryption key:
+     * MEMBER_MASTER for personal records.
+     * HOUSEHOLD for shared records.
      */
     suspend fun create(
         vaultId: String,
@@ -149,7 +204,18 @@ object PasswordRepositoryFirestoreV2 {
             editedAt = now
         )
 
-        val key = requireVaultKey(vaultId, memberUid)
+        val keySource =
+            if (scope == PasswordRecordV2.SCOPE_PERSONAL) {
+                EncryptedPasswordDocumentV2.KEY_SOURCE_MEMBER_MASTER
+            } else {
+                EncryptedPasswordDocumentV2.KEY_SOURCE_HOUSEHOLD
+            }
+
+        val key = if (scope == PasswordRecordV2.SCOPE_PERSONAL) {
+            requireVaultKey(vaultId, memberUid)
+        } else {
+            requireHouseholdKey(vaultId)
+        }
 
         try {
             val encryptedPayload = PasswordRecordCryptoV2.encrypt(
@@ -162,6 +228,7 @@ object PasswordRepositoryFirestoreV2 {
                 "schemaVersion" to EncryptedPasswordDocumentV2.SCHEMA_VERSION,
                 "ownerUid" to record.ownerUid,
                 "scope" to record.scope,
+                "encryptionKeySource" to keySource,
                 "payloadVersion" to EncryptedPasswordDocumentV2.PAYLOAD_VERSION,
                 "algorithm" to EncryptedPasswordDocumentV2.ALGORITHM,
                 "encryptedPayload" to encryptedPayload,
@@ -192,8 +259,20 @@ object PasswordRepositoryFirestoreV2 {
     ): ByteArray {
         return VaultKeySessionV2.copyKey(vaultId, memberUid)
             ?: throw IllegalStateException(
-                "Unlock your V2 vault before accessing passwords."
+                "Unlock your V2 vault before accessing personal passwords."
             )
+    }
+
+    private fun requireHouseholdKey(vaultId: String): ByteArray {
+        return try {
+            HouseholdCrypto.copyHouseholdKey(vaultId)
+        } catch (e: Exception) {
+            throw IllegalStateException(
+                "Shared access is locked. Open Household and select " +
+                        "Check shared access before opening shared passwords.",
+                e
+            )
+        }
     }
 
     private fun validateSignedInMember(memberUid: String) {

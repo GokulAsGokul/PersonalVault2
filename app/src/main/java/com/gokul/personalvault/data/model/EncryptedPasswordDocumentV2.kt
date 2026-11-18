@@ -4,6 +4,7 @@ package com.gokul.personalvault.data.model
 import com.google.firebase.firestore.DocumentSnapshot
 
 data class EncryptedPasswordDocumentV2(
+    val encryptionKeySource: String = "MEMBER_MASTER",
     val ownerUid: String,
     val scope: String,
     val payloadVersion: Long,
@@ -11,11 +12,15 @@ data class EncryptedPasswordDocumentV2(
     val encryptedPayload: String,
     val createdAt: Long,
     val editedAt: Long
+
 ) {
     companion object {
         const val SCHEMA_VERSION = 2L
         const val PAYLOAD_VERSION = 2L
         const val ALGORITHM = "AES-256-GCM"
+        const val KEY_SOURCE_MEMBER_MASTER = "MEMBER_MASTER"
+        const val KEY_SOURCE_HOUSEHOLD = "HOUSEHOLD"
+        const val KEY_SOURCE_LEGACY_MEMBER_MASTER = "LEGACY_MEMBER_MASTER"
 
         fun fromSnapshot(
             snapshot: DocumentSnapshot
@@ -31,6 +36,14 @@ data class EncryptedPasswordDocumentV2(
 
                 val scope =
                     snapshot.getString("scope") ?: return null
+
+                val encryptionKeySource =
+                    snapshot.getString("encryptionKeySource")
+                        ?: if (scope == PasswordRecordV2.SCOPE_PERSONAL) {
+                            KEY_SOURCE_MEMBER_MASTER
+                        } else {
+                            KEY_SOURCE_LEGACY_MEMBER_MASTER
+                        }
 
                 val payloadVersion =
                     snapshot.getLong("payloadVersion") ?: return null
@@ -62,7 +75,14 @@ data class EncryptedPasswordDocumentV2(
                     encryptedPayload.length > 100_000
                 ) return null
 
+                if (
+                    encryptionKeySource != KEY_SOURCE_MEMBER_MASTER &&
+                    encryptionKeySource != KEY_SOURCE_HOUSEHOLD &&
+                    encryptionKeySource != KEY_SOURCE_LEGACY_MEMBER_MASTER
+                ) return null
+
                 EncryptedPasswordDocumentV2(
+                    encryptionKeySource = encryptionKeySource,
                     ownerUid = ownerUid,
                     scope = scope,
                     payloadVersion = payloadVersion,
