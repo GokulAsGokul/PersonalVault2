@@ -4,30 +4,31 @@ import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.gokul.personalvault.data.model.DocumentRecordV2
-import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.tasks.await
-import java.util.Calendar
 import java.util.Locale
 import java.util.UUID
 
 class DocumentRepositoryV2(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
-    private val storage: FirebaseStorage = FirebaseStorage.getInstance()
+    private val storage: FirebaseStorage = FirebaseStorage.getInstance(),
+    private val functions: FirebaseFunctions = FirebaseFunctions.getInstance("asia-south1")
 ) {
     companion object {
         const val MAX_FILE_BYTES = 50L * 1024L * 1024L
         private const val VAULTS = "vaultsV2"
         private const val DOCUMENTS = "documents"
+        private val SUPPORTED_EXTENSIONS = setOf(
+            "pdf", "jpg", "jpeg", "png", "doc", "docx", "xls", "xlsx",
+            "ppt", "pptx", "txt"
+        )
     }
 
-    data class UploadResult(
-        val documentId: String,
-        val storagePath: String
-    )
+    data class UploadResult(val documentId: String, val storagePath: String)
 
     fun readDisplayName(resolver: ContentResolver, uri: Uri): String {
         resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
@@ -51,6 +52,12 @@ class DocumentRepositoryV2(
         return -1L
     }
 
+    fun documentCollection(vaultId: String) =
+        firestore.collection(VAULTS).document(vaultId).collection(DOCUMENTS)
+
+    fun customCategoryCollection(vaultId: String) =
+        firestore.collection(VAULTS).document(vaultId).collection("documentCategories")
+
     suspend fun upload(
         vaultId: String,
         ownerUid: String,
@@ -62,19 +69,31 @@ class DocumentRepositoryV2(
         scope: String,
         onProgress: (Float) -> Unit = {}
     ): UploadResult {
-        require(title.isNotBlank() && title.length <= 160) { "Enter a title up to 160 characters." }
+        val cleanTitle = title.trim()
+        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 160) { "Enter a title up to 160 characters." }
         require(description.length <= 50) { "Description must be 50 characters or fewer." }
         require(scope == "PERSONAL" || scope == "SHARED") { "Invalid document visibility." }
-
         val fileName = readDisplayName(resolver, uri)
         val size = readSizeBytes(resolver, uri)
         require(size in 1..MAX_FILE_BYTES) { "Each file must be between 1 byte and 50 MB." }
+        val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        require(extension.isNotBlank()) { "This file has no extension. Rename it with a supported extension or use a recognised file type." }
+
+        val titleLower = cleanTitle.lowercase(Locale.ROOT)
+        val duplicate = documentCollection(vaultId)
+            .whereEqualTo("ownerUid", ownerUid)
+            .whereEqualTo("categoryId", categoryId)
+            .whereEqualTo("titleLower", titleLower)
+            .whereEqualTo("isDeleted", false)
+            .limit(1).get().await()
+        require(duplicate.isEmpty) {
+            "A document with this title already exists in this category. Open it and choose Replace Document instead."
+        }
 
         val mimeType = resolver.getType(uri) ?: "application/octet-stream"
         val documentId = UUID.randomUUID().toString()
         val storagePath = "vaultsV2/$vaultId/documents/$ownerUid/$documentId"
         val storageRef = storage.reference.child(storagePath)
-
         val customMetadata = StorageMetadata.Builder()
             .setContentType(mimeType)
             .setCustomMetadata("vaultId", vaultId)
@@ -95,8 +114,8 @@ class DocumentRepositoryV2(
             "schemaVersion" to 1,
             "ownerUid" to ownerUid,
             "scope" to scope,
-            "title" to title.trim(),
-            "titleLower" to title.trim().lowercase(Locale.ROOT),
+            "title" to cleanTitle,
+            "titleLower" to titleLower,
             "categoryId" to categoryId,
             "description" to description.trim(),
             "originalFileName" to fileName,
@@ -109,16 +128,11 @@ class DocumentRepositoryV2(
             "deletedAt" to null,
             "purgeAt" to null
         )
-
         try {
-            firestore.collection(VAULTS).document(vaultId)
-                .collection(DOCUMENTS).document(documentId).set(record).await()
+            documentCollection(vaultId).document(documentId).set(record).await()
         } catch (error: Exception) {
-            // The Storage object is intentionally retained if metadata creation
-            // fails because client delete is denied by Storage Rules. A trusted
-            // backend orphan-cleanup process should remove unreferenced objects.
             throw IllegalStateException(
-                "File uploaded but its document record could not be saved. Contact support before retrying.",
+                "The file reached Storage but its record could not be saved. Do not retry yet; the incomplete upload needs cleanup.",
                 error
             )
         }
@@ -126,36 +140,50 @@ class DocumentRepositoryV2(
         return UploadResult(documentId, storagePath)
     }
 
-    suspend fun moveToRecycleBin(vaultId: String, document: DocumentRecordV2) {
-        require(document.ownerUid.isNotBlank()) { "Document owner is missing." }
-        val deletedAt = Timestamp.now()
-        val calendar = Calendar.getInstance().apply { time = deletedAt.toDate() }
-        calendar.add(Calendar.DAY_OF_YEAR, 30)
-        val purgeAt = Timestamp(calendar.time)
+    suspend fun updateMetadata(
+        vaultId: String,
+        document: DocumentRecordV2,
+        title: String,
+        description: String,
+        categoryId: String,
+        scope: String
+    ) {
+        val cleanTitle = title.trim()
+        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 160) { "Title must be 1–160 characters." }
+        require(description.length <= 50) { "Description must be 50 characters or fewer." }
+        require(scope == "PERSONAL" || scope == "SHARED") { "Invalid visibility." }
+        val duplicate = documentCollection(vaultId)
+            .whereEqualTo("ownerUid", document.ownerUid)
+            .whereEqualTo("categoryId", categoryId)
+            .whereEqualTo("titleLower", cleanTitle.lowercase(Locale.ROOT))
+            .whereEqualTo("isDeleted", false)
+            .limit(2).get().await().documents.any { it.id != document.id }
+        require(!duplicate) { "Another document already uses this title in that category." }
+        documentCollection(vaultId).document(document.id).update(
+            mapOf(
+                "title" to cleanTitle,
+                "titleLower" to cleanTitle.lowercase(Locale.ROOT),
+                "description" to description.trim(),
+                "categoryId" to categoryId,
+                "scope" to scope,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        ).await()
+    }
 
-        firestore.collection(VAULTS).document(vaultId)
-            .collection(DOCUMENTS).document(document.id)
-            .update(
-                mapOf(
-                    "isDeleted" to true,
-                    "deletedAt" to FieldValue.serverTimestamp(),
-                    "purgeAt" to purgeAt,
-                    "updatedAt" to FieldValue.serverTimestamp()
-                )
-            ).await()
+    suspend fun moveToRecycleBin(vaultId: String, document: DocumentRecordV2) {
+        functions.getHttpsCallable("softDeleteV2Document")
+            .call(mapOf("vaultId" to vaultId, "documentId" to document.id)).await()
     }
 
     suspend fun restore(vaultId: String, documentId: String) {
-        firestore.collection(VAULTS).document(vaultId)
-            .collection(DOCUMENTS).document(documentId)
-            .update(
-                mapOf(
-                    "isDeleted" to false,
-                    "deletedAt" to null,
-                    "purgeAt" to null,
-                    "updatedAt" to FieldValue.serverTimestamp()
-                )
-            ).await()
+        functions.getHttpsCallable("restoreV2Document")
+            .call(mapOf("vaultId" to vaultId, "documentId" to documentId)).await()
+    }
+
+    suspend fun permanentlyDelete(vaultId: String, documentId: String) {
+        functions.getHttpsCallable("permanentlyDeleteV2Document")
+            .call(mapOf("vaultId" to vaultId, "documentId" to documentId)).await()
     }
 
     suspend fun downloadUrl(vaultId: String, document: DocumentRecordV2): String {
@@ -164,10 +192,4 @@ class DocumentRepositoryV2(
         }
         return storage.reference.child(document.storagePath).downloadUrl.await().toString()
     }
-
-    fun documentCollection(vaultId: String) =
-        firestore.collection(VAULTS).document(vaultId).collection(DOCUMENTS)
-
-    fun customCategoryCollection(vaultId: String) =
-        firestore.collection(VAULTS).document(vaultId).collection("documentCategories")
 }
