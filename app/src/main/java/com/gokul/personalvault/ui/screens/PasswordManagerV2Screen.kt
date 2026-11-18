@@ -162,7 +162,7 @@ fun PasswordManagerV2Screen(
         Column(
             Modifier.fillMaxSize().padding(padding).background(PvBackground).padding(horizontal = 18.dp)
         ) {
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Password Manager", color = PvText, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -195,7 +195,7 @@ fun PasswordManagerV2Screen(
                     colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color.White, focusedContainerColor = Color.White)
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth().background(Color(0xFFE9EAF5), RoundedCornerShape(15.dp)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 ScopeTabV2("Personal", selectedScope == PasswordRecordV2.SCOPE_PERSONAL, Modifier.weight(1f)) {
                     selectedScope = PasswordRecordV2.SCOPE_PERSONAL; selectedCategory = "All"
@@ -204,7 +204,7 @@ fun PasswordManagerV2Screen(
                     selectedScope = PasswordRecordV2.SCOPE_SHARED; selectedCategory = "All"
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("All").plus(PasswordRecordV2.CATEGORIES).forEach { category ->
                     FilterChip(selected = selectedCategory == category, onClick = { selectedCategory = category }, label = { Text(category) }, shape = RoundedCornerShape(50),
@@ -212,7 +212,7 @@ fun PasswordManagerV2Screen(
                     )
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${visibleRecords.size} passwords", color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.weight(1f))
@@ -235,7 +235,7 @@ fun PasswordManagerV2Screen(
             when {
                 loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = PvBlue) }
                 visibleRecords.isEmpty() -> EmptyPasswordsV2(selectedScope)
-                else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(11.dp), contentPadding = PaddingValues(top = 4.dp, bottom = 100.dp)) {
+                else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 100.dp)) {
                     items(visibleRecords, key = { it.id }) { record -> PasswordRowV2(record = record, memberUid = memberUid) { selectedRecord = record } }
                 }
             }
@@ -389,40 +389,52 @@ private fun ScopeTabV2(
 @Composable
 private fun PasswordRowV2(record: PasswordRecordV2, memberUid: String, onClick: () -> Unit) {
     var showCardPassword by rememberSaveable(record.id) { mutableStateOf(false) }
+    val isMine = record.ownerUid == memberUid
     val accent = if (record.isShared) Color(0xFF8B63E8) else PvTeal
-    Surface(Modifier.fillMaxWidth().clickable(onClick = onClick), color = Color.White, shape = RoundedCornerShape(20.dp), shadowElevation = 2.dp) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        color = Color.White,
+        shape = RoundedCornerShape(22.dp),
+        shadowElevation = 1.dp,
+        tonalElevation = 1.dp
+    ) {
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(Modifier.width(5.dp).fillMaxHeight().background(accent))
-            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp)) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = RoundedCornerShape(13.dp), color = if (record.isShared) Color(0xFFF0EAFE) else Color(0xFFE5F5F3), modifier = Modifier.size(46.dp)) {
+                    Surface(
+                        shape = RoundedCornerShape(15.dp),
+                        color = if (record.isShared) Color(0xFFF1EBFF) else Color(0xFFE7F6F3),
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.Key, null, tint = if (record.isShared) Color(0xFF7046C4) else PvTeal, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Outlined.Key, null, tint = if (record.isShared) Color(0xFF7046C4) else PvTeal, modifier = Modifier.size(25.dp))
                         }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
+                    Spacer(Modifier.width(13.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(record.websiteApp, color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                         Text(record.username.ifBlank { "Username not added" }, color = PvMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
-                    Surface(shape = RoundedCornerShape(50), color = if (record.isShared) Color(0xFFEFE8FF) else Color(0xFFDDF3ED)) {
-                        Text(if (record.ownerUid == memberUid) "MINE" else "SPOUSE", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = if (record.ownerUid == memberUid) Color(0xFF08785C) else Color(0xFF6841B8), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Surface(shape = RoundedCornerShape(50), color = if (isMine) Color(0xFFDDF3ED) else Color(0xFFEFE8FF)) {
+                        Text(if (isMine) "MINE" else "SPOUSE", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = if (isMine) Color(0xFF08785C) else Color(0xFF6841B8), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
                 }
-                Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Lock, null, tint = PvMuted, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (showCardPassword) record.password else "••••••••••••", color = PvMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1)
-                    Surface(shape = RoundedCornerShape(50), color = Color(0xFFF0F2F8)) {
-                        Text(record.category, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = PvNavy, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(9.dp))
+                    Text(if (showCardPassword) record.password else "••••••••••••", color = if (showCardPassword) PvText else PvMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1)
+                    Surface(shape = RoundedCornerShape(50), color = Color(0xFFF1F3F9)) {
+                        Text(record.category, Modifier.padding(horizontal = 11.dp, vertical = 6.dp), color = PvNavy, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
                     }
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(onClick = { showCardPassword = !showCardPassword }, modifier = Modifier.size(32.dp)) {
-                        Icon(if (showCardPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, contentDescription = if (showCardPassword) "Hide password" else "Show password", tint = PvNavy, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp))
+                    IconButton(onClick = { showCardPassword = !showCardPassword }, modifier = Modifier.size(36.dp)) {
+                        Icon(if (showCardPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, contentDescription = if (showCardPassword) "Hide password" else "Show password", tint = PvNavy, modifier = Modifier.size(21.dp))
                     }
                 }
- 
             }
         }
     }
