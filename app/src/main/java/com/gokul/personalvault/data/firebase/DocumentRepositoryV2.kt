@@ -77,8 +77,8 @@ class DocumentRepositoryV2(
         onProgress: (Float) -> Unit = {}
     ): UploadResult {
         val cleanTitle = title.trim()
-        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 160) { "Enter a title up to 160 characters." }
-        require(description.length <= 50) { "Description must be 50 characters or fewer." }
+        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 30) { "Enter a title up to 30 characters." }
+        require(description.length <= 35) { "Notes must be 35 characters or fewer." }
         require(scope == "PERSONAL" || scope == "SHARED") { "Invalid document visibility." }
         val fileName = readDisplayName(resolver, uri)
         val size = readSizeBytes(resolver, uri)
@@ -156,7 +156,7 @@ class DocumentRepositoryV2(
         scope: String
     ) {
         val cleanTitle = title.trim()
-        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 160) { "Title must be 1–160 characters." }
+        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 30) { "Title must be 1–30 characters." }
         require(description.length <= 50) { "Description must be 50 characters or fewer." }
         require(scope == "PERSONAL" || scope == "SHARED") { "Invalid visibility." }
         val duplicate = documentCollection(vaultId)
