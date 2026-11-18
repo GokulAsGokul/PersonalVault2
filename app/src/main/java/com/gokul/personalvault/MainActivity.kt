@@ -49,6 +49,9 @@ import com.gokul.personalvault.ui.screens.VaultDashboardNavigationV2
 import com.gokul.personalvault.ui.screens.VaultV2Destination
 import androidx.compose.runtime.key
 import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.gokul.personalvault.data.firebase.VaultRepositoryV2
 import com.gokul.personalvault.data.local.VaultKeySessionV2
 import com.gokul.personalvault.ui.screens.MasterPasswordV2Screen
@@ -165,6 +168,22 @@ LaunchedEffect(currentUid) {
     }
 }
 
+
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner, currentUid) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_STOP) {
+                        // Lock all in-memory encryption sessions whenever the app leaves foreground.
+                        VaultKeySessionV2.clear()
+                        VaultCrypto.clearSession()
+                        HouseholdCrypto.clearSession()
+                        sessionUnlocked = false
+                        requestedUnlockDestination = null
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
 
             // Keep the dashboard composed underneath the master-password screen.
             // This preserves its selected tab (for example, PASSWORDS) while unlocking.
