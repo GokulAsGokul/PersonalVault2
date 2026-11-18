@@ -803,3 +803,67 @@ export const deleteV2DocumentCategory = onCall(async (request) => {
   await categoryRef.delete();
   return {status: "deleted", categoryId};
 });
+
+
+/** Soft-delete a document. The server fixes the retention deadline at 30 days. */
+export const softDeleteV2Document = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const documentId = requireString(data.documentId, "Document ID", 128);
+  const ref = db.collection(OWNER_VAULTS).doc(vaultId).collection("documents").doc(documentId);
+  await db.runTransaction(async (tx) => {
+    const [vault, doc] = await Promise.all([tx.get(db.collection(OWNER_VAULTS).doc(vaultId)), tx.get(ref)]);
+    const members = assertValidOwnerVault(vault, vaultId);
+    if (!members.includes(uid)) throw new HttpsError("permission-denied", "You are not a household member.");
+    if (!doc.exists) throw new HttpsError("not-found", "Document not found.");
+    if (doc.get("ownerUid") !== uid) throw new HttpsError("permission-denied", "Only the document owner can delete it.");
+    if (doc.get("isDeleted") === true) throw new HttpsError("failed-precondition", "Document is already in the Recycle Bin.");
+    const deletedAt = Timestamp.now();
+    const purgeAt = Timestamp.fromMillis(deletedAt.toMillis() + DOCUMENT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    tx.update(ref, {isDeleted: true, deletedAt, purgeAt, updatedAt: FieldValue.serverTimestamp()});
+  });
+  return {status: "deleted", retentionDays: DOCUMENT_RETENTION_DAYS};
+});
+
+/** Restore only an owner's document while it remains inside the retention window. */
+export const restoreV2Document = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const documentId = requireString(data.documentId, "Document ID", 128);
+  const ref = db.collection(OWNER_VAULTS).doc(vaultId).collection("documents").doc(documentId);
+  await db.runTransaction(async (tx) => {
+    const [vault, doc] = await Promise.all([tx.get(db.collection(OWNER_VAULTS).doc(vaultId)), tx.get(ref)]);
+    const members = assertValidOwnerVault(vault, vaultId);
+    if (!members.includes(uid)) throw new HttpsError("permission-denied", "You are not a household member.");
+    if (!doc.exists) throw new HttpsError("not-found", "Document not found.");
+    if (doc.get("ownerUid") !== uid) throw new HttpsError("permission-denied", "Only the document owner can restore it.");
+    if (doc.get("isDeleted") !== true) throw new HttpsError("failed-precondition", "Document is not in the Recycle Bin.");
+    const purgeAt = doc.get("purgeAt") as Timestamp | undefined;
+    if (!purgeAt || purgeAt.toMillis() <= Date.now()) throw new HttpsError("failed-precondition", "The 30-day retention period has expired.");
+    tx.update(ref, {isDeleted: false, deletedAt: null, purgeAt: null, updatedAt: FieldValue.serverTimestamp()});
+  });
+  return {status: "restored"};
+});
+
+/** Permanently delete an owner's document and its Storage object. */
+export const permanentlyDeleteV2Document = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const documentId = requireString(data.documentId, "Document ID", 128);
+  const vault = await db.collection(OWNER_VAULTS).doc(vaultId).get();
+  const members = assertValidOwnerVault(vault, vaultId);
+  if (!members.includes(uid)) throw new HttpsError("permission-denied", "You are not a household member.");
+  const ref = db.collection(OWNER_VAULTS).doc(vaultId).collection("documents").doc(documentId);
+  const doc = await ref.get();
+  if (!doc.exists) return {status: "deleted"};
+  if (doc.get("ownerUid") !== uid) throw new HttpsError("permission-denied", "Only the document owner can permanently delete it.");
+  const storagePath = doc.get("storagePath");
+  if (typeof storagePath === "string" && storagePath.startsWith(`vaultsV2/${vaultId}/documents/${uid}/`)) {
+    await getStorage().bucket().file(storagePath).delete({ignoreNotFound: true});
+  }
+  await ref.delete();
+  return {status: "deleted"};
+});
