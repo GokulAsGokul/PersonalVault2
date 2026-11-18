@@ -528,11 +528,16 @@ private fun PasswordAddDialog(
             } else {
                 context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createOneShot(45, VibrationEffect.DEFAULT_AMPLITUDE))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator?.vibrate(45)
+            // Vibration is optional feedback. Never let a missing/restricted permission crash the app.
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(VibrationEffect.createOneShot(45, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(45)
+                }
+            } catch (_: SecurityException) {
+                // The validation message and shake animation still work without vibration.
             }
             shake.snapTo(0f)
             listOf(-9f, 9f, -7f, 7f, -4f, 4f, 0f).forEach { shake.animateTo(it, tween(35)) }
