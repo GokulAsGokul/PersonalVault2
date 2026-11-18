@@ -167,8 +167,9 @@ service cloud.firestore {
           && request.resource.data.updatedAt == request.time;
         // Category deletion is mediated by app logic after confirming
         // no documents are assigned to the category.
-        allow delete: if isVaultMember(vaultId)
-          && !exists(/databases/$(database)/documents/vaultsV2/$(vaultId)/documents/__category_guard_$(categoryId));
+        // Deletion is performed by the callable function after it checks
+        // that no active or recycled document still uses this category.
+        allow delete: if false;
       }
 
       // Document metadata. Binary content lives in Firebase Storage.
