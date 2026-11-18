@@ -3,7 +3,7 @@ package com.gokul.personalvault
 
 import android.os.Bundle
 import androidx.core.view.WindowCompat
-import androidx.fragment.app.FragmentActivity
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -61,7 +61,7 @@ private val VaultBlue = Color(0xFF315CDB)
 private val VaultBackground = Color(0xFFF4F6FB)
 private val VaultMuted = Color(0xFF64748B)
 
-class MainActivity : FragmentActivity() {
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
