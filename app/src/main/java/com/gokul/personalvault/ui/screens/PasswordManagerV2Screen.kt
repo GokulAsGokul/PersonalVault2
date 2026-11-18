@@ -128,6 +128,13 @@ fun PasswordManagerV2Screen(
                     memberUid = memberUid
                 )
             }
+            // Schedule locally on every member device so shared-password reminders
+            // are available to both approved household members.
+            records.forEach { record ->
+                PasswordExpiryReminderScheduler.schedule(
+                    context, record.id, record.websiteApp, record.expiryAt
+                )
+            }
             message = ""
         } catch (error: Exception) {
             message = error.localizedMessage
