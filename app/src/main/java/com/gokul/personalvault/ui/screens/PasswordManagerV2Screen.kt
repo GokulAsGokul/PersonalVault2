@@ -583,7 +583,7 @@ private fun PasswordAddDialog(
         ) { DatePicker(state = datePickerState) }
     }
 
-    AlertDialog(
+    if (!showExpiryPicker) AlertDialog(
         onDismissRequest = {
             if (!saving) onDismiss()
         },
@@ -764,9 +764,6 @@ private fun PasswordAddDialog(
                         Text(expiryAt?.let { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(it)) } ?: "No expiry date", color = PvText)
                     }
                     TextButton(onClick = {
-                        if (android.os.Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        }
                         showExpiryPicker = true
                     }) { Text(if (expiryAt == null) "Set date" else "Change") }
                     if (expiryAt != null) TextButton(onClick = { expiryAt = null }) { Text("Clear") }
