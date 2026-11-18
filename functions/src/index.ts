@@ -867,3 +867,54 @@ export const permanentlyDeleteV2Document = onCall(async (request) => {
   await ref.delete();
   return {status: "deleted"};
 });
+
+
+/** Create a shared custom category with a transaction-safe case-insensitive name check. */
+export const createV2DocumentCategory = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const name = requireString(data.name, "Category name", 30);
+  const nameLower = name.toLocaleLowerCase("en-US");
+  const vaultRef = db.collection(OWNER_VAULTS).doc(vaultId);
+  const categoryRef = vaultRef.collection("documentCategories").doc();
+  await db.runTransaction(async (tx) => {
+    const vault = await tx.get(vaultRef);
+    const members = assertValidOwnerVault(vault, vaultId);
+    if (!members.includes(uid)) throw new HttpsError("permission-denied", "You are not a household member.");
+    const existing = await tx.get(vaultRef.collection("documentCategories").where("nameLower", "==", nameLower));
+    if (!existing.empty) throw new HttpsError("already-exists", "A category with this name already exists.");
+    tx.create(categoryRef, {
+      name, nameLower, createdByUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+  return {categoryId: categoryRef.id, name};
+});
+
+/** Rename a shared custom category. Built-in categories are not stored here and cannot be renamed. */
+export const renameV2DocumentCategory = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const categoryId = requireString(data.categoryId, "Category ID", 128);
+  const name = requireString(data.name, "Category name", 30);
+  const nameLower = name.toLocaleLowerCase("en-US");
+  const vaultRef = db.collection(OWNER_VAULTS).doc(vaultId);
+  const categoryRef = vaultRef.collection("documentCategories").doc(categoryId);
+  await db.runTransaction(async (tx) => {
+    const [vault, category, matches] = await Promise.all([
+      tx.get(vaultRef), tx.get(categoryRef),
+      tx.get(vaultRef.collection("documentCategories").where("nameLower", "==", nameLower)),
+    ]);
+    const members = assertValidOwnerVault(vault, vaultId);
+    if (!members.includes(uid)) throw new HttpsError("permission-denied", "You are not a household member.");
+    if (!category.exists) throw new HttpsError("not-found", "Custom category not found.");
+    if (matches.docs.some((doc) => doc.id !== categoryId)) {
+      throw new HttpsError("already-exists", "A category with this name already exists.");
+    }
+    tx.update(categoryRef, {name, nameLower, updatedAt: FieldValue.serverTimestamp()});
+  });
+  return {categoryId, name};
+});
