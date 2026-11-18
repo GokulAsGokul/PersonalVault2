@@ -49,9 +49,14 @@ private enum class DocumentSortV2 { NAME_ASC, NAME_DESC, NEWEST, OLDEST, LARGEST
 private data class PendingDocumentUploadV2(
     val uri: Uri,
     val fileName: String,
+    val sizeBytes: Long,
     val title: String,
     val notes: String = ""
 )
+
+private const val MAX_DOCUMENT_BATCH_COUNT = 10
+private const val MAX_DOCUMENT_BATCH_BYTES = 200L * 1024L * 1024L
+private const val MAX_DOCUMENT_FILE_BYTES = 50L * 1024L * 1024L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,14 +135,41 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         VaultExternalActivityState.documentPickerActive = false
         if (uris.isNotEmpty()) {
-            pendingUploads.clear()
-            uris.forEach { uri ->
+            if (uris.size > MAX_DOCUMENT_BATCH_COUNT) {
+                message = "Select up to $MAX_DOCUMENT_BATCH_COUNT files per batch. You selected ${uris.size}."
+                return@rememberLauncherForActivityResult
+            }
+            val selectedFiles = uris.map { uri ->
                 val fileName = runCatching {
                     repository.readDisplayName(context.contentResolver, uri)
                 }.getOrDefault("document")
-                val defaultTitle = fileName.substringBeforeLast('.', fileName).take(30)
-                pendingUploads.add(PendingDocumentUploadV2(uri, fileName, defaultTitle))
+                val sizeBytes = repository.readSizeBytes(context.contentResolver, uri)
+                PendingDocumentUploadV2(
+                    uri = uri,
+                    fileName = fileName,
+                    sizeBytes = sizeBytes,
+                    title = fileName.substringBeforeLast('.', fileName).take(30)
+                )
             }
+            val oversized = selectedFiles.filter { it.sizeBytes > MAX_DOCUMENT_FILE_BYTES }
+            if (oversized.isNotEmpty()) {
+                message = "Each file must be 50 MB or smaller. Too large: " +
+                    oversized.joinToString { it.fileName }
+                return@rememberLauncherForActivityResult
+            }
+            val unknownSize = selectedFiles.filter { it.sizeBytes < 0L }
+            if (unknownSize.isNotEmpty()) {
+                message = "Could not determine file size for: " +
+                    unknownSize.joinToString { it.fileName } + ". Choose files from a provider that reports file size."
+                return@rememberLauncherForActivityResult
+            }
+            val totalBytes = selectedFiles.sumOf { it.sizeBytes }
+            if (totalBytes > MAX_DOCUMENT_BATCH_BYTES) {
+                message = "The selected files total ${formatDocumentBytes(totalBytes)}. The batch limit is 200 MB."
+                return@rememberLauncherForActivityResult
+            }
+            pendingUploads.clear()
+            pendingUploads.addAll(selectedFiles)
             uploadCategory = if (category == "all") "other" else category
             uploadScope = if (visibility == "SHARED") "SHARED" else "PERSONAL"
             showAddDocuments = true
@@ -348,7 +380,18 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("${pendingUploads.size} file(s) selected", color = Color(0xFF64748B))
+                    Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT files selected",
+                        color = Color(0xFF64748B))
+                    Text(
+                        "Limits: 50 MB per file · 200 MB per batch",
+                        color = Color(0xFF64748B),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                    Text(
+                        "Total selected: ${formatDocumentBytes(pendingUploads.sumOf { it.sizeBytes })}",
+                        color = Color(0xFF64748B),
+                        style = MaterialTheme.typography.labelSmall
+                    )
                     Text("Save to", fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
