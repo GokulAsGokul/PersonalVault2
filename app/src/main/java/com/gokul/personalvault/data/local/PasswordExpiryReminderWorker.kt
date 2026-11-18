@@ -75,6 +75,18 @@ class PasswordExpiryReminderWorker(
 }
 
 object PasswordExpiryReminderScheduler {
+    fun sendTestNotification(context: Context) {
+        val request = OneTimeWorkRequestBuilder<PasswordExpiryReminderWorker>()
+            .setInputData(
+                workDataOf(
+                    PasswordExpiryReminderWorker.KEY_WEBSITE to "Personal Vault test",
+                    PasswordExpiryReminderWorker.KEY_DAYS to 0
+                )
+            )
+            .build()
+        WorkManager.getInstance(context).enqueue(request)
+    }
+
     private const val DAY_MILLIS = 24L * 60L * 60L * 1000L
     private fun tag(recordId: String) = "password-expiry-$recordId"
 
