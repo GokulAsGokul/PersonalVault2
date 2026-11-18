@@ -149,38 +149,28 @@ fun PasswordManagerV2Screen(
         Column(
             Modifier.fillMaxSize().padding(padding).background(PvBackground).padding(horizontal = 18.dp)
         ) {
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Password Manager", color = PvText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Your secure, encrypted passwords", color = PvMuted, style = MaterialTheme.typography.bodySmall)
-                }
-                Text("⋮", color = PvMuted, style = MaterialTheme.typography.headlineMedium)
-            }
-            Spacer(Modifier.height(18.dp))
-            Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = PvLavender) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Lock, null, tint = PvNavy, modifier = Modifier.size(30.dp))
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Your vault is protected", color = PvText, fontWeight = FontWeight.Bold)
-                        Text("${records.size} saved credentials • encrypted storage", color = PvMuted, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Surface(shape = CircleShape, color = Color(0xFFD8F1E8)) {
-                        Icon(Icons.Outlined.Lock, null, tint = Color(0xFF16805D), modifier = Modifier.padding(10.dp).size(21.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Lock, null, tint = PvTeal, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("${records.size} credentials • Encrypted", color = PvMuted, style = MaterialTheme.typography.labelSmall)
                     }
                 }
+                Text("⋮", color = PvMuted, style = MaterialTheme.typography.titleLarge)
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
             OutlinedTextField(
                 value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, placeholder = { Text("Search passwords or usernames…") },
                 leadingIcon = { Icon(Icons.Outlined.Search, null, tint = PvMuted) },
                 trailingIcon = { if (search.isNotEmpty()) TextButton(onClick = { search = "" }) { Text("Clear") } },
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(15.dp),
                 colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color.White, focusedContainerColor = Color.White)
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth().background(Color(0xFFE9EAF5), RoundedCornerShape(15.dp)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 ScopeTabV2("Personal", selectedScope == PasswordRecordV2.SCOPE_PERSONAL, Modifier.weight(1f)) {
                     selectedScope = PasswordRecordV2.SCOPE_PERSONAL; selectedCategory = "All"
@@ -189,13 +179,15 @@ fun PasswordManagerV2Screen(
                     selectedScope = PasswordRecordV2.SCOPE_SHARED; selectedCategory = "All"
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(6.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("All").plus(PasswordRecordV2.CATEGORIES).forEach { category ->
-                    FilterChip(selected = selectedCategory == category, onClick = { selectedCategory = category }, label = { Text(category) }, shape = RoundedCornerShape(50))
+                    FilterChip(selected = selectedCategory == category, onClick = { selectedCategory = category }, label = { Text(category) }, shape = RoundedCornerShape(50),
+                        modifier = Modifier.height(34.dp)
+                    )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${visibleRecords.size} passwords", color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.weight(1f))
