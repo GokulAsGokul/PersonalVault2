@@ -401,38 +401,38 @@ private fun PasswordRowV2(record: PasswordRecordV2, memberUid: String, onClick: 
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(Modifier.width(5.dp).fillMaxHeight().background(accent))
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(13.dp)
+                Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(15.dp),
                         color = if (record.isShared) Color(0xFFF1EBFF) else Color(0xFFE7F6F3),
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(42.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.Key, null, tint = if (record.isShared) Color(0xFF7046C4) else PvTeal, modifier = Modifier.size(25.dp))
+                            Icon(Icons.Outlined.Key, null, tint = if (record.isShared) Color(0xFF7046C4) else PvTeal, modifier = Modifier.size(22.dp))
                         }
                     }
-                    Spacer(Modifier.width(13.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(record.websiteApp, color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                         Text(record.username.ifBlank { "Username not added" }, color = PvMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
                     Surface(shape = RoundedCornerShape(50), color = if (isMine) Color(0xFFDDF3ED) else Color(0xFFEFE8FF)) {
-                        Text(if (isMine) "MINE" else "SPOUSE", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = if (isMine) Color(0xFF08785C) else Color(0xFF6841B8), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text(if (isMine) "MINE" else "SPOUSE", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = if (isMine) Color(0xFF08785C) else Color(0xFF6841B8), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Lock, null, tint = PvMuted, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(9.dp))
+                    Spacer(Modifier.width(7.dp))
                     Text(if (showCardPassword) record.password else "••••••••••••", color = if (showCardPassword) PvText else PvMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1)
                     Surface(shape = RoundedCornerShape(50), color = Color(0xFFF1F3F9)) {
-                        Text(record.category, Modifier.padding(horizontal = 11.dp, vertical = 6.dp), color = PvNavy, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                        Text(record.category, Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = PvNavy, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.width(6.dp))
-                    IconButton(onClick = { showCardPassword = !showCardPassword }, modifier = Modifier.size(36.dp)) {
-                        Icon(if (showCardPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, contentDescription = if (showCardPassword) "Hide password" else "Show password", tint = PvNavy, modifier = Modifier.size(21.dp))
+                    IconButton(onClick = { showCardPassword = !showCardPassword }, modifier = Modifier.size(32.dp)) {
+                        Icon(if (showCardPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, contentDescription = if (showCardPassword) "Hide password" else "Show password", tint = PvNavy, modifier = Modifier.size(19.dp))
                     }
                 }
             }
