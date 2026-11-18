@@ -2,6 +2,7 @@
 package com.gokul.personalvault
 
 import android.os.Bundle
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -60,6 +61,10 @@ private val VaultMuted = Color(0xFF64748B)
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Keep status-bar icons visible against the light vault background.
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
+        window.statusBarColor = android.graphics.Color.rgb(244, 246, 251)
 
         setContent {
             VaultTheme {
