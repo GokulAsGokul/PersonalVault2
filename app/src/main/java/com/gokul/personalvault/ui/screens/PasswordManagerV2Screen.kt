@@ -586,9 +586,9 @@ private fun PasswordAddDialog(
 
                 OutlinedTextField(
                     value = website,
-                    onValueChange = { website = it.take(100); websiteError = "" },
+                    onValueChange = { website = it.take(30); websiteError = "" },
                     label = { Text("Website / App *") },
-                    supportingText = { Text("${website.length}/100") },
+                    supportingText = { Text("${website.length}/30") },
                     isError = websiteError.isNotBlank(),
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
@@ -597,9 +597,9 @@ private fun PasswordAddDialog(
 
                 OutlinedTextField(
                     value = username,
-                    onValueChange = { username = it.take(254) },
+                    onValueChange = { username = it.take(35) },
                     label = { Text("Username / Email") },
-                    supportingText = { Text("${username.length}/254") },
+                    supportingText = { Text("${username.length}/35") },
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -607,9 +607,9 @@ private fun PasswordAddDialog(
 
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it.take(256); passwordError = "" },
+                    onValueChange = { password = it.take(25); passwordError = "" },
                     label = { Text("Password *") },
-                    supportingText = { Text("${password.length}/256") },
+                    supportingText = { Text("${password.length}/25") },
                     isError = passwordError.isNotBlank(),
                     singleLine = true,
                     visualTransformation = if (showPassword)
@@ -675,9 +675,9 @@ private fun PasswordAddDialog(
 
                 OutlinedTextField(
                     value = notes,
-                    onValueChange = { notes = it.take(500) },
+                    onValueChange = { notes = it.take(30) },
                     label = { Text("Notes") },
-                    supportingText = { Text("${notes.length}/500") },
+                    supportingText = { Text("${notes.length}/30") },
                     minLines = 2,
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
@@ -846,7 +846,7 @@ private fun PasswordDetailsDialogV2(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
         containerColor = Color(0xFFFCFCFF),
-        title = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("View Password", color = PvMuted, style = MaterialTheme.typography.labelMedium); Text(record.websiteApp, color = PvText, fontWeight = FontWeight.Bold); ScopeTagV2(record.scope) } },
+        title = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("View Password", color = PvMuted, style = MaterialTheme.typography.labelMedium); ScopeTagV2(record.scope) } },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("Website / App", color = PvMuted, style = MaterialTheme.typography.labelMedium)
