@@ -10,7 +10,8 @@ data class PasswordRecordV2(
     val category: String,
     val notes: String,
     val createdAt: Long,
-    val editedAt: Long
+    val editedAt: Long,
+    val expiryAt: Long? = null
 ) {
     val isShared: Boolean get() = scope == SCOPE_SHARED
 
