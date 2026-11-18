@@ -33,6 +33,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import android.Manifest
+import android.content.pm.PackageManager
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import com.gokul.personalvault.data.local.PasswordExpiryReminderScheduler
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.animation.core.Animatable
@@ -67,6 +76,7 @@ fun PasswordManagerV2Screen(
 ) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
 
     var records by remember {
         mutableStateOf<List<PasswordRecordV2>>(emptyList())
@@ -257,14 +267,14 @@ fun PasswordManagerV2Screen(
             saving = saving,
             categoryOptions = (PasswordRecordV2.CATEGORIES + records.map { it.category }).distinct(),
             onDismiss = { showAddDialog = false },
-            onSave = { website, username, password, category, notes, recordScope ->
+            onSave = { website, username, password, category, notes, recordScope, expiryAt ->
 
                 scope.launch {
                     saving = true
                     message = ""
 
                     try {
-                        withContext(Dispatchers.IO) {
+                        val createdRecord = withContext(Dispatchers.IO) {
                             PasswordRepositoryFirestoreV2.create(
                                 vaultId = vaultId,
                                 memberUid = memberUid,
@@ -273,9 +283,11 @@ fun PasswordManagerV2Screen(
                                 username = username,
                                 password = password,
                                 category = category,
-                                notes = notes
+                                notes = notes,
+                                expiryAt = expiryAt
                             )
                         }
+                        PasswordExpiryReminderScheduler.schedule(context, createdRecord.id, createdRecord.websiteApp, createdRecord.expiryAt)
 
                         showAddDialog = false
                         selectedScope = recordScope
@@ -319,17 +331,18 @@ fun PasswordManagerV2Screen(
             initialRecord = record,
             categoryOptions = (PasswordRecordV2.CATEGORIES + records.map { it.category }).distinct(),
             onDismiss = { if (!saving) recordToEdit = null },
-            onSave = { website, username, password, category, notes, _ ->
+            onSave = { website, username, password, category, notes, _, expiryAt ->
                 scope.launch {
                     saving = true
                     message = ""
                     try {
-                        withContext(Dispatchers.IO) {
+                        val updatedRecord = withContext(Dispatchers.IO) {
                             PasswordRepositoryFirestoreV2.update(
                                 vaultId, memberUid, record, website,
-                                username, password, category, notes
+                                username, password, category, notes, expiryAt
                             )
                         }
+                        PasswordExpiryReminderScheduler.schedule(context, updatedRecord.id, updatedRecord.websiteApp, updatedRecord.expiryAt)
                         recordToEdit = null
                         reloadPasswords()
                         message = "Password updated securely."
@@ -354,6 +367,7 @@ fun PasswordManagerV2Screen(
                             withContext(Dispatchers.IO) {
                                 PasswordRepositoryFirestoreV2.delete(vaultId, memberUid, record)
                             }
+                            PasswordExpiryReminderScheduler.cancel(context, record.id)
                             recordToDelete = null
                             reloadPasswords()
                             message = "Password deleted."
@@ -502,7 +516,7 @@ private fun PasswordAddDialog(
     categoryOptions: List<String>,
     onDismiss: () -> Unit,
     onSave: (
-        String, String, String, String, String, String
+        String, String, String, String, String, String, Long?
     ) -> Unit
 ) {
     var website by remember(initialRecord?.id) { mutableStateOf(initialRecord?.websiteApp.orEmpty()) }
@@ -518,11 +532,14 @@ private fun PasswordAddDialog(
     var addingCustomCategory by remember { mutableStateOf(false) }
     var customCategory by remember { mutableStateOf("") }
     var customCategoryError by remember { mutableStateOf("") }
+    var expiryAt by remember(initialRecord?.id) { mutableStateOf(initialRecord?.expiryAt) }
+    var showExpiryPicker by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var validationAttempt by remember { mutableIntStateOf(0) }
     var websiteError by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf("") }
     val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val haptics = LocalHapticFeedback.current
     val shake = remember { Animatable(0f) }
     LaunchedEffect(validationAttempt) {
@@ -548,6 +565,15 @@ private fun PasswordAddDialog(
             shake.snapTo(0f)
             listOf(-9f, 9f, -7f, 7f, -4f, 4f, 0f).forEach { shake.animateTo(it, tween(35)) }
         }
+    }
+
+    if (showExpiryPicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = expiryAt)
+        DatePickerDialog(
+            onDismissRequest = { showExpiryPicker = false },
+            confirmButton = { TextButton(onClick = { expiryAt = datePickerState.selectedDateMillis; showExpiryPicker = false }) { Text("Done") } },
+            dismissButton = { TextButton(onClick = { showExpiryPicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = datePickerState) }
     }
 
     AlertDialog(
@@ -725,6 +751,20 @@ private fun PasswordAddDialog(
                     }
                 }
 
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Password expiry", color = PvMuted, style = MaterialTheme.typography.labelMedium)
+                        Text(expiryAt?.let { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(it)) } ?: "No expiry date", color = PvText)
+                    }
+                    TextButton(onClick = {
+                        if (android.os.Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        showExpiryPicker = true
+                    }) { Text(if (expiryAt == null) "Set date" else "Change") }
+                    if (expiryAt != null) TextButton(onClick = { expiryAt = null }) { Text("Clear") }
+                }
+
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it.take(30) },
@@ -759,7 +799,8 @@ private fun PasswordAddDialog(
                             password,
                             category,
                             notes,
-                            recordScope
+                            recordScope,
+                            expiryAt
                         )
                     }
                 }
@@ -949,6 +990,8 @@ private fun PasswordDetailsDialogV2(
                 Text(record.category, color = PvText, fontWeight = FontWeight.SemiBold)
                 Text("Notes", color = PvMuted, style = MaterialTheme.typography.labelMedium)
                 Text(record.notes.ifBlank { "—" }, color = PvText)
+                Text("Expiry date", color = PvMuted, style = MaterialTheme.typography.labelMedium)
+                Text(record.expiryAt?.let { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(it)) } ?: "No expiry date", color = PvText)
                 ScopeTagV2(record.scope)
             }
         },
