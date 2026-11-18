@@ -182,6 +182,8 @@ object PasswordRecordCryptoV2 {
             data.writeStringValue(record.notes)
             data.writeLong(record.createdAt)
             data.writeLong(record.editedAt)
+            data.writeBoolean(record.expiryAt != null)
+            record.expiryAt?.let(data::writeLong)
         }
 
         return output.toByteArray()
@@ -203,7 +205,8 @@ object PasswordRecordCryptoV2 {
                 category = data.readStringValue(),
                 notes = data.readStringValue(),
                 createdAt = data.readLong(),
-                editedAt = data.readLong()
+                editedAt = data.readLong(),
+                expiryAt = if (data.available() > 0 && data.readBoolean()) data.readLong() else null
             )
 
             require(data.available() == 0) {
