@@ -44,6 +44,13 @@ import java.util.Locale
 
 private enum class DocumentSortV2 { NAME_ASC, NAME_DESC, NEWEST, OLDEST, LARGEST, SMALLEST }
 
+private data class PendingDocumentUploadV2(
+    val uri: Uri,
+    val fileName: String,
+    val title: String,
+    val notes: String = ""
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
@@ -75,6 +82,11 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var editCategory by remember { mutableStateOf("other") }
     var editScope by remember { mutableStateOf("PERSONAL") }
     var busyDocument by remember { mutableStateOf(false) }
+    val pendingUploads = remember { mutableStateListOf<PendingDocumentUploadV2>() }
+    var showAddDocuments by remember { mutableStateOf(false) }
+    var uploadCategory by remember { mutableStateOf("other") }
+    var uploadScope by remember { mutableStateOf("PERSONAL") }
+    var uploadCategoryMenu by remember { mutableStateOf(false) }
 
     DisposableEffect(vaultId) {
         val sharedDocs = mutableMapOf<String, DocumentRecordV2>()
@@ -114,42 +126,19 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        // The system picker has returned, including when the user cancels.
         VaultExternalActivityState.documentPickerActive = false
-        if (uris.isNotEmpty()) scope.launch {
-            uploading = true
-            progress = 0f
-            message = "Preparing ${uris.size} file(s)..."
-            try {
-                var completed = 0
-                val failures = mutableListOf<String>()
-                uris.forEachIndexed { index, uri ->
-                    val filename = try {
-                        repository.readDisplayName(context.contentResolver, uri)
-                    } catch (error: Exception) {
-                        "Selected file ${index + 1}"
-                    }
-                    message = "Uploading ${index + 1} of ${uris.size}: $filename"
-                    try {
-                        val title = filename.substringBeforeLast('.', filename)
-                        repository.upload(
-                            vaultId, memberUid, uri, context.contentResolver, title,
-                            if (category == "all") "other" else category, "",
-                            if (visibility == "SHARED") "SHARED" else "PERSONAL"
-                        ) { value -> progress = (completed + value) / uris.size.toFloat() }
-                        completed++
-                    } catch (error: Exception) {
-                        failures.add("$filename: ${error.localizedMessage ?: error.message ?: "Upload failed"}")
-                    }
-                }
-                progress = 1f
-                message = if (failures.isEmpty()) "$completed file(s) uploaded."
-                    else "$completed uploaded; ${failures.size} failed. " + failures.joinToString(" | ")
-            } catch (error: Exception) {
-                message = "Upload could not start: ${error.localizedMessage ?: error.message ?: "Unknown error"}"
-            } finally {
-                uploading = false
+        if (uris.isNotEmpty()) {
+            pendingUploads.clear()
+            uris.forEach { uri ->
+                val fileName = runCatching {
+                    repository.readDisplayName(context.contentResolver, uri)
+                }.getOrDefault("document")
+                val defaultTitle = fileName.substringBeforeLast('.', fileName).take(30)
+                pendingUploads.add(PendingDocumentUploadV2(uri, fileName, defaultTitle))
             }
+            uploadCategory = if (category == "all") "other" else category
+            uploadScope = if (visibility == "SHARED") "SHARED" else "PERSONAL"
+            showAddDocuments = true
         } else {
             message = "No files selected."
         }
@@ -348,6 +337,137 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         }
     }
 
+    if (showAddDocuments) {
+        AlertDialog(
+            onDismissRequest = { if (!uploading) { showAddDocuments = false; pendingUploads.clear() } },
+            title = { Text("Add Documents") },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 520.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("${pendingUploads.size} file(s) selected", color = Color(0xFF64748B))
+                    Text("Save to", fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = uploadScope == "PERSONAL",
+                            onClick = { uploadScope = "PERSONAL" },
+                            label = { Text("Personal") },
+                            enabled = !uploading
+                        )
+                        FilterChip(
+                            selected = uploadScope == "SHARED",
+                            onClick = { uploadScope = "SHARED" },
+                            label = { Text("Shared") },
+                            enabled = !uploading
+                        )
+                    }
+                    Text("Category", fontWeight = FontWeight.SemiBold)
+                    Box {
+                        OutlinedButton(
+                            onClick = { uploadCategoryMenu = true },
+                            enabled = !uploading,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(allCategories.firstOrNull { it.first == uploadCategory }?.second ?: "Other")
+                            Spacer(Modifier.weight(1f))
+                            Text("⌄")
+                        }
+                        DropdownMenu(
+                            expanded = uploadCategoryMenu,
+                            onDismissRequest = { uploadCategoryMenu = false }
+                        ) {
+                            allCategories.forEach { (id, name) ->
+                                DropdownMenuItem(
+                                    text = { Text(name) },
+                                    onClick = { uploadCategory = id; uploadCategoryMenu = false }
+                                )
+                            }
+                        }
+                    }
+                    Divider()
+                    pendingUploads.forEachIndexed { index, pending ->
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(pending.fileName, fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                            OutlinedTextField(
+                                value = pending.title,
+                                onValueChange = { value ->
+                                    pendingUploads[index] = pending.copy(title = value.take(30))
+                                },
+                                label = { Text("Title (max 30)") },
+                                supportingText = { Text("${pending.title.length}/30") },
+                                singleLine = true,
+                                enabled = !uploading,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = pending.notes,
+                                onValueChange = { value ->
+                                    pendingUploads[index] = pending.copy(notes = value.take(35))
+                                },
+                                label = { Text("Notes (max 35)") },
+                                supportingText = { Text("${pending.notes.length}/35") },
+                                singleLine = true,
+                                enabled = !uploading,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (index != pendingUploads.lastIndex) Divider()
+                    }
+                    if (uploading) {
+                        Text(message, style = MaterialTheme.typography.bodySmall)
+                        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uploading && pendingUploads.isNotEmpty() &&
+                        pendingUploads.all { it.title.isNotBlank() },
+                    onClick = {
+                        scope.launch {
+                            uploading = true
+                            progress = 0f
+                            var completed = 0
+                            val failures = mutableListOf<String>()
+                            val total = pendingUploads.size
+                            try {
+                                pendingUploads.toList().forEachIndexed { index, pending ->
+                                    message = "Uploading ${index + 1} of $total: ${pending.fileName}"
+                                    try {
+                                        repository.upload(
+                                            vaultId, memberUid, pending.uri, context.contentResolver,
+                                            pending.title.trim(), uploadCategory, pending.notes.trim(), uploadScope
+                                        ) { value -> progress = (completed + value) / total.toFloat() }
+                                        completed++
+                                    } catch (error: Exception) {
+                                        failures.add("${pending.fileName}: ${error.localizedMessage ?: error.message ?: "Upload failed"}")
+                                    }
+                                }
+                                progress = 1f
+                                message = if (failures.isEmpty()) "$completed file(s) uploaded."
+                                    else "$completed uploaded; ${failures.size} failed. " + failures.joinToString(" | ")
+                                showAddDocuments = false
+                                pendingUploads.clear()
+                            } catch (error: Exception) {
+                                message = "Upload failed: ${error.localizedMessage ?: error.message ?: "Unknown error"}"
+                            } finally {
+                                uploading = false
+                            }
+                        }
+                    }
+                ) { Text(if (uploading) "Uploading…" else "Upload") }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uploading,
+                    onClick = { showAddDocuments = false; pendingUploads.clear() }
+                ) { Text("Cancel") }
+            }
+        )
+    }
+
     if (categoryDialog) {
         AlertDialog(
             onDismissRequest = { categoryDialog = false },
@@ -436,7 +556,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Category: ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: doc.categoryId}")
-                    Text("Description: ${doc.description.ifBlank { "—" }}")
+                    Text("Notes: ${doc.description.ifBlank { "—" }}")
                     Text("File: ${doc.originalFileName}")
                     Text("Type: ${doc.contentType}")
                     Text("Size: ${formatDocumentBytes(doc.sizeBytes)}")
@@ -505,9 +625,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             title = { Text("Edit document") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(editTitle, { editTitle = it.take(160) }, label = { Text("Title") }, singleLine = true)
-                    OutlinedTextField(editDescription, { editDescription = it.take(50) },
-                        label = { Text("Description (max 50)") }, singleLine = true)
+                    OutlinedTextField(editTitle, { editTitle = it.take(30) }, label = { Text("Title (max 30)") }, singleLine = true)
+                    OutlinedTextField(editDescription, { editDescription = it.take(35) },
+                        label = { Text("Notes (max 35)") }, singleLine = true)
                     Text("Category")
                     allCategories.forEach { (id, name) ->
                         if (editCategory == id) Text("✓ $name")
