@@ -138,6 +138,122 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Shared custom document categories. Built-in categories are
+      // rendered by the app and are not stored as deletable documents.
+      match /documentCategories/{categoryId} {
+        allow get, list: if isVaultMember(vaultId);
+        allow create: if isVaultMember(vaultId)
+          && request.resource.data.keys().hasAll([
+            'name', 'nameLower', 'createdByUid', 'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'name', 'nameLower', 'createdByUid', 'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 30
+          && request.resource.data.nameLower is string
+          && request.resource.data.nameLower == request.resource.data.name.lower()
+          && request.resource.data.createdByUid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if isVaultMember(vaultId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['name', 'nameLower', 'updatedAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 30
+          && request.resource.data.nameLower == request.resource.data.name.lower()
+          && request.resource.data.updatedAt == request.time;
+        // Category deletion is mediated by app logic after confirming
+        // no documents are assigned to the category.
+        allow delete: if isVaultMember(vaultId)
+          && !exists(/databases/$(database)/documents/vaultsV2/$(vaultId)/documents/__category_guard_$(categoryId));
+      }
+
+      // Document metadata. Binary content lives in Firebase Storage.
+      match /documents/{documentId} {
+        function validDocumentRecord() {
+          return request.resource.data.keys().hasAll([
+            'schemaVersion', 'ownerUid', 'scope', 'title', 'titleLower',
+            'categoryId', 'description', 'originalFileName', 'contentType',
+            'sizeBytes', 'storagePath', 'uploadedAt', 'updatedAt',
+            'isDeleted', 'deletedAt', 'purgeAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'schemaVersion', 'ownerUid', 'scope', 'title', 'titleLower',
+            'categoryId', 'description', 'originalFileName', 'contentType',
+            'sizeBytes', 'storagePath', 'uploadedAt', 'updatedAt',
+            'isDeleted', 'deletedAt', 'purgeAt'
+          ])
+          && request.resource.data.schemaVersion == 1
+          && request.resource.data.ownerUid is string
+          && (request.resource.data.scope == 'PERSONAL'
+            || request.resource.data.scope == 'SHARED')
+          && request.resource.data.title is string
+          && request.resource.data.title.size() > 0
+          && request.resource.data.title.size() <= 160
+          && request.resource.data.titleLower == request.resource.data.title.lower()
+          && request.resource.data.categoryId is string
+          && request.resource.data.description is string
+          && request.resource.data.description.size() <= 50
+          && request.resource.data.originalFileName is string
+          && request.resource.data.originalFileName.size() > 0
+          && request.resource.data.contentType is string
+          && request.resource.data.sizeBytes is int
+          && request.resource.data.sizeBytes > 0
+          && request.resource.data.sizeBytes <= 52428800
+          && request.resource.data.storagePath is string
+          && request.resource.data.uploadedAt is timestamp
+          && request.resource.data.updatedAt is timestamp
+          && request.resource.data.isDeleted is bool
+          && (
+            (request.resource.data.isDeleted == false
+              && request.resource.data.deletedAt == null
+              && request.resource.data.purgeAt == null)
+            || (request.resource.data.isDeleted == true
+              && request.resource.data.deletedAt is timestamp
+              && request.resource.data.purgeAt is timestamp)
+          );
+        }
+
+        allow get, list: if isVaultMember(vaultId)
+          && (
+            resource.data.scope == 'SHARED'
+            || (resource.data.scope == 'PERSONAL'
+              && resource.data.ownerUid == request.auth.uid)
+          );
+
+        allow create: if isVaultMember(vaultId)
+          && validDocumentRecord()
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.uploadedAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.isDeleted == false
+          && request.resource.data.deletedAt == null
+          && request.resource.data.purgeAt == null
+          && request.resource.data.storagePath ==
+            'vaultsV2/' + vaultId + '/documents/' + request.auth.uid + '/' + documentId;
+
+        // Only the original owner can edit, soft-delete, restore, or update
+        // metadata. Clients cannot change ownership or original upload time.
+        allow update: if isVaultMember(vaultId)
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.uploadedAt == resource.data.uploadedAt
+          && request.resource.data.storagePath == resource.data.storagePath
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              'scope', 'title', 'titleLower', 'categoryId', 'description',
+              'updatedAt', 'isDeleted', 'deletedAt', 'purgeAt'
+            ])
+          && validDocumentRecord()
+          && request.resource.data.updatedAt == request.time;
+
+        // Physical file deletion is restricted to trusted Admin SDK code.
+        allow delete: if false;
+      }
+
       // Password records - V2
       match /passwords/{passwordId} {
 
