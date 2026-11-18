@@ -218,11 +218,14 @@ service cloud.firestore {
           );
         }
 
+        // A member may read their own documents regardless of visibility,
+        // and may read documents explicitly marked SHARED from other members.
+        // This also allows the owner's duplicate-check query, which filters by
+        // ownerUid but intentionally checks both PERSONAL and SHARED records.
         allow get, list: if isVaultMember(vaultId)
           && (
-            resource.data.scope == 'SHARED'
-            || (resource.data.scope == 'PERSONAL'
-              && resource.data.ownerUid == request.auth.uid)
+            resource.data.ownerUid == request.auth.uid
+            || resource.data.scope == 'SHARED'
           );
 
         allow create: if isVaultMember(vaultId)
