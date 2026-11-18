@@ -846,7 +846,7 @@ private fun PasswordDetailsDialogV2(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
         containerColor = Color(0xFFFCFCFF),
-        title = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("View Password", color = PvMuted, style = MaterialTheme.typography.labelMedium); ScopeTagV2(record.scope) } },
+        title = { Spacer(Modifier.height(0.dp)) },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("Website / App", color = PvMuted, style = MaterialTheme.typography.labelMedium)
