@@ -154,6 +154,10 @@ fun VaultDashboardNavigationV2(
                     vaultId = vaultId,
                     memberUid = memberUid
                 )
+                selected == VaultV2Destination.DOCUMENTS -> DocumentsManagerV2Screen(
+                    vaultId = vaultId,
+                    memberUid = memberUid
+                )
                 else -> V2ModulePlaceholder(
                     title = when (selected) {
                         VaultV2Destination.DOCUMENTS -> "Documents"
