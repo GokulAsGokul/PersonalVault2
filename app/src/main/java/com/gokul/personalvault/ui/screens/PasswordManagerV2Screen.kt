@@ -151,12 +151,6 @@ fun PasswordManagerV2Screen(
         ) {
             Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = RoundedCornerShape(16.dp), color = PvLavender, modifier = Modifier.size(48.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Lock, null, tint = PvNavy, modifier = Modifier.size(27.dp))
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Password Manager", color = PvText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text("Your secure, encrypted passwords", color = PvMuted, style = MaterialTheme.typography.bodySmall)
@@ -215,7 +209,7 @@ fun PasswordManagerV2Screen(
                 loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = PvBlue) }
                 visibleRecords.isEmpty() -> EmptyPasswordsV2(selectedScope)
                 else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(11.dp), contentPadding = PaddingValues(top = 4.dp, bottom = 100.dp)) {
-                    items(visibleRecords, key = { it.id }) { record -> PasswordRowV2(record) { selectedRecord = record } }
+                    items(visibleRecords, key = { it.id }) { record -> PasswordRowV2(record = record, memberUid = memberUid) { selectedRecord = record } }
                 }
             }
         }
@@ -366,7 +360,7 @@ private fun ScopeTabV2(
 }
 
 @Composable
-private fun PasswordRowV2(record: PasswordRecordV2, onClick: () -> Unit) {
+private fun PasswordRowV2(record: PasswordRecordV2, memberUid: String, onClick: () -> Unit) {
     val accent = if (record.isShared) Color(0xFF8B63E8) else PvTeal
     Surface(Modifier.fillMaxWidth().clickable(onClick = onClick), color = Color.White, shape = RoundedCornerShape(20.dp), shadowElevation = 2.dp) {
         Row(Modifier.height(IntrinsicSize.Min)) {
@@ -384,7 +378,7 @@ private fun PasswordRowV2(record: PasswordRecordV2, onClick: () -> Unit) {
                         Text(record.username.ifBlank { "Username not added" }, color = PvMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
                     Surface(shape = RoundedCornerShape(50), color = if (record.isShared) Color(0xFFEFE8FF) else Color(0xFFDDF3ED)) {
-                        Text(if (record.isShared) "SHARED" else "PERSONAL", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = if (record.isShared) Color(0xFF6841B8) else Color(0xFF08785C), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text(if (record.ownerUid == memberUid) "MINE" else "SPOUSE", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = if (record.ownerUid == memberUid) Color(0xFF08785C) else Color(0xFF6841B8), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
