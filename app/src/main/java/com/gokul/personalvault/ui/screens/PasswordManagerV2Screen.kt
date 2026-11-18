@@ -47,8 +47,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.view.WindowManager
 import android.os.Handler
-import android.os.Looper
-import java.util.concurrent.atomic.AtomicBoolean
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalView
 import android.os.VibrationEffect
@@ -92,27 +90,7 @@ fun PasswordManagerV2Screen(
 
     fun copyCredential(label: String, value: String) {
         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("Personal Vault • $label", value)
-        manager.setPrimaryClip(clip)
-
-        // Do not read the clipboard after the app loses focus: Android restricts
-        // background clipboard reads. Instead, track whether another app replaces it.
-        val replacedByAnotherCopy = AtomicBoolean(false)
-        val listener = ClipboardManager.OnPrimaryClipChangedListener {
-            replacedByAnotherCopy.set(true)
-        }
-        manager.addPrimaryClipChangedListener(listener)
-
-        Handler(Looper.getMainLooper()).postDelayed({
-            manager.removePrimaryClipChangedListener(listener)
-            if (!replacedByAnotherCopy.get()) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    manager.clearPrimaryClip()
-                } else {
-                    manager.setPrimaryClip(ClipData.newPlainText("", ""))
-                }
-            }
-        }, 30_000L)
+        manager.setPrimaryClip(ClipData.newPlainText(label, value))
     }
 
     var records by remember {
