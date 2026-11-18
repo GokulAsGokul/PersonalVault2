@@ -55,6 +55,13 @@ class DocumentRepositoryV2(
     fun documentCollection(vaultId: String) =
         firestore.collection(VAULTS).document(vaultId).collection(DOCUMENTS)
 
+    fun sharedDocumentsQuery(vaultId: String) =
+        documentCollection(vaultId).whereEqualTo("scope", "SHARED")
+
+    fun personalDocumentsQuery(vaultId: String, memberUid: String) =
+        documentCollection(vaultId).whereEqualTo("scope", "PERSONAL")
+            .whereEqualTo("ownerUid", memberUid)
+
     fun customCategoryCollection(vaultId: String) =
         firestore.collection(VAULTS).document(vaultId).collection("documentCategories")
 
