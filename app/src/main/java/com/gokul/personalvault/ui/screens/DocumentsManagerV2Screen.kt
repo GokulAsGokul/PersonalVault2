@@ -76,13 +76,30 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var busyDocument by remember { mutableStateOf(false) }
 
     DisposableEffect(vaultId) {
-        val docsListener: ListenerRegistration = repository.documentCollection(vaultId)
+        val sharedDocs = mutableMapOf<String, DocumentRecordV2>()
+        val personalDocs = mutableMapOf<String, DocumentRecordV2>()
+        fun publishDocuments() {
+            documents = (sharedDocs.values + personalDocs.values).distinctBy { it.id }
+        }
+        val sharedListener: ListenerRegistration = repository.sharedDocumentsQuery(vaultId)
             .addSnapshotListener { snapshot, error ->
                 if (error == null && snapshot != null) {
-                    documents = snapshot.documents.mapNotNull { doc ->
-                        doc.data?.let { DocumentRecordV2.fromSnapshot(doc.id, it) }
+                    sharedDocs.clear()
+                    snapshot.documents.forEach { doc ->
+                        doc.data?.let { sharedDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
                     }
-                } else if (error != null) message = error.localizedMessage ?: "Unable to load documents."
+                    publishDocuments()
+                } else if (error != null) message = error.localizedMessage ?: "Unable to load shared documents."
+            }
+        val personalListener: ListenerRegistration = repository.personalDocumentsQuery(vaultId, memberUid)
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    personalDocs.clear()
+                    snapshot.documents.forEach { doc ->
+                        doc.data?.let { personalDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
+                    }
+                    publishDocuments()
+                } else if (error != null) message = error.localizedMessage ?: "Unable to load personal documents."
             }
         val categoriesListener = repository.customCategoryCollection(vaultId)
             .addSnapshotListener { snapshot, error ->
@@ -92,7 +109,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                 }
             }
-        onDispose { docsListener.remove(); categoriesListener.remove() }
+        onDispose { sharedListener.remove(); personalListener.remove(); categoriesListener.remove() }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
