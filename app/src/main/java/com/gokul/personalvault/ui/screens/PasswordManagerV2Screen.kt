@@ -203,6 +203,14 @@ fun PasswordManagerV2Screen(
                     }
                     DropdownMenu(expanded = showHeaderMenu, onDismissRequest = { showHeaderMenu = false }) {
                         DropdownMenuItem(text = { Text("Sort passwords") }, onClick = { showHeaderMenu = false; showSortMenu = true })
+                        DropdownMenuItem(
+                            text = { Text("Send test notification") },
+                            onClick = {
+                                showHeaderMenu = false
+                                PasswordExpiryReminderScheduler.sendTestNotification(context)
+                                message = "Test notification queued. Check your notification shade."
+                            }
+                        )
                     }
                 }
             }
