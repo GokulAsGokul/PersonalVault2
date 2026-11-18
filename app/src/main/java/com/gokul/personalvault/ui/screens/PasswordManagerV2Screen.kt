@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -143,6 +144,7 @@ fun PasswordManagerV2Screen(
 
     Scaffold(
         containerColor = PvBackground,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -160,10 +162,10 @@ fun PasswordManagerV2Screen(
         Column(
             Modifier.fillMaxSize().padding(padding).background(PvBackground).padding(horizontal = 18.dp)
         ) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(2.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Password Manager", color = PvText, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Password Manager", color = PvText, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Lock, null, tint = PvTeal, modifier = Modifier.size(13.dp))
                         Spacer(Modifier.width(4.dp))
@@ -210,13 +212,14 @@ fun PasswordManagerV2Screen(
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${visibleRecords.size} passwords", color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.weight(1f))
                 Box {
                     TextButton(onClick = { showSortMenu = true }) {
                         Text(sortOrder, color = PvNavy, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "Choose sort order", tint = PvNavy)
                     }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                         listOf("A–Z", "Z–A", "Newest first", "Oldest first").forEach { option ->
