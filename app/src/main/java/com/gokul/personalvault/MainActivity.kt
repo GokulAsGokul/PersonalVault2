@@ -61,6 +61,11 @@ private val VaultBlue = Color(0xFF315CDB)
 private val VaultBackground = Color(0xFFF4F6FB)
 private val VaultMuted = Color(0xFF64748B)
 
+// Tracks the temporary system document-picker activity so returning from it does not lock the vault.
+object VaultExternalActivityState {
+    @Volatile var documentPickerActive: Boolean = false
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,8 +177,8 @@ LaunchedEffect(currentUid) {
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner, currentUid) {
                 val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_STOP) {
-                        // Lock all in-memory encryption sessions whenever the app leaves foreground.
+                    if (event == Lifecycle.Event.ON_STOP && !VaultExternalActivityState.documentPickerActive) {
+                        // Keep the vault unlocked while the system document picker is temporarily open.
                         VaultKeySessionV2.clear()
                         VaultCrypto.clearSession()
                         HouseholdCrypto.clearSession()
