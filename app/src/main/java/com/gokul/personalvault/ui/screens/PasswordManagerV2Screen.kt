@@ -216,7 +216,7 @@ fun PasswordManagerV2Screen(
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("All").plus(PasswordRecordV2.CATEGORIES).forEach { category ->
+                listOf("All").plus((PasswordRecordV2.CATEGORIES + records.map { it.category }).distinct()).forEach { category ->
                     FilterChip(selected = selectedCategory == category, onClick = { selectedCategory = category }, label = { Text(category) }, shape = RoundedCornerShape(50),
                         modifier = Modifier.height(34.dp)
                     )
@@ -255,6 +255,7 @@ fun PasswordManagerV2Screen(
     if (showAddDialog) {
         PasswordAddDialog(
             saving = saving,
+            categoryOptions = (PasswordRecordV2.CATEGORIES + records.map { it.category }).distinct(),
             onDismiss = { showAddDialog = false },
             onSave = { website, username, password, category, notes, recordScope ->
 
@@ -316,6 +317,7 @@ fun PasswordManagerV2Screen(
         PasswordAddDialog(
             saving = saving,
             initialRecord = record,
+            categoryOptions = (PasswordRecordV2.CATEGORIES + records.map { it.category }).distinct(),
             onDismiss = { if (!saving) recordToEdit = null },
             onSave = { website, username, password, category, notes, _ ->
                 scope.launch {
@@ -497,6 +499,7 @@ private fun EmptyPasswordsV2(scope: String) {
 private fun PasswordAddDialog(
     saving: Boolean,
     initialRecord: PasswordRecordV2? = null,
+    categoryOptions: List<String>,
     onDismiss: () -> Unit,
     onSave: (
         String, String, String, String, String, String
@@ -512,6 +515,9 @@ private fun PasswordAddDialog(
     }
     var showPassword by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
+    var addingCustomCategory by remember { mutableStateOf(false) }
+    var customCategory by remember { mutableStateOf("") }
+    var customCategoryError by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var validationAttempt by remember { mutableIntStateOf(0) }
     var websiteError by remember { mutableStateOf("") }
@@ -661,15 +667,61 @@ private fun PasswordAddDialog(
                             categoryExpanded = false
                         }
                     ) {
-                        PasswordRecordV2.CATEGORIES.forEach { option ->
+                        categoryOptions.forEach { option ->
                             DropdownMenuItem(
                                 text = { Text(option) },
                                 onClick = {
                                     category = option
                                     categoryExpanded = false
+                                    addingCustomCategory = false
                                 }
                             )
                         }
+                        DropdownMenuItem(
+                            text = { Text("+ Add custom category") },
+                            onClick = {
+                                categoryExpanded = false
+                                customCategory = ""
+                                customCategoryError = ""
+                                addingCustomCategory = true
+                            }
+                        )
+                    }
+                }
+
+                if (addingCustomCategory) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = customCategory,
+                            onValueChange = {
+                                customCategory = it.take(24)
+                                customCategoryError = ""
+                            },
+                            label = { Text("New category") },
+                            singleLine = true,
+                            isError = customCategoryError.isNotBlank(),
+                            supportingText = {
+                                Text(customCategoryError.ifBlank { customCategory.length.toString() + "/24" })
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = {
+                            val clean = customCategory.trim()
+                            when {
+                                clean.isBlank() -> customCategoryError = "Enter a category."
+                                categoryOptions.any { it.equals(clean, ignoreCase = true) } ->
+                                    customCategoryError = "Category already exists."
+                                else -> {
+                                    category = clean
+                                    addingCustomCategory = false
+                                    customCategory = ""
+                                }
+                            }
+                        }) { Text("Add") }
                     }
                 }
 
