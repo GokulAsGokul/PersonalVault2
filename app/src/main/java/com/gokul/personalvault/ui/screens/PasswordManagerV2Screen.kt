@@ -13,6 +13,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
@@ -73,6 +75,8 @@ fun PasswordManagerV2Screen(
     var showAddDialog by remember {
         mutableStateOf(false)
     }
+    var recordToEdit by remember { mutableStateOf<PasswordRecordV2?>(null) }
+    var recordToDelete by remember { mutableStateOf<PasswordRecordV2?>(null) }
 
     var loading by remember {
         mutableStateOf(true)
@@ -325,9 +329,69 @@ fun PasswordManagerV2Screen(
                 clipboard.setText(AnnotatedString(record.username))
                 message = "Username copied."
             },
+            canManage = record.ownerUid == memberUid,
+            onEdit = { recordToEdit = record; selectedRecord = null },
+            onDelete = { recordToDelete = record; selectedRecord = null },
             onCopyPassword = {
                 clipboard.setText(AnnotatedString(record.password))
                 message = "Password copied."
+            }
+        )
+    }
+
+    recordToEdit?.let { record ->
+        PasswordAddDialog(
+            saving = saving,
+            initialRecord = record,
+            onDismiss = { if (!saving) recordToEdit = null },
+            onSave = { website, username, password, category, notes, _ ->
+                scope.launch {
+                    saving = true
+                    message = ""
+                    try {
+                        withContext(Dispatchers.IO) {
+                            PasswordRepositoryFirestoreV2.update(
+                                vaultId, memberUid, record, website,
+                                username, password, category, notes
+                            )
+                        }
+                        recordToEdit = null
+                        reloadPasswords()
+                        message = "Password updated securely."
+                    } catch (error: Exception) {
+                        message = error.localizedMessage ?: "Unable to update password."
+                    } finally { saving = false }
+                }
+            }
+        )
+    }
+
+    recordToDelete?.let { record ->
+        AlertDialog(
+            onDismissRequest = { if (!saving) recordToDelete = null },
+            title = { Text("Delete password?") },
+            text = { Text("Delete " + record.websiteApp + "? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(enabled = !saving, onClick = {
+                    scope.launch {
+                        saving = true
+                        try {
+                            withContext(Dispatchers.IO) {
+                                PasswordRepositoryFirestoreV2.delete(vaultId, memberUid, record)
+                            }
+                            recordToDelete = null
+                            reloadPasswords()
+                            message = "Password deleted."
+                        } catch (error: Exception) {
+                            message = error.localizedMessage ?: "Unable to delete password."
+                        } finally { saving = false }
+                    }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = !saving, onClick = { recordToDelete = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -463,18 +527,19 @@ private fun EmptyPasswordsV2(scope: String) {
 @Composable
 private fun PasswordAddDialog(
     saving: Boolean,
+    initialRecord: PasswordRecordV2? = null,
     onDismiss: () -> Unit,
     onSave: (
         String, String, String, String, String, String
     ) -> Unit
 ) {
-    var website by remember { mutableStateOf("") }
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("Other") }
-    var notes by remember { mutableStateOf("") }
-    var recordScope by remember {
-        mutableStateOf(PasswordRecordV2.SCOPE_PERSONAL)
+    var website by remember(initialRecord?.id) { mutableStateOf(initialRecord?.websiteApp.orEmpty()) }
+    var username by remember(initialRecord?.id) { mutableStateOf(initialRecord?.username.orEmpty()) }
+    var password by remember(initialRecord?.id) { mutableStateOf(initialRecord?.password.orEmpty()) }
+    var category by remember(initialRecord?.id) { mutableStateOf(initialRecord?.category ?: "Other") }
+    var notes by remember(initialRecord?.id) { mutableStateOf(initialRecord?.notes.orEmpty()) }
+    var recordScope by remember(initialRecord?.id) {
+        mutableStateOf(initialRecord?.scope ?: PasswordRecordV2.SCOPE_PERSONAL)
     }
     var showPassword by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
@@ -484,7 +549,7 @@ private fun PasswordAddDialog(
         onDismissRequest = {
             if (!saving) onDismiss()
         },
-        title = { Text("Add password") },
+        title = { Text(if (initialRecord == null) "Add password" else "Edit password") },
         text = {
             Column(
                 Modifier
@@ -493,9 +558,9 @@ private fun PasswordAddDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("SAVE IN")
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (initialRecord == null) {
+                    Text("SAVE IN")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = recordScope ==
                                 PasswordRecordV2.SCOPE_PERSONAL,
@@ -513,6 +578,9 @@ private fun PasswordAddDialog(
                         },
                         label = { Text("Shared") }
                     )
+                    }
+                } else {
+                    Text("SAVED IN ${initialRecord.scope}")
                 }
 
                 OutlinedTextField(
@@ -636,7 +704,7 @@ private fun PasswordAddDialog(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text("Save password")
+                    Text(if (initialRecord == null) "Save password" else "Save changes")
                 }
             }
         },
@@ -654,7 +722,10 @@ private fun PasswordAddDialog(
 @Composable
 private fun PasswordDetailsDialogV2(
     record: PasswordRecordV2,
+    canManage: Boolean,
     onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
     onCopyUsername: () -> Unit,
     onCopyPassword: () -> Unit
 ) {
@@ -717,8 +788,21 @@ private fun PasswordDetailsDialogV2(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (canManage) {
+                    TextButton(onClick = onEdit) {
+                        Icon(Icons.Outlined.Edit, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Edit")
+                    }
+                    TextButton(onClick = onDelete) {
+                        Icon(Icons.Outlined.Delete, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                TextButton(onClick = onDismiss) { Text("Close") }
             }
         }
     )
