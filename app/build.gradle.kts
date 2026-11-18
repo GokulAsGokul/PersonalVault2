@@ -49,6 +49,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.firebase.firestore)
+    implementation("com.google.firebase:firebase-storage")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.bouncycastle:bcprov-jdk18on:1.86")
