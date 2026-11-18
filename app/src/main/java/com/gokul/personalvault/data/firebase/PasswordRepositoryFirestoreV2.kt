@@ -248,6 +248,53 @@ object PasswordRepositoryFirestoreV2 {
         }
     }
 
+
+    suspend fun update(
+        vaultId: String, memberUid: String, original: PasswordRecordV2,
+        websiteApp: String, username: String, password: String,
+        category: String, notes: String
+    ): PasswordRecordV2 {
+        validateSignedInMember(memberUid)
+        require(original.ownerUid == memberUid) {
+            "Only the original owner can edit this password."
+        }
+        require(websiteApp.isNotBlank()) { "Website / App is required." }
+        require(password.isNotBlank()) { "Password is required." }
+
+        val updated = original.copy(
+            websiteApp = websiteApp.trim(), username = username.trim(),
+            password = password, category = category, notes = notes.trim(),
+            editedAt = System.currentTimeMillis()
+        )
+        val key = if (original.scope == PasswordRecordV2.SCOPE_PERSONAL) {
+            requireVaultKey(vaultId, memberUid)
+        } else {
+            requireHouseholdKey(vaultId)
+        }
+        try {
+            val encryptedPayload = PasswordRecordCryptoV2.encrypt(
+                record = updated, vaultKey = key, vaultId = vaultId
+            )
+            passwordCollection(vaultId).document(original.id).update(
+                mapOf(
+                    "encryptedPayload" to encryptedPayload,
+                    "editedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            return updated
+        } finally {
+            key.fill(0)
+        }
+    }
+
+    suspend fun delete(vaultId: String, memberUid: String, record: PasswordRecordV2) {
+        validateSignedInMember(memberUid)
+        require(record.ownerUid == memberUid) {
+            "Only the original owner can delete this password."
+        }
+        passwordCollection(vaultId).document(record.id).delete().await()
+    }
+
     private fun passwordCollection(vaultId: String) =
         db.collection(VAULT_COLLECTION)
             .document(vaultId)
