@@ -171,6 +171,23 @@ class DocumentRepositoryV2(
         ).await()
     }
 
+    suspend fun createCategory(vaultId: String, name: String): String {
+        val result = functions.getHttpsCallable("createV2DocumentCategory")
+            .call(mapOf("vaultId" to vaultId, "name" to name.trim())).await()
+        return (result.data as? Map<*, *>)?.get("categoryId") as? String
+            ?: throw IllegalStateException("Category was created but its ID was not returned.")
+    }
+
+    suspend fun renameCategory(vaultId: String, categoryId: String, name: String) {
+        functions.getHttpsCallable("renameV2DocumentCategory")
+            .call(mapOf("vaultId" to vaultId, "categoryId" to categoryId, "name" to name.trim())).await()
+    }
+
+    suspend fun deleteCategory(vaultId: String, categoryId: String) {
+        functions.getHttpsCallable("deleteV2DocumentCategory")
+            .call(mapOf("vaultId" to vaultId, "categoryId" to categoryId)).await()
+    }
+
     suspend fun moveToRecycleBin(vaultId: String, document: DocumentRecordV2) {
         functions.getHttpsCallable("softDeleteV2Document")
             .call(mapOf("vaultId" to vaultId, "documentId" to document.id)).await()
