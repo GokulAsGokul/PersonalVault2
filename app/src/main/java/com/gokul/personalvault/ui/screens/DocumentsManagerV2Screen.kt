@@ -298,7 +298,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     }
 
     Scaffold(
-        containerColor = Color(0xFFF4F6FB),
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             if (!recycleBin) FloatingActionButton(
                 onClick = { VaultExternalActivityState.documentPickerActive = true; picker.launch(arrayOf("*/*")) },
@@ -315,13 +315,13 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Icon(Icons.Outlined.FolderOpen, null, tint = Color(0xFF315CDB), modifier = Modifier.size(30.dp))
+                        Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
                         Column {
                             Text(if (recycleBin) "Recycle Bin" else "Documents",
                                 style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold, color = Color(0xFF14213D))
+                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                             Text(if (recycleBin) "Deleted Files Are Kept For 30 Days" else "Your Secure Files",
-                                color = Color(0xFF64748B))
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     TextButton(onClick = { recycleBin = !recycleBin; category = "all"; visibility = "ALL" }) {
@@ -410,7 +410,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     Column(Modifier.weight(1f)) {
                         Text(if (recycleBin) "Deleted Documents" else "Documents",
                             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("${visible.size} Files", color = Color(0xFF64748B))
+                        Text("${visible.size} Files", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Box {
                         TextButton(onClick = { sortMenu = true }) { Text("Sort By") }
@@ -434,13 +434,13 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             }
             if (visible.isEmpty()) {
                 item {
-                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                         Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Outlined.Description, null, tint = Color(0xFF315CDB))
+                            Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary)
                             Text(if (recycleBin) "Recycle Bin is empty" else "No documents found",
                                 fontWeight = FontWeight.SemiBold)
                             Text(if (recycleBin) "Deleted files will appear here." else "Upload a file to get started.",
-                                color = Color(0xFF64748B))
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -479,13 +479,13 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 }
             }
             if (uploading) item {
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(Modifier.padding(14.dp)) {
                         Text(message, style = MaterialTheme.typography.bodySmall)
                         LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth())
                     }
                 }
-            } else if (message.isNotBlank()) item { Text(message, color = Color(0xFF315CDB)) }
+            } else if (message.isNotBlank()) item { Text(message, color = MaterialTheme.colorScheme.primary) }
         }
     }
 
@@ -499,15 +499,15 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT files selected",
-                        color = Color(0xFF64748B))
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         "Limits: 50 MB per file · 200 MB per batch",
-                        color = Color(0xFF64748B),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall
                     )
                     Text(
                         "Total selected: ${formatDocumentBytes(pendingUploads.sumOf { it.sizeBytes })}",
-                        color = Color(0xFF64748B),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall
                     )
                     Text("Save to", fontWeight = FontWeight.SemiBold)
@@ -936,10 +936,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 @Composable
 private fun DocumentSummaryTile(label: String, value: String, modifier: Modifier) {
     Card(modifier, shape = RoundedCornerShape(13.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(9.dp)) {
-            Text(value, fontWeight = FontWeight.Bold, color = Color(0xFF14213D))
-            Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF64748B))
+            Text(value, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -968,39 +968,39 @@ private fun DocumentCardV2(
         else -> Icons.Outlined.InsertDriveFile
     }
     Card(modifier, shape = RoundedCornerShape(15.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Icon(fileIcon, null, tint = Color(0xFF315CDB), modifier = Modifier.size(31.dp))
-                Surface(color = Color(0xFFE7EEFF), shape = RoundedCornerShape(50)) {
+                Icon(fileIcon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(31.dp))
+                Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(50)) {
                     Text(categoryName, Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        color = Color(0xFF214DB8), style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer, style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(document.originalFileName.ifBlank { document.title },
-                    fontWeight = FontWeight.SemiBold, color = Color(0xFF14213D), maxLines = 2,
+                    fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 2,
                     style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(Icons.Outlined.Storage, null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
-                    Text(formatDocumentBytes(document.sizeBytes), color = Color(0xFF64748B),
+                    Icon(Icons.Outlined.Storage, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                    Text(formatDocumentBytes(document.sizeBytes), color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Icon(if (document.scope == "SHARED") Icons.Outlined.Groups else Icons.Outlined.Person,
-                        null, tint = Color(0xFF526987), modifier = Modifier.size(17.dp))
+                        null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(17.dp))
                     Text(
                         if (document.scope == "SHARED") "Shared Vault · Added By $addedByLabel" else "Personal Vault",
-                        color = Color(0xFF526987), style = MaterialTheme.typography.bodySmall, maxLines = 1
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, maxLines = 1
                     )
                 }
-                if (isRecycleBin) Text("Deleted", color = Color(0xFFB45309), style = MaterialTheme.typography.labelSmall)
+                if (isRecycleBin) Text("Deleted", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelSmall)
             }
             if (!isRecycleBin) {
-                VerticalDivider(Modifier.height(76.dp), color = Color(0xFFD7DCE7))
+                VerticalDivider(Modifier.height(76.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(onClick = onDownload, modifier = Modifier.size(34.dp)) {
                         Icon(Icons.Outlined.Download, "Download", tint = Color(0xFF1D4FA8), modifier = Modifier.size(19.dp))
