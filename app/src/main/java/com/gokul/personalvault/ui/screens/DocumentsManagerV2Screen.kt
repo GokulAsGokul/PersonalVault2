@@ -815,12 +815,14 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 replacingDocument = true
                                 replacementProgress = 0f
                                 try {
-                                    repository.replaceFile(
+                                    val replacementTitle = repository.replaceFile(
                                         vaultId, target, pending.uri, context.contentResolver
                                     ) { value -> replacementProgress = value }
-                                    message = "Document file replaced successfully."
+                                    message = "Document replaced. Title updated to '$replacementTitle'."
                                     if (editingDocument?.id == target.id) {
+                                        editTitle = replacementTitle
                                         editingDocument = target.copy(
+                                            title = replacementTitle,
                                             originalFileName = pending.fileName,
                                             contentType = context.contentResolver.getType(pending.uri)
                                                 ?: "application/octet-stream",
