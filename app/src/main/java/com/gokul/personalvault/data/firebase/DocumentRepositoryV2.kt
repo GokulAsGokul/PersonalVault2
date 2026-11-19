@@ -157,7 +157,7 @@ class DocumentRepositoryV2(
     ) {
         val cleanTitle = title.trim()
         require(cleanTitle.isNotEmpty() && cleanTitle.length <= 30) { "Title must be 1–30 characters." }
-        require(description.length <= 50) { "Description must be 50 characters or fewer." }
+        require(description.length <= 35) { "Notes must be 35 characters or fewer." }
         require(scope == "PERSONAL" || scope == "SHARED") { "Invalid visibility." }
         val duplicate = documentCollection(vaultId)
             .whereEqualTo("ownerUid", document.ownerUid)
