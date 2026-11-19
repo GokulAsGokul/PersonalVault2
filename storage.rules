@@ -9,10 +9,23 @@ service firebase.storage {
 
     function isVaultMember(vaultId) {
       return signedIn()
-        && firestore.exists(/databases/(default)/documents/vaultsV2/$(vaultId))
         && request.auth.uid in firestore.get(
           /databases/(default)/documents/vaultsV2/$(vaultId)
         ).data.memberUids;
+    }
+
+    function canReadActiveDocument(vaultId, ownerUid, documentId) {
+      let document = firestore.get(
+        /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
+      ).data;
+      return document.ownerUid == ownerUid
+        && document.storagePath ==
+          'vaultsV2/' + vaultId + '/documents/' + ownerUid + '/' + documentId
+        && document.isDeleted == false
+        && (
+          (document.scope == 'PERSONAL' && request.auth.uid == ownerUid)
+          || document.scope == 'SHARED'
+        );
     }
 
     function validDocumentMetadata(vaultId, ownerUid, documentId) {
@@ -29,39 +42,14 @@ service firebase.storage {
     // vaultsV2/{vaultId}/documents/{ownerUid}/{documentId}
     match /vaultsV2/{vaultId}/documents/{ownerUid}/{documentId} {
 
-      // Personal files are owner-only. Shared files are readable by
-      // approved household members. Membership is checked against the
-      // authoritative V2 vault document in Firestore.
-      // Firestore is the source of truth for visibility and deletion state.
-      // This keeps Storage access synchronized when a document is shared,
-      // made personal, or moved to the Recycle Bin.
+      // Firestore is authoritative for visibility and deletion state.
+      // Storage reads therefore stop immediately when a document is made
+      // personal or moved to the Recycle Bin.
       allow read: if isVaultMember(vaultId)
         && resource.metadata.vaultId == vaultId
         && resource.metadata.ownerUid == ownerUid
         && resource.metadata.documentId == documentId
-        && firestore.exists(
-          /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
-        )
-        && firestore.get(
-          /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
-        ).data.ownerUid == ownerUid
-        && firestore.get(
-          /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
-        ).data.storagePath == 'vaultsV2/' + vaultId + '/documents/' + ownerUid + '/' + documentId
-        && firestore.get(
-          /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
-        ).data.isDeleted == false
-        && (
-          (
-            firestore.get(
-              /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
-            ).data.scope == 'PERSONAL'
-            && request.auth.uid == ownerUid
-          )
-          || firestore.get(
-            /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
-          ).data.scope == 'SHARED'
-        );
+        && canReadActiveDocument(vaultId, ownerUid, documentId);
 
       // Upload and replacement are restricted to the original owner.
       // The 50 MB limit is enforced by Storage Rules as well as the app.
