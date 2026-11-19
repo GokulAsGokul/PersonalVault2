@@ -32,16 +32,35 @@ service firebase.storage {
       // Personal files are owner-only. Shared files are readable by
       // approved household members. Membership is checked against the
       // authoritative V2 vault document in Firestore.
+      // Firestore is the source of truth for visibility and deletion state.
+      // This keeps Storage access synchronized when a document is shared,
+      // made personal, or moved to the Recycle Bin.
       allow read: if isVaultMember(vaultId)
         && resource.metadata.vaultId == vaultId
         && resource.metadata.ownerUid == ownerUid
         && resource.metadata.documentId == documentId
+        && firestore.exists(
+          /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
+        )
+        && firestore.get(
+          /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
+        ).data.ownerUid == ownerUid
+        && firestore.get(
+          /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
+        ).data.storagePath == 'vaultsV2/' + vaultId + '/documents/' + ownerUid + '/' + documentId
+        && firestore.get(
+          /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
+        ).data.isDeleted == false
         && (
           (
-            resource.metadata.scope == 'PERSONAL'
+            firestore.get(
+              /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
+            ).data.scope == 'PERSONAL'
             && request.auth.uid == ownerUid
           )
-          || resource.metadata.scope == 'SHARED'
+          || firestore.get(
+            /databases/(default)/documents/vaultsV2/$(vaultId)/documents/$(documentId)
+          ).data.scope == 'SHARED'
         );
 
       // Upload and replacement are restricted to the original owner.
