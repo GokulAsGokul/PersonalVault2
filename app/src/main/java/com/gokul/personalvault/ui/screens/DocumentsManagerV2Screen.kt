@@ -1003,13 +1003,13 @@ private fun DocumentCardV2(
                 VerticalDivider(Modifier.height(76.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(onClick = onDownload, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Outlined.Download, "Download", tint = Color(0xFF1D4FA8), modifier = Modifier.size(19.dp))
+                        Icon(Icons.Outlined.Download, "Download", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(19.dp))
                     }
                     IconButton(onClick = onEdit, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Outlined.Edit, "Edit", tint = Color(0xFF1D4FA8), modifier = Modifier.size(19.dp))
+                        Icon(Icons.Outlined.Edit, "Edit", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(19.dp))
                     }
                     IconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Outlined.Delete, "Delete", tint = Color(0xFFB91C1C), modifier = Modifier.size(19.dp))
+                        Icon(Icons.Outlined.Delete, "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(19.dp))
                     }
                 }
             }
