@@ -178,6 +178,62 @@ class DocumentRepositoryV2(
         ).await()
     }
 
+    /**
+     * Replaces the binary at the document's existing Storage path.
+     * The previous file is overwritten and is not retained as a version.
+     * Document identity and all user-defined metadata remain unchanged.
+     */
+    suspend fun replaceFile(
+        vaultId: String,
+        document: DocumentRecordV2,
+        uri: Uri,
+        resolver: ContentResolver,
+        onProgress: (Float) -> Unit = {}
+    ) {
+        require(!document.isDeleted) { "Restore this document before replacing its file." }
+        val expectedPath = "vaultsV2/" + vaultId + "/documents/" +
+            document.ownerUid + "/" + document.id
+        require(document.storagePath == expectedPath) { "Invalid document storage path." }
+        val fileName = readDisplayName(resolver, uri)
+        val size = readSizeBytes(resolver, uri)
+        require(size in 1..MAX_FILE_BYTES) { "The replacement file must be between 1 byte and 50 MB." }
+        val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        require(extension.isNotBlank()) { "The replacement file must have a file extension." }
+        val mimeType = resolver.getType(uri) ?: "application/octet-stream"
+        val metadata = StorageMetadata.Builder()
+            .setContentType(mimeType)
+            .setCustomMetadata("vaultId", vaultId)
+            .setCustomMetadata("ownerUid", document.ownerUid)
+            .setCustomMetadata("documentId", document.id)
+            .setCustomMetadata("scope", document.scope)
+            .build()
+
+        val storageRef = storage.reference.child(document.storagePath)
+        val uploadTask = storageRef.putFile(uri, metadata)
+        uploadTask.addOnProgressListener { snapshot ->
+            val total = snapshot.totalByteCount
+            if (total > 0L) onProgress(snapshot.bytesTransferred.toFloat() / total.toFloat())
+        }
+        uploadTask.await()
+
+        try {
+            documentCollection(vaultId).document(document.id).update(
+                mapOf(
+                    "originalFileName" to fileName,
+                    "contentType" to mimeType,
+                    "sizeBytes" to size,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+        } catch (error: Exception) {
+            throw IllegalStateException(
+                "The replacement file was uploaded, but its document details could not be updated. Refresh before trying again.",
+                error
+            )
+        }
+        onProgress(1f)
+    }
+
     suspend fun createCategory(vaultId: String, name: String): String {
         val result = functions.getHttpsCallable("createV2DocumentCategory")
             .call(mapOf("vaultId" to vaultId, "name" to name.trim())).await()
