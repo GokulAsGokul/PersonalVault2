@@ -86,6 +86,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var recycleBin by remember { mutableStateOf(false) }
     var uploading by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
+    var currentFileProgress by remember { mutableFloatStateOf(0f) }
     var message by remember { mutableStateOf("") }
     var categoryDialog by remember { mutableStateOf(false) }
     var newCategory by remember { mutableStateOf("") }
@@ -205,7 +206,11 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     message = "The replacement file must be between 1 byte and 50 MB."
                 fileName.substringAfterLast('.', "").isBlank() ->
                     message = "Choose a file with a valid extension."
-                else -> pendingReplacement = PendingDocumentReplacementV2(uri, fileName, sizeBytes)
+                else -> {
+                    pendingReplacement = PendingDocumentReplacementV2(uri, fileName, sizeBytes)
+                    val derivedTitle = fileName.substringBeforeLast('.').trim().take(30)
+                    if (derivedTitle.isNotBlank()) editTitle = derivedTitle
+                }
             }
         } else {
             replacementTarget = null
@@ -572,6 +577,21 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                     if (uploading) {
                         Text(message, style = MaterialTheme.typography.bodySmall)
+                        val activeUpload = pendingUploads.getOrNull(
+                            message.substringAfter("Uploading ").substringBefore(" of ").toIntOrNull()?.minus(1) ?: -1
+                        )
+                        if (activeUpload != null) {
+                            Text(
+                                "${formatDocumentBytes((activeUpload.sizeBytes * currentFileProgress).toLong())} / ${formatDocumentBytes(activeUpload.sizeBytes)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            LinearProgressIndicator(
+                                progress = { currentFileProgress },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        Text("Batch progress", style = MaterialTheme.typography.labelSmall)
                         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
                     }
                 }
@@ -584,17 +604,22 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         scope.launch {
                             uploading = true
                             progress = 0f
+                            currentFileProgress = 0f
                             var completed = 0
                             val failures = mutableListOf<String>()
                             val total = pendingUploads.size
                             try {
                                 pendingUploads.toList().forEachIndexed { index, pending ->
                                     message = "Uploading ${index + 1} of $total: ${pending.fileName}"
+                                    currentFileProgress = 0f
                                     try {
                                         repository.upload(
                                             vaultId, memberUid, pending.uri, context.contentResolver,
                                             pending.title.trim(), uploadCategory, pending.notes.trim(), uploadScope
-                                        ) { value -> progress = (completed + value) / total.toFloat() }
+                                        ) { value ->
+                                            currentFileProgress = value
+                                            progress = (completed + value) / total.toFloat()
+                                        }
                                         completed++
                                     } catch (error: Exception) {
                                         failures.add("${pending.fileName}: ${error.localizedMessage ?: error.message ?: "Upload failed"}")
@@ -782,77 +807,18 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         )
     }
 
-    pendingReplacement?.let { pending ->
-        val target = replacementTarget
-        if (target != null) {
-            AlertDialog(
-                onDismissRequest = { if (!replacingDocument) { pendingReplacement = null; replacementTarget = null } },
-                title = { Text("Replace Document") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Current file: " + target.originalFileName)
-                        Text("New file: " + pending.fileName)
-                        Text("Size: " + formatDocumentBytes(pending.sizeBytes))
-                        Text(
-                            "The existing file will be overwritten. The previous file will not be retained.",
-                            color = Color(0xFFB45309),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        if (replacingDocument) {
-                            LinearProgressIndicator(
-                                progress = { replacementProgress },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Text("Replacing file…", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        enabled = !replacingDocument,
-                        onClick = {
-                            scope.launch {
-                                replacingDocument = true
-                                replacementProgress = 0f
-                                try {
-                                    val replacementTitle = repository.replaceFile(
-                                        vaultId, target, pending.uri, context.contentResolver
-                                    ) { value -> replacementProgress = value }
-                                    message = "Document replaced. Title updated to '$replacementTitle'."
-                                    if (editingDocument?.id == target.id) {
-                                        editTitle = replacementTitle
-                                        editingDocument = target.copy(
-                                            title = replacementTitle,
-                                            originalFileName = pending.fileName,
-                                            contentType = context.contentResolver.getType(pending.uri)
-                                                ?: "application/octet-stream",
-                                            sizeBytes = pending.sizeBytes
-                                        )
-                                    }
-                                    pendingReplacement = null
-                                    replacementTarget = null
-                                } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Unable to replace document."
-                                } finally {
-                                    replacingDocument = false
-                                }
-                            }
-                        }
-                    ) { Text(if (replacingDocument) "Replacing…" else "Replace File") }
-                },
-                dismissButton = {
-                    TextButton(
-                        enabled = !replacingDocument,
-                        onClick = { pendingReplacement = null; replacementTarget = null }
-                    ) { Text("Cancel") }
-                }
-            )
-        }
-    }
 
     editingDocument?.let { doc ->
         AlertDialog(
-            onDismissRequest = { editingDocument = null },
+            onDismissRequest = {
+                if (!replacingDocument && !busyDocument) {
+                    if (replacementTarget?.id == doc.id) {
+                        pendingReplacement = null
+                        replacementTarget = null
+                    }
+                    editingDocument = null
+                }
+            },
             title = { Text("Edit document") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -864,10 +830,31 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(doc.originalFileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
-                            Text(formatDocumentBytes(doc.sizeBytes), style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                pendingReplacement?.takeIf { replacementTarget?.id == doc.id }?.fileName
+                                    ?.let { "Selected: $it" } ?: formatDocumentBytes(doc.sizeBytes),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        TextButton(
+                        if (pendingReplacement?.let { replacementTarget?.id == doc.id } == true) {
+                        Text(
+                            "Ready to upload: ${pendingReplacement?.fileName}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (replacingDocument) {
+                            Text(
+                                "${formatDocumentBytes((pendingReplacement!!.sizeBytes * replacementProgress).toLong())} / ${formatDocumentBytes(pendingReplacement!!.sizeBytes)}",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            LinearProgressIndicator(
+                                progress = { replacementProgress },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                    TextButton(
                             enabled = !busyDocument && !replacingDocument,
                             onClick = {
                                 replacementTarget = doc
@@ -898,14 +885,46 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     scope.launch {
                         busyDocument = true
                         try {
-                            repository.updateMetadata(vaultId, doc, editTitle, editDescription, editCategory, editScope)
-                            editingDocument = null; message = "Document details updated."
-                        } catch (error: Exception) { message = error.message ?: "Update failed." }
-                        busyDocument = false
+                            val selectedReplacement = pendingReplacement
+                                ?.takeIf { replacementTarget?.id == doc.id }
+                            if (selectedReplacement != null) {
+                                replacingDocument = true
+                                replacementProgress = 0f
+                                repository.replaceFile(
+                                    vaultId, doc, selectedReplacement.uri, context.contentResolver
+                                ) { value -> replacementProgress = value }
+                            }
+                            repository.updateMetadata(
+                                vaultId, doc, editTitle, editDescription, editCategory, editScope
+                            )
+                            if (selectedReplacement != null) {
+                                message = "Document replaced and saved successfully."
+                                pendingReplacement = null
+                                replacementTarget = null
+                            } else {
+                                message = "Document details updated."
+                            }
+                            editingDocument = null
+                        } catch (error: Exception) {
+                            message = error.localizedMessage ?: error.message ?: "Save failed."
+                        } finally {
+                            replacingDocument = false
+                            busyDocument = false
+                        }
                     }
-                }, enabled = !busyDocument) { Text("Save") }
+                }, enabled = !busyDocument && !replacingDocument) {
+                    Text(if (replacingDocument) "Uploading…" else "Save")
+                }
             },
-            dismissButton = { TextButton(onClick = { editingDocument = null }) { Text("Cancel") } }
+            dismissButton = {
+                TextButton(enabled = !busyDocument && !replacingDocument, onClick = {
+                    if (replacementTarget?.id == doc.id) {
+                        pendingReplacement = null
+                        replacementTarget = null
+                    }
+                    editingDocument = null
+                }) { Text("Cancel") }
+            }
         )
     }
 }
