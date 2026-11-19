@@ -296,12 +296,6 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             }
             if (!recycleBin) {
                 item {
-                    OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search Title or Notes") },
-                        leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                        singleLine = true, shape = RoundedCornerShape(16.dp))
-                }
-                item {
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF14213D))) {
                         Column(Modifier.padding(18.dp)) {
@@ -324,6 +318,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                 }
                 item {
+                    OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search Title or Notes") },
+                        leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                        singleLine = true, shape = RoundedCornerShape(16.dp))
+                }
+                item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("Categories", style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -335,6 +335,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
+                        DocumentCategoryChip("All", "all", category) { category = it }
                         allCategories.forEach { (id, name) ->
                             DocumentCategoryChip(name, id, category) { category = it }
                         }
@@ -348,8 +349,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        listOf("ALL", "PDF", "IMAGE", "OFFICE", "OTHER").forEach { value ->
-                            FilterChip(fileType == value, { fileType = value }, label = { Text(value) })
+                        listOf("ALL" to "All", "PDF" to "Pdf", "IMAGE" to "Image", "OFFICE" to "Office", "OTHER" to "Other").forEach { (value, label) ->
+                            FilterChip(fileType == value, { fileType = value }, label = { Text(label) })
                         }
                     }
                 }
@@ -802,24 +803,27 @@ private fun DocumentCardV2(
         document.contentType.startsWith("image/") -> Icons.Outlined.Image
         else -> Icons.Outlined.InsertDriveFile
     }
-    Card(modifier, shape = RoundedCornerShape(18.dp),
+    Card(modifier, shape = RoundedCornerShape(15.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+        Row(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            Icon(fileIcon, null, tint = Color(0xFF315CDB), modifier = Modifier.size(38.dp))
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(document.originalFileName.ifBlank { document.title },
-                    fontWeight = FontWeight.SemiBold, color = Color(0xFF14213D), maxLines = 2)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Icon(Icons.Outlined.Storage, null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
-                    Text(formatDocumentBytes(document.sizeBytes), color = Color(0xFF64748B),
-                        style = MaterialTheme.typography.bodySmall)
-                }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Icon(fileIcon, null, tint = Color(0xFF315CDB), modifier = Modifier.size(31.dp))
                 Surface(color = Color(0xFFE7EEFF), shape = RoundedCornerShape(50)) {
-                    Text(categoryName, Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                    Text(categoryName, Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         color = Color(0xFF214DB8), style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold)
+                        fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(document.originalFileName.ifBlank { document.title },
+                    fontWeight = FontWeight.SemiBold, color = Color(0xFF14213D), maxLines = 2,
+                    style = MaterialTheme.typography.bodyMedium)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Outlined.Storage, null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                    Text(formatDocumentBytes(document.sizeBytes), color = Color(0xFF64748B),
+                        style = MaterialTheme.typography.labelSmall)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Icon(if (document.scope == "SHARED") Icons.Outlined.Groups else Icons.Outlined.Person,
@@ -832,11 +836,17 @@ private fun DocumentCardV2(
                 if (isRecycleBin) Text("Deleted", color = Color(0xFFB45309), style = MaterialTheme.typography.labelSmall)
             }
             if (!isRecycleBin) {
-                VerticalDivider(Modifier.height(92.dp), color = Color(0xFFD7DCE7))
+                VerticalDivider(Modifier.height(76.dp), color = Color(0xFFD7DCE7))
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = onDownload) { Icon(Icons.Outlined.Download, "Download", tint = Color(0xFF1D4FA8)) }
-                    IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, "Edit", tint = Color(0xFF1D4FA8)) }
-                    IconButton(onClick = onDelete, enabled = canDelete) { Icon(Icons.Outlined.Delete, "Delete", tint = Color(0xFFB91C1C)) }
+                    IconButton(onClick = onDownload, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Outlined.Download, "Download", tint = Color(0xFF1D4FA8), modifier = Modifier.size(19.dp))
+                    }
+                    IconButton(onClick = onEdit, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Outlined.Edit, "Edit", tint = Color(0xFF1D4FA8), modifier = Modifier.size(19.dp))
+                    }
+                    IconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Outlined.Delete, "Delete", tint = Color(0xFFB91C1C), modifier = Modifier.size(19.dp))
+                    }
                 }
             }
         }
