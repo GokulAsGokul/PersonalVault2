@@ -271,8 +271,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(18.dp, 6.dp, 18.dp, 96.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(18.dp, 0.dp, 18.dp, 96.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -342,15 +342,28 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                 }
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        listOf("ALL", "PERSONAL", "SHARED").forEach { value ->
-                            FilterChip(visibility == value, { visibility = value },
-                                label = { Text(value.lowercase().replaceFirstChar { it.uppercase() }) })
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf("ALL", "PERSONAL", "SHARED").forEach { value ->
+                                FilterChip(
+                                    visibility == value,
+                                    { visibility = value },
+                                    label = { Text(value.lowercase().replaceFirstChar { it.uppercase() }) }
+                                )
+                            }
                         }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        listOf("ALL" to "All", "PDF" to "Pdf", "IMAGE" to "Image", "OFFICE" to "Office", "OTHER" to "Other").forEach { (value, label) ->
-                            FilterChip(fileType == value, { fileType = value }, label = { Text(label) })
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf("ALL" to "All", "PDF" to "Pdf", "IMAGE" to "Image", "OFFICE" to "Office", "OTHER" to "Other").forEach { (value, label) ->
+                                FilterChip(fileType == value, { fileType = value }, label = { Text(label) })
+                            }
                         }
                     }
                 }
