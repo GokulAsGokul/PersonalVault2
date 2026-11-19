@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
@@ -275,14 +276,20 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         ) {
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(if (recycleBin) "Recycle Bin" else "Documents",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold, color = Color(0xFF14213D))
-                        Text(if (recycleBin) "Deleted Files Are Kept For 30 Days" else "Your Secure Files",
-                            color = Color(0xFF64748B))
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Icon(Icons.Outlined.FolderOpen, null, tint = Color(0xFF315CDB), modifier = Modifier.size(30.dp))
+                        Column {
+                            Text(if (recycleBin) "Recycle Bin" else "Documents",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold, color = Color(0xFF14213D))
+                            Text(if (recycleBin) "Deleted Files Are Kept For 30 Days" else "Your Secure Files",
+                                color = Color(0xFF64748B))
+                        }
                     }
                     TextButton(onClick = { recycleBin = !recycleBin; category = "all"; visibility = "ALL" }) {
+                        Icon(Icons.Outlined.Delete, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
                         Text(if (recycleBin) "All Documents" else "Recycle Bin")
                     }
                 }
@@ -398,7 +405,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     onDownload = { downloadDocument(doc) },
                                     onEdit = { editDocument(doc) },
                                     onDelete = { deleteDocument(doc) },
-                                    canDelete = doc.ownerUid == memberUid
+                                    canDelete = doc.ownerUid == memberUid,
+                                    addedByLabel = if (doc.ownerUid == memberUid) "You" else "Household Member"
                                 )
                             }
                             if (pair.size == 1) Spacer(Modifier.weight(1f))
@@ -414,7 +422,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         onDownload = { downloadDocument(doc) },
                         onEdit = { editDocument(doc) },
                         onDelete = { deleteDocument(doc) },
-                        canDelete = doc.ownerUid == memberUid
+                        canDelete = doc.ownerUid == memberUid,
+                                    addedByLabel = if (doc.ownerUid == memberUid) "You" else "Household Member"
                     )
                 }
             }
@@ -785,7 +794,8 @@ private fun DocumentCardV2(
     onDownload: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    canDelete: Boolean
+    canDelete: Boolean,
+    addedByLabel: String
 ) {
     val fileIcon = when {
         document.contentType.contains("pdf", true) -> Icons.Outlined.PictureAsPdf
@@ -815,7 +825,7 @@ private fun DocumentCardV2(
                     Icon(if (document.scope == "SHARED") Icons.Outlined.Groups else Icons.Outlined.Person,
                         null, tint = Color(0xFF526987), modifier = Modifier.size(17.dp))
                     Text(
-                        if (document.scope == "SHARED") "Shared Vault · Added By You" else "Personal Vault",
+                        if (document.scope == "SHARED") "Shared Vault · Added By $addedByLabel" else "Personal Vault",
                         color = Color(0xFF526987), style = MaterialTheme.typography.bodySmall, maxLines = 1
                     )
                 }
