@@ -748,13 +748,31 @@ export const purgeExpiredV2Documents = onSchedule(
 
     for (const doc of expired.docs) {
       const data = doc.data();
-      const storagePath = typeof data.storagePath === "string" ?
-        data.storagePath : "";
+      const pathSegments = doc.ref.path.split("/");
+      const [collection, pathVaultId, documentsCollection, ownerUid, documentId] =
+        pathSegments;
+      const expectedStoragePath =
+        `vaultsV2/${pathVaultId}/documents/${ownerUid}/${documentId}`;
+
+      // Collection-group queries can return documents from any collection
+      // named "documents". Only process records in the exact V2 vault path.
+      if (
+        collection !== OWNER_VAULTS ||
+        documentsCollection !== "documents" ||
+        pathSegments.length !== 5 ||
+        documentId !== doc.id ||
+        data.ownerUid !== ownerUid ||
+        data.isDeleted !== true ||
+        !(data.purgeAt instanceof Timestamp) ||
+        data.purgeAt.toMillis() > now.toMillis() ||
+        data.storagePath !== expectedStoragePath
+      ) {
+        console.error("Skipped expired document with invalid ownership or storage path", doc.ref.path);
+        continue;
+      }
 
       try {
-        if (storagePath) {
-          await getStorage().bucket().file(storagePath).delete({ignoreNotFound: true});
-        }
+        await getStorage().bucket().file(expectedStoragePath).delete({ignoreNotFound: true});
         await doc.ref.delete();
       } catch (error) {
         // Keep metadata if Storage deletion fails so a later scheduled
@@ -860,10 +878,20 @@ export const permanentlyDeleteV2Document = onCall(async (request) => {
   const doc = await ref.get();
   if (!doc.exists) return {status: "deleted"};
   if (doc.get("ownerUid") !== uid) throw new HttpsError("permission-denied", "Only the document owner can permanently delete it.");
-  const storagePath = doc.get("storagePath");
-  if (typeof storagePath === "string" && storagePath.startsWith(`vaultsV2/${vaultId}/documents/${uid}/`)) {
-    await getStorage().bucket().file(storagePath).delete({ignoreNotFound: true});
+  if (doc.get("isDeleted") !== true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Move the document to the Recycle Bin before permanently deleting it."
+    );
   }
+  const expectedStoragePath = `vaultsV2/${vaultId}/documents/${uid}/${documentId}`;
+  if (doc.get("storagePath") !== expectedStoragePath) {
+    throw new HttpsError(
+      "failed-precondition",
+      "The document storage path is invalid. The file was not deleted."
+    );
+  }
+  await getStorage().bucket().file(expectedStoragePath).delete({ignoreNotFound: true});
   await ref.delete();
   return {status: "deleted"};
 });
