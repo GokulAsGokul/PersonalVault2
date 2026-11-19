@@ -7,6 +7,7 @@ import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -22,6 +23,9 @@ import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
@@ -218,6 +222,43 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     val others = active.size - pdfs - images
     val allCategories = BuiltInDocumentCategoriesV2.all.map { it.id to it.name } + customCategories
 
+    fun editDocument(doc: DocumentRecordV2) {
+        editTitle = doc.title
+        editDescription = doc.description
+        editCategory = doc.categoryId
+        editScope = doc.scope
+        editingDocument = doc
+    }
+
+    fun downloadDocument(doc: DocumentRecordV2) {
+        scope.launch {
+            busyDocument = true
+            try {
+                val url = repository.downloadUrl(vaultId, doc)
+                enqueueDocumentDownload(context, url, doc.originalFileName)
+                message = "Download Started. Check Your Downloads Folder."
+            } catch (error: Exception) {
+                message = error.message ?: "Download Failed."
+            } finally {
+                busyDocument = false
+            }
+        }
+    }
+
+    fun deleteDocument(doc: DocumentRecordV2) {
+        scope.launch {
+            busyDocument = true
+            try {
+                repository.moveToRecycleBin(vaultId, doc)
+                message = "Moved To Recycle Bin. Retained For 30 Days."
+            } catch (error: Exception) {
+                message = error.message ?: "Delete Failed."
+            } finally {
+                busyDocument = false
+            }
+        }
+    }
+
     Scaffold(
         containerColor = Color(0xFFF4F6FB),
         floatingActionButton = {
@@ -229,7 +270,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(18.dp, 18.dp, 18.dp, 96.dp),
+            contentPadding = PaddingValues(18.dp, 6.dp, 18.dp, 96.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
@@ -238,7 +279,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         Text(if (recycleBin) "Recycle Bin" else "Documents",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold, color = Color(0xFF14213D))
-                        Text(if (recycleBin) "Deleted files are kept for 30 days" else "Your secure files",
+                        Text(if (recycleBin) "Deleted Files Are Kept For 30 Days" else "Your Secure Files",
                             color = Color(0xFF64748B))
                     }
                     TextButton(onClick = { recycleBin = !recycleBin; category = "all"; visibility = "ALL" }) {
@@ -249,7 +290,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             if (!recycleBin) {
                 item {
                     OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search title or description") },
+                        placeholder = { Text("Search Title or Notes") },
                         leadingIcon = { Icon(Icons.Outlined.Search, null) },
                         singleLine = true, shape = RoundedCornerShape(16.dp))
                 }
@@ -257,12 +298,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF14213D))) {
                         Column(Modifier.padding(18.dp)) {
-                            Text("STORAGE USED · ESTIMATED FROM DOCUMENT RECORDS",
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Outlined.Storage, null, tint = Color(0xFFB9C9E2), modifier = Modifier.size(16.dp)); Text("Storage Used · Estimated From Document Records",
                                 color = Color(0xFFB9C9E2), style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold)
+                                fontWeight = FontWeight.Bold) }
                             Text(formatDocumentBytes(bytes), color = Color.White,
                                 style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("${active.size} active documents", color = Color(0xFFCBD5E1),
+                            Text("${active.size} Active Documents", color = Color(0xFFCBD5E1),
                                 style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -283,11 +324,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             Icon(Icons.Outlined.Add, null); Text("Add")
                         }
                     }
-                    allCategories.chunked(3).forEach { group ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            group.forEach { (id, name) ->
-                                DocumentCategoryChip(name, id, category) { category = it }
-                            }
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        allCategories.forEach { (id, name) ->
+                            DocumentCategoryChip(name, id, category) { category = it }
                         }
                     }
                 }
@@ -308,12 +350,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(if (recycleBin) "Deleted Documents" else "All Documents",
+                        Text(if (recycleBin) "Deleted Documents" else "Documents",
                             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("${visible.size} files", color = Color(0xFF64748B))
+                        Text("${visible.size} Files", color = Color(0xFF64748B))
                     }
                     Box {
-                        TextButton(onClick = { sortMenu = true }) { Text("Sort") }
+                        TextButton(onClick = { sortMenu = true }) { Text("Sort By") }
                         DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                             listOf(
                                 DocumentSortV2.NAME_ASC to "Name A–Z",
@@ -349,7 +391,15 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             pair.forEach { doc ->
-                                DocumentCardV2(doc, Modifier.weight(1f), recycleBin) { selectedDocument = doc }
+                                DocumentCardV2(
+                                    doc, Modifier.weight(1f), recycleBin,
+                                    categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other",
+                                    onClick = { selectedDocument = doc },
+                                    onDownload = { downloadDocument(doc) },
+                                    onEdit = { editDocument(doc) },
+                                    onDelete = { deleteDocument(doc) },
+                                    canDelete = doc.ownerUid == memberUid
+                                )
                             }
                             if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
@@ -357,7 +407,15 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 }
             } else {
                 items(visible, key = { it.id }) { doc ->
-                    DocumentCardV2(doc, Modifier.fillMaxWidth(), recycleBin) { selectedDocument = doc }
+                    DocumentCardV2(
+                        doc, Modifier.fillMaxWidth(), recycleBin,
+                        categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other",
+                        onClick = { selectedDocument = doc },
+                        onDownload = { downloadDocument(doc) },
+                        onEdit = { editDocument(doc) },
+                        onDelete = { deleteDocument(doc) },
+                        canDelete = doc.ownerUid == memberUid
+                    )
                 }
             }
             if (uploading) item {
@@ -722,27 +780,55 @@ private fun DocumentCardV2(
     document: DocumentRecordV2,
     modifier: Modifier,
     isRecycleBin: Boolean,
-    onClick: () -> Unit
+    categoryName: String,
+    onClick: () -> Unit,
+    onDownload: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    canDelete: Boolean
 ) {
-    val icon = when {
+    val fileIcon = when {
         document.contentType.contains("pdf", true) -> Icons.Outlined.PictureAsPdf
         document.contentType.startsWith("image/") -> Icons.Outlined.Image
         else -> Icons.Outlined.InsertDriveFile
     }
-    Card(modifier.clickable(onClick = onClick), shape = RoundedCornerShape(16.dp),
+    Card(modifier, shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, tint = Color(0xFF315CDB), modifier = Modifier.size(28.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(if (document.scope == "SHARED") "Shared" else "Personal",
-                    style = MaterialTheme.typography.labelSmall, color = Color(0xFF315CDB))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(fileIcon, null, tint = Color(0xFF315CDB), modifier = Modifier.size(38.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(document.originalFileName.ifBlank { document.title },
+                    fontWeight = FontWeight.SemiBold, color = Color(0xFF14213D), maxLines = 2)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Icon(Icons.Outlined.Storage, null, tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                    Text(formatDocumentBytes(document.sizeBytes), color = Color(0xFF64748B),
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                Surface(color = Color(0xFFE7EEFF), shape = RoundedCornerShape(50)) {
+                    Text(categoryName, Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        color = Color(0xFF214DB8), style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Icon(if (document.scope == "SHARED") Icons.Outlined.Groups else Icons.Outlined.Person,
+                        null, tint = Color(0xFF526987), modifier = Modifier.size(17.dp))
+                    Text(
+                        if (document.scope == "SHARED") "Shared Vault · Added By You" else "Personal Vault",
+                        color = Color(0xFF526987), style = MaterialTheme.typography.bodySmall, maxLines = 1
+                    )
+                }
+                if (isRecycleBin) Text("Deleted", color = Color(0xFFB45309), style = MaterialTheme.typography.labelSmall)
             }
-            Spacer(Modifier.height(8.dp))
-            Text(document.title, fontWeight = FontWeight.SemiBold, color = Color(0xFF14213D), maxLines = 2)
-            Text(document.categoryId.replace('_', ' '), color = Color(0xFF64748B),
-                style = MaterialTheme.typography.bodySmall, maxLines = 1)
-            if (isRecycleBin) Text("Deleted", color = Color(0xFFB45309), style = MaterialTheme.typography.labelSmall)
+            if (!isRecycleBin) {
+                VerticalDivider(Modifier.height(92.dp), color = Color(0xFFD7DCE7))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = onDownload) { Icon(Icons.Outlined.Download, "Download", tint = Color(0xFF1D4FA8)) }
+                    IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, "Edit", tint = Color(0xFF1D4FA8)) }
+                    IconButton(onClick = onDelete, enabled = canDelete) { Icon(Icons.Outlined.Delete, "Delete", tint = Color(0xFFB91C1C)) }
+                }
+            }
         }
     }
 }
