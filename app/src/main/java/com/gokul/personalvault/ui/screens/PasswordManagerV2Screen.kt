@@ -1,27 +1,39 @@
-
 package com.gokul.personalvault.ui.screens
 
+import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.PersistableBundle
+import android.view.WindowManager
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -30,281 +42,404 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import com.gokul.personalvault.data.local.PasswordExpiryReminderScheduler
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
-import android.os.Build
-import android.app.Activity
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.view.WindowManager
-import android.os.Handler
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalView
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gokul.personalvault.data.firebase.PasswordRepositoryFirestoreV2
+import com.gokul.personalvault.data.local.PasswordExpiryReminderScheduler
 import com.gokul.personalvault.data.model.PasswordRecordV2
+import java.security.SecureRandom
+import java.text.SimpleDateFormat
+import java.util.Collections
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val PvNavy = Color(0xFF27358F)
-private val PvBlue = Color(0xFF4267D5)
-private val PvTeal = Color(0xFF0F9D9A)
-private val PvBackground = Color(0xFFF5F6FC)
-private val PvText = Color(0xFF182033)
-private val PvMuted = Color(0xFF687187)
-private val PvLavender = Color(0xFFEAEAFF)
+// ───────────────────────── Limits & timings (unchanged behaviour) ─────────────────────────
+
+private const val MAX_WEBSITE = 30
+private const val MAX_USERNAME = 35
+private const val MAX_PASSWORD = 25
+private const val MAX_NOTES = 30
+private const val MAX_CATEGORY = 24
+private const val REVEAL_MS = 15_000L
+private const val CLIPBOARD_CLEAR_MS = 30_000L
+private const val EXPIRY_SOON_DAYS = 30
+private const val DAY_MS = 86_400_000L
+
+private val SORT_OPTIONS = listOf("A–Z", "Z–A", "Newest first", "Oldest first")
+
+// ───────────────────────── Theme: Material 3 with the app's navy + teal identity ─────────────────────────
+
+private val LightScheme = lightColorScheme(
+    primary = Color(0xFF27358F),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFDFE1FF),
+    onPrimaryContainer = Color(0xFF0A1470),
+    secondary = Color(0xFF5B5F7E),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE1E3FA),
+    onSecondaryContainer = Color(0xFF181B33),
+    tertiary = Color(0xFF006A68),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFA4F1EE),
+    onTertiaryContainer = Color(0xFF00201F),
+    background = Color(0xFFFBF8FF),
+    surface = Color(0xFFFBF8FF),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFF4F2FC),
+    surfaceContainer = Color(0xFFEFEDF7),
+    surfaceContainerHigh = Color(0xFFE9E7F2),
+    surfaceContainerHighest = Color(0xFFE3E1EC)
+)
+
+private val DarkScheme = darkColorScheme(
+    primary = Color(0xFFBBC3FF),
+    onPrimary = Color(0xFF0A1470),
+    primaryContainer = Color(0xFF2C3A94),
+    onPrimaryContainer = Color(0xFFDFE1FF),
+    secondary = Color(0xFFC4C6E2),
+    onSecondary = Color(0xFF2D3049),
+    secondaryContainer = Color(0xFF434660),
+    onSecondaryContainer = Color(0xFFE1E3FA),
+    tertiary = Color(0xFF86D5D2),
+    onTertiary = Color(0xFF003736),
+    tertiaryContainer = Color(0xFF00504E),
+    onTertiaryContainer = Color(0xFFA4F1EE),
+    background = Color(0xFF121318),
+    surface = Color(0xFF121318),
+    surfaceContainerLowest = Color(0xFF0D0E13),
+    surfaceContainerLow = Color(0xFF1A1B21),
+    surfaceContainer = Color(0xFF1E1F25),
+    surfaceContainerHigh = Color(0xFF292A30),
+    surfaceContainerHighest = Color(0xFF34343B)
+)
+
+@Composable
+private fun VaultTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = if (isSystemInDarkTheme()) DarkScheme else LightScheme,
+        content = content
+    )
+}
+
+// ───────────────────────── Entry point (signature unchanged) ─────────────────────────
 
 @Composable
 fun PasswordManagerV2Screen(
     vaultId: String,
     memberUid: String
 ) {
+    VaultTheme { PasswordManagerContent(vaultId, memberUid) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+private fun PasswordManagerContent(vaultId: String, memberUid: String) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val hostView = LocalView.current
+    val snackbar = remember { SnackbarHostState() }
+    val clipboardHandler = remember { Handler(Looper.getMainLooper()) }
 
-    // Protect the Password Manager and its dialogs from screenshots and recents previews.
+    // Protect the Password Manager and its sheets/dialogs from screenshots and recents previews.
     DisposableEffect(hostView) {
-        val activity = hostView.context.findActivity()
-        val window = activity?.window
+        val window = hostView.context.findActivity()?.window
         window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
     }
 
-    fun copyCredential(label: String, value: String) {
+    fun notify(text: String) {
+        scope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            snackbar.showSnackbar(text, withDismissAction = true)
+        }
+    }
+
+    // Marks the clip as sensitive (hides the preview on Android 13+) and clears it later.
+    fun copyCredential(label: String, value: String, secret: Boolean) {
         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        manager.setPrimaryClip(ClipData.newPlainText(label, value))
+        val clip = ClipData.newPlainText(label, value)
+        if (secret) {
+            clip.description.extras = PersistableBundle().apply {
+                putBoolean("android.content.extra.IS_SENSITIVE", true)
+            }
+        }
+        manager.setPrimaryClip(clip)
+        if (secret && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            clipboardHandler.removeCallbacksAndMessages(null)
+            clipboardHandler.postDelayed({ manager.clearPrimaryClip() }, CLIPBOARD_CLEAR_MS)
+            notify("$label copied. It will clear from the clipboard in 30 seconds.")
+        } else {
+            notify("$label copied.")
+        }
     }
 
-    var records by remember {
-        mutableStateOf<List<PasswordRecordV2>>(emptyList())
-    }
-
-    var selectedScope by rememberSaveable {
-        mutableStateOf(PasswordRecordV2.SCOPE_PERSONAL)
-    }
-
-    var selectedCategory by rememberSaveable {
-        mutableStateOf("All")
-    }
-
+    var records by remember { mutableStateOf<List<PasswordRecordV2>>(emptyList()) }
+    var selectedScope by rememberSaveable { mutableStateOf(PasswordRecordV2.SCOPE_PERSONAL) }
+    var selectedCategory by rememberSaveable { mutableStateOf("All") }
     var search by rememberSaveable { mutableStateOf("") }
-    var searchExpanded by rememberSaveable { mutableStateOf(false) }
-    var showHeaderMenu by remember { mutableStateOf(false) }
-    var showSortMenu by remember { mutableStateOf(false) }
-    var sortOrder by rememberSaveable { mutableStateOf("A–Z") }
+    var sortOrder by rememberSaveable { mutableStateOf(SORT_OPTIONS.first()) }
+    var showMenu by remember { mutableStateOf(false) }
 
-    var selectedRecord by remember {
-        mutableStateOf<PasswordRecordV2?>(null)
-    }
-
-    var showAddDialog by remember {
-        mutableStateOf(false)
-    }
+    var selectedRecord by remember { mutableStateOf<PasswordRecordV2?>(null) }
+    var showAddSheet by remember { mutableStateOf(false) }
     var recordToEdit by remember { mutableStateOf<PasswordRecordV2?>(null) }
     var recordToDelete by remember { mutableStateOf<PasswordRecordV2?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var saving by remember { mutableStateOf(false) }
 
-    var loading by remember {
-        mutableStateOf(true)
-    }
-
-    var saving by remember {
-        mutableStateOf(false)
-    }
-
-    var message by remember {
-        mutableStateOf("")
+    // Defence in depth: never list the other member's personal records even if the repository returns them.
+    val accessible = remember(records, memberUid) {
+        records.filter { it.isShared || it.ownerUid == memberUid }
     }
 
     suspend fun reloadPasswords() {
         loading = true
-
         try {
             records = withContext(Dispatchers.IO) {
-                PasswordRepositoryFirestoreV2.load(
-                    vaultId = vaultId,
-                    memberUid = memberUid
-                )
+                PasswordRepositoryFirestoreV2.load(vaultId = vaultId, memberUid = memberUid)
             }
             // Schedule locally on every member device so shared-password reminders
             // are available to both approved household members.
-            records.forEach { record ->
+            records.filter { it.isShared || it.ownerUid == memberUid }.forEach { record ->
                 PasswordExpiryReminderScheduler.schedule(
                     context, record.id, record.websiteApp, record.expiryAt
                 )
             }
-            message = ""
         } catch (error: Exception) {
-            message = error.localizedMessage
-                ?: "Unable to load passwords from Firestore."
+            notify(error.localizedMessage ?: "Couldn't load passwords. Check your connection and try again.")
         } finally {
             loading = false
         }
     }
 
-    LaunchedEffect(vaultId, memberUid) {
-        reloadPasswords()
-    }
+    LaunchedEffect(vaultId, memberUid) { reloadPasswords() }
 
-    val visibleRecords = records
-        .filter { it.scope == selectedScope }
-        .filter {
-            selectedCategory == "All" ||
-                    it.category == selectedCategory
-        }
-        .filter {
-            search.isBlank() ||
+    val categories = remember(accessible) {
+        (PasswordRecordV2.CATEGORIES + accessible.map { it.category }).distinct()
+    }
+    val personalCount = accessible.count { it.scope == PasswordRecordV2.SCOPE_PERSONAL }
+    val sharedCount = accessible.count { it.scope == PasswordRecordV2.SCOPE_SHARED }
+
+    val visibleRecords = remember(accessible, selectedScope, selectedCategory, search, sortOrder) {
+        accessible
+            .filter { it.scope == selectedScope }
+            .filter { selectedCategory == "All" || it.category == selectedCategory }
+            .filter {
+                search.isBlank() ||
                     it.websiteApp.contains(search, ignoreCase = true) ||
                     it.username.contains(search, ignoreCase = true) ||
                     it.category.contains(search, ignoreCase = true)
-        }
-         .let { filtered ->
-            when (sortOrder) {
-                "Z–A" -> filtered.sortedByDescending { it.websiteApp.lowercase() }
-                "Newest first" -> filtered.sortedByDescending { it.createdAt }
-                "Oldest first" -> filtered.sortedBy { it.createdAt }
-                else -> filtered.sortedBy { it.websiteApp.lowercase() }
             }
-        }
+            .let { filtered ->
+                when (sortOrder) {
+                    "Z–A" -> filtered.sortedByDescending { it.websiteApp.lowercase() }
+                    "Newest first" -> filtered.sortedByDescending { it.createdAt }
+                    "Oldest first" -> filtered.sortedBy { it.createdAt }
+                    else -> filtered.sortedBy { it.websiteApp.lowercase() }
+                }
+            }
+    }
+    val groupByLetter = sortOrder == "A–Z" || sortOrder == "Z–A"
+    val filtersActive = search.isNotBlank() || selectedCategory != "All"
+
+    val listState = rememberLazyListState()
+    val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        containerColor = PvBackground,
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.surface,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = PvNavy,
-                contentColor = Color.White
-            ) {
-                Icon(
-                    Icons.Outlined.Add,
-                    contentDescription = "Add password"
-                )
-            }
-        }
-    ) { padding ->
-
-        Column(
-            Modifier.fillMaxSize().padding(padding).background(PvBackground).padding(horizontal = 18.dp)
-        ) {
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Password Manager", color = PvText, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Lock, null, tint = PvTeal, modifier = Modifier.size(13.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("${records.size} credentials • Encrypted", color = PvMuted, style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-                IconButton(onClick = { searchExpanded = !searchExpanded; if (!searchExpanded) search = "" }) {
-                    Icon(if (searchExpanded) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (searchExpanded) "Close search" else "Search passwords", tint = PvNavy)
-                }
-                Box {
-                    IconButton(onClick = { showHeaderMenu = true }) {
-                        Icon(Icons.Outlined.MoreVert, contentDescription = "More options", tint = PvMuted)
-                    }
-                    DropdownMenu(expanded = showHeaderMenu, onDismissRequest = { showHeaderMenu = false }) {
-                        DropdownMenuItem(text = { Text("Sort passwords") }, onClick = { showHeaderMenu = false; showSortMenu = true })
-                        DropdownMenuItem(
-                            text = { Text("Send test notification") },
-                            onClick = {
-                                showHeaderMenu = false
-                                PasswordExpiryReminderScheduler.sendTestNotification(context)
-                                message = "Test notification queued. Check your notification shade."
+        topBar = {
+            LargeTopAppBar(
+                title = { Text("Passwords", fontWeight = FontWeight.SemiBold) },
+                windowInsets = WindowInsets(0, 0, 0, 0),
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                actions = {
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            Text(
+                                "Sort by",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            SORT_OPTIONS.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    leadingIcon = {
+                                        if (option == sortOrder) Icon(Icons.Outlined.Check, null)
+                                        else Spacer(Modifier.size(24.dp))
+                                    },
+                                    onClick = { sortOrder = option; showMenu = false }
+                                )
                             }
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Send test notification") },
+                                onClick = {
+                                    showMenu = false
+                                    PasswordExpiryReminderScheduler.sendTestNotification(context)
+                                    notify("Test notification sent. Check your notification shade.")
+                                }
+                            )
+                        }
+                    }
+                },
+                scrollBehavior = scrollBehavior
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { showAddSheet = true },
+                expanded = fabExpanded,
+                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                text = { Text("Add password") },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbar) }
+    ) { padding ->
+        if (loading && records.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 104.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (loading) {
+                    item(key = "progress") {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                    }
+                }
+                item(key = "search") {
+                    TextField(
+                        value = search,
+                        onValueChange = { search = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("Search passwords") },
+                        leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                        trailingIcon = {
+                            if (search.isNotEmpty()) {
+                                IconButton(onClick = { search = "" }) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear search")
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(28.dp),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                            errorIndicatorColor = Color.Transparent
+                        )
+                    )
+                }
+                item(key = "scope") {
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                        SegmentedButton(
+                            selected = selectedScope == PasswordRecordV2.SCOPE_PERSONAL,
+                            onClick = { selectedScope = PasswordRecordV2.SCOPE_PERSONAL; selectedCategory = "All" },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        ) { Text("Personal ($personalCount)") }
+                        SegmentedButton(
+                            selected = selectedScope == PasswordRecordV2.SCOPE_SHARED,
+                            onClick = { selectedScope = PasswordRecordV2.SCOPE_SHARED; selectedCategory = "All" },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        ) { Text("Shared ($sharedCount)") }
+                    }
+                }
+                item(key = "categories") {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("All").plus(categories).forEach { category ->
+                            FilterChip(
+                                selected = selectedCategory == category,
+                                onClick = { selectedCategory = category },
+                                label = { Text(category) }
+                            )
+                        }
+                    }
+                }
+
+                if (visibleRecords.isEmpty()) {
+                    item(key = "empty") {
+                        EmptyState(
+                            isPersonal = selectedScope == PasswordRecordV2.SCOPE_PERSONAL,
+                            filtersActive = filtersActive,
+                            onAdd = { showAddSheet = true },
+                            onClearFilters = { search = ""; selectedCategory = "All" }
+                        )
+                    }
+                } else if (groupByLetter) {
+                    visibleRecords.groupBy { initialOf(it.websiteApp) }.forEach { (letter, group) ->
+                        stickyHeader(key = "header_$letter") { LetterHeader(letter) }
+                        items(group, key = { it.id }) { record ->
+                            PasswordRow(
+                                record = record,
+                                isMine = record.ownerUid == memberUid,
+                                onClick = { selectedRecord = record },
+                                onCopy = { copyCredential("Password", record.password, secret = true) }
+                            )
+                        }
+                    }
+                } else {
+                    items(visibleRecords, key = { it.id }) { record ->
+                        PasswordRow(
+                            record = record,
+                            isMine = record.ownerUid == memberUid,
+                            onClick = { selectedRecord = record },
+                            onCopy = { copyCredential("Password", record.password, secret = true) }
                         )
                     }
                 }
             }
-            if (searchExpanded) {
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, placeholder = { Text("Search…") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, null, tint = PvMuted) },
-                    trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Close, "Clear search") } },
-                    shape = RoundedCornerShape(15.dp),
-                    colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color.White, focusedContainerColor = Color.White)
-                )
-            }
-            Spacer(Modifier.height(14.dp))
-            Row(Modifier.fillMaxWidth().background(Color(0xFFE9EAF5), RoundedCornerShape(15.dp)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                ScopeTabV2("Personal", selectedScope == PasswordRecordV2.SCOPE_PERSONAL, Modifier.weight(1f)) {
-                    selectedScope = PasswordRecordV2.SCOPE_PERSONAL; selectedCategory = "All"
-                }
-                ScopeTabV2("Shared", selectedScope == PasswordRecordV2.SCOPE_SHARED, Modifier.weight(1f)) {
-                    selectedScope = PasswordRecordV2.SCOPE_SHARED; selectedCategory = "All"
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("All").plus((PasswordRecordV2.CATEGORIES + records.map { it.category }).distinct()).forEach { category ->
-                    FilterChip(selected = selectedCategory == category, onClick = { selectedCategory = category }, label = { Text(category) }, shape = RoundedCornerShape(50),
-                        modifier = Modifier.height(34.dp)
-                    )
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${visibleRecords.size} passwords", color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.weight(1f))
-                Box {
-                    TextButton(onClick = { showSortMenu = true }) {
-                        Text(sortOrder, color = PvNavy, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                        Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "Choose sort order", tint = PvNavy)
-                    }
-                    DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                        listOf("A–Z", "Z–A", "Newest first", "Oldest first").forEach { option ->
-                            DropdownMenuItem(text = { Text(option) }, onClick = { sortOrder = option; showSortMenu = false })
-                        }
-                    }
-                }
-            }
-            if (message.isNotBlank()) {
-                Text(message, color = if (message.contains("Unable")) MaterialTheme.colorScheme.error else PvTeal, style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(6.dp))
-            }
-            when {
-                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = PvBlue) }
-                visibleRecords.isEmpty() -> EmptyPasswordsV2(selectedScope)
-                else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 100.dp)) {
-                    items(visibleRecords, key = { it.id }) { record -> PasswordRowV2(record = record, memberUid = memberUid) { selectedRecord = record } }
-                }
-            }
         }
     }
 
-    if (showAddDialog) {
-        PasswordAddDialog(
+    // ───────────── Add ─────────────
+    if (showAddSheet) {
+        PasswordEditorSheet(
             saving = saving,
-            categoryOptions = (PasswordRecordV2.CATEGORIES + records.map { it.category }).distinct(),
-            onDismiss = { showAddDialog = false },
+            defaultScope = selectedScope,
+            categoryOptions = categories,
+            onDismiss = { showAddSheet = false },
             onSave = { website, username, password, category, notes, recordScope, expiryAt ->
-
                 scope.launch {
                     saving = true
-                    message = ""
-
                     try {
-                        val createdRecord = withContext(Dispatchers.IO) {
+                        val created = withContext(Dispatchers.IO) {
                             PasswordRepositoryFirestoreV2.create(
                                 vaultId = vaultId,
                                 memberUid = memberUid,
@@ -317,18 +452,14 @@ fun PasswordManagerV2Screen(
                                 expiryAt = expiryAt
                             )
                         }
-                        PasswordExpiryReminderScheduler.schedule(context, createdRecord.id, createdRecord.websiteApp, createdRecord.expiryAt)
-
-                        showAddDialog = false
+                        PasswordExpiryReminderScheduler.schedule(context, created.id, created.websiteApp, created.expiryAt)
+                        showAddSheet = false
                         selectedScope = recordScope
                         selectedCategory = "All"
-
                         reloadPasswords()
-                        message = "Password saved securely to your vault."
-
+                        notify("Password saved.")
                     } catch (error: Exception) {
-                        message = error.localizedMessage
-                            ?: "Unable to save password."
+                        notify(error.localizedMessage ?: "Couldn't save the password. Try again.")
                     } finally {
                         saving = false
                     }
@@ -337,526 +468,683 @@ fun PasswordManagerV2Screen(
         )
     }
 
+    // ───────────── Details ─────────────
     selectedRecord?.let { record ->
-        PasswordDetailsDialogV2(
+        PasswordDetailsSheet(
             record = record,
+            isMine = record.ownerUid == memberUid,
             onDismiss = { selectedRecord = null },
-            onCopyUsername = {
-                copyCredential("Username", record.username)
-                message = "Username copied."
-            },
-            canManage = record.ownerUid == memberUid,
+            onCopyUsername = { copyCredential("Username", record.username, secret = false) },
+            onCopyPassword = { copyCredential("Password", record.password, secret = true) },
             onEdit = { recordToEdit = record; selectedRecord = null },
-            onDelete = { recordToDelete = record; selectedRecord = null },
-            onCopyPassword = {
-                copyCredential("Password", record.password)
-                message = "Password copied."
-            }
+            onDelete = { recordToDelete = record; selectedRecord = null }
         )
     }
 
+    // ───────────── Edit ─────────────
     recordToEdit?.let { record ->
-        PasswordAddDialog(
+        PasswordEditorSheet(
             saving = saving,
             initialRecord = record,
-            categoryOptions = (PasswordRecordV2.CATEGORIES + records.map { it.category }).distinct(),
+            defaultScope = record.scope,
+            categoryOptions = categories,
             onDismiss = { if (!saving) recordToEdit = null },
             onSave = { website, username, password, category, notes, _, expiryAt ->
                 scope.launch {
                     saving = true
-                    message = ""
                     try {
-                        val updatedRecord = withContext(Dispatchers.IO) {
+                        val updated = withContext(Dispatchers.IO) {
                             PasswordRepositoryFirestoreV2.update(
                                 vaultId, memberUid, record, website,
                                 username, password, category, notes, expiryAt
                             )
                         }
-                        PasswordExpiryReminderScheduler.schedule(context, updatedRecord.id, updatedRecord.websiteApp, updatedRecord.expiryAt)
+                        PasswordExpiryReminderScheduler.schedule(context, updated.id, updated.websiteApp, updated.expiryAt)
                         recordToEdit = null
                         reloadPasswords()
-                        message = "Password updated securely."
+                        notify("Changes saved.")
                     } catch (error: Exception) {
-                        message = error.localizedMessage ?: "Unable to update password."
-                    } finally { saving = false }
+                        notify(error.localizedMessage ?: "Couldn't save your changes. Try again.")
+                    } finally {
+                        saving = false
+                    }
                 }
             }
         )
     }
 
+    // ───────────── Delete ─────────────
     recordToDelete?.let { record ->
         AlertDialog(
             onDismissRequest = { if (!saving) recordToDelete = null },
-            title = { Text("Delete password?") },
-            text = { Text("Delete " + record.websiteApp + " from your vault? This removes the record from Firestore and cancels its reminders. Provider backups or retention systems may retain copies temporarily; this is not guaranteed physical erasure.") },
-            confirmButton = {
-                TextButton(enabled = !saving, onClick = {
-                    scope.launch {
-                        saving = true
-                        try {
-                            withContext(Dispatchers.IO) {
-                                PasswordRepositoryFirestoreV2.delete(vaultId, memberUid, record)
-                            }
-                            PasswordExpiryReminderScheduler.cancel(context, record.id)
-                            recordToDelete = null
-                            reloadPasswords()
-                            message = "Password deleted."
-                        } catch (error: Exception) {
-                            message = error.localizedMessage ?: "Unable to delete password."
-                        } finally { saving = false }
-                    }
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            icon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+            title = { Text("Delete ${record.websiteApp}?") },
+            text = {
+                Text(
+                    "This removes the password from your vault and cancels its reminders. " +
+                        "Provider backups may keep a copy for a short time."
+                )
             },
-            dismissButton = {
-                TextButton(enabled = !saving, onClick = { recordToDelete = null }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-}
-
-@Composable
-private fun ScopeTabV2(
-    label: String,
-    selected: Boolean,
-    modifier: Modifier,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Surface(
-        modifier = modifier.clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = onClick
-        ),
-        color = if (selected) Color.White else Color.Transparent,
-        shape = RoundedCornerShape(11.dp),
-        shadowElevation = 0.dp
-    ) {
-        Box(
-            Modifier.padding(vertical = 11.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                label,
-                color = if (selected) PvNavy else PvMuted,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
-
-@Composable
-private fun PasswordRowV2(record: PasswordRecordV2, memberUid: String, onClick: () -> Unit) {
-    var showCardPassword by rememberSaveable(record.id) { mutableStateOf(false) }
-    LaunchedEffect(showCardPassword) {
-        if (showCardPassword) {
-            kotlinx.coroutines.delay(15_000L)
-            showCardPassword = false
-        }
-    }
-    val isMine = record.ownerUid == memberUid
-    val accent = if (record.isShared) Color(0xFF8B63E8) else PvTeal
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        color = Color.White,
-        shape = RoundedCornerShape(22.dp),
-        shadowElevation = 1.dp,
-        tonalElevation = 1.dp
-    ) {
-        Row(Modifier.height(IntrinsicSize.Min)) {
-            Box(Modifier.width(5.dp).fillMaxHeight().background(accent))
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
-                verticalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = RoundedCornerShape(15.dp),
-                        color = if (record.isShared) Color(0xFFF1EBFF) else Color(0xFFE7F6F3),
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.Key, null, tint = if (record.isShared) Color(0xFF7046C4) else PvTeal, modifier = Modifier.size(22.dp))
+            confirmButton = {
+                TextButton(
+                    enabled = !saving,
+                    onClick = {
+                        scope.launch {
+                            saving = true
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    PasswordRepositoryFirestoreV2.delete(vaultId, memberUid, record)
+                                }
+                                PasswordExpiryReminderScheduler.cancel(context, record.id)
+                                recordToDelete = null
+                                reloadPasswords()
+                                notify("Password deleted.")
+                            } catch (error: Exception) {
+                                notify(error.localizedMessage ?: "Couldn't delete the password. Try again.")
+                            } finally {
+                                saving = false
+                            }
                         }
                     }
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(record.websiteApp, color = PvText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                        Text(record.username.ifBlank { "Username not added" }, color = PvMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                    }
-                    Surface(shape = RoundedCornerShape(50), color = if (isMine) Color(0xFFDDF3ED) else Color(0xFFEFE8FF)) {
-                        Text(if (isMine) "MINE" else "SPOUSE", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = if (isMine) Color(0xFF08785C) else Color(0xFF6841B8), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = !saving, onClick = { recordToDelete = null }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+// ───────────────────────── List pieces ─────────────────────────
+
+@Composable
+private fun LetterHeader(letter: String) {
+    Text(
+        letter,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary
+    )
+}
+
+@Composable
+private fun PasswordRow(
+    record: PasswordRecordV2,
+    isMine: Boolean,
+    onClick: () -> Unit,
+    onCopy: () -> Unit
+) {
+    val expiry = remember(record.expiryAt) { expiryInfo(record.expiryAt) }
+    Surface(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Row(
+            Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Monogram(record.websiteApp, 48.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    record.websiteApp,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+                Text(
+                    record.username.ifBlank { "No username" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+                if (expiry.state == ExpiryState.SOON || expiry.state == ExpiryState.EXPIRED) {
+                    Text(
+                        expiry.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (expiry.state == ExpiryState.EXPIRED)
+                            MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
+                    )
+                }
+                if (!isMine) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.Person, null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "Added by your partner",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Lock, null, tint = PvMuted, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(7.dp))
-                    Text(if (showCardPassword) record.password else "••••••••••••", color = if (showCardPassword) PvText else PvMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1)
-                    Surface(shape = RoundedCornerShape(50), color = Color(0xFFF1F3F9)) {
-                        Text(record.category, Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = PvNavy, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    IconButton(onClick = { showCardPassword = !showCardPassword }, modifier = Modifier.size(32.dp)) {
-                        Icon(if (showCardPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, contentDescription = if (showCardPassword) "Hide password" else "Show password", tint = PvNavy, modifier = Modifier.size(19.dp))
-                    }
-                }
+            }
+            FilledTonalIconButton(onClick = onCopy) {
+                Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy password for ${record.websiteApp}")
             }
         }
     }
 }
 
 @Composable
-private fun EmptyPasswordsV2(scope: String) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 54.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+private fun Monogram(name: String, size: Dp) {
+    val scheme = MaterialTheme.colorScheme
+    val (background, foreground) = when (Math.floorMod(name.lowercase().hashCode(), 3)) {
+        0 -> scheme.primaryContainer to scheme.onPrimaryContainer
+        1 -> scheme.tertiaryContainer to scheme.onTertiaryContainer
+        else -> scheme.secondaryContainer to scheme.onSecondaryContainer
+    }
+    Box(
+        Modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(background),
+        contentAlignment = Alignment.Center
     ) {
-        Icon(
-            Icons.Outlined.Lock,
-            null,
-            tint = PvBlue,
-            modifier = Modifier.size(42.dp)
-        )
-
-        Spacer(Modifier.height(14.dp))
-
         Text(
-            if (scope == PasswordRecordV2.SCOPE_PERSONAL)
-                "No personal passwords yet"
-            else
-                "No shared passwords yet",
-            color = PvText,
+            initialOf(name),
+            color = foreground,
+            style = if (size >= 56.dp) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun EmptyState(
+    isPersonal: Boolean,
+    filtersActive: Boolean,
+    onAdd: () -> Unit,
+    onClearFilters: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 48.dp, start = 24.dp, end = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            Modifier.size(80.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                if (filtersActive) Icons.Outlined.Search else Icons.Outlined.Lock, null,
+                modifier = Modifier.size(36.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+        Text(
+            when {
+                filtersActive -> "No matches"
+                isPersonal -> "No personal passwords yet"
+                else -> "No shared passwords yet"
+            },
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
-
-        Spacer(Modifier.height(5.dp))
-
         Text(
-            "Tap + to securely add your first credential.",
-            color = PvMuted,
-            style = MaterialTheme.typography.bodySmall
+            when {
+                filtersActive -> "Try a different search or category."
+                isPersonal -> "Passwords you add here are visible only to you."
+                else -> "Passwords you add here are visible to both of you. Only the person who added one can edit or delete it."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (filtersActive) {
+            OutlinedButton(onClick = onClearFilters) { Text("Clear search and filters") }
+        } else {
+            Button(onClick = onAdd) { Text("Add password") }
+        }
     }
 }
 
+// ───────────────────────── Details sheet ─────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PasswordAddDialog(
+private fun PasswordDetailsSheet(
+    record: PasswordRecordV2,
+    isMine: Boolean,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onCopyUsername: () -> Unit,
+    onCopyPassword: () -> Unit
+) {
+    var showPassword by remember(record.id) { mutableStateOf(false) }
+    LaunchedEffect(showPassword) {
+        if (showPassword) {
+            delay(REVEAL_MS)
+            showPassword = false
+        }
+    }
+    val expiry = remember(record.expiryAt) { expiryInfo(record.expiryAt) }
+    val shared = record.scope == PasswordRecordV2.SCOPE_SHARED
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Monogram(record.websiteApp, 56.dp)
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(
+                        record.websiteApp,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        buildString {
+                            append(record.category)
+                            append(" – ")
+                            append(
+                                when {
+                                    !shared -> "Personal"
+                                    isMine -> "Shared by you"
+                                    else -> "Shared by your partner"
+                                }
+                            )
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            DetailBlock("Username or email") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(record.username.ifBlank { "Not added" }, Modifier.weight(1f))
+                    if (record.username.isNotBlank()) {
+                        IconButton(onClick = onCopyUsername) {
+                            Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy username")
+                        }
+                    }
+                }
+            }
+
+            DetailBlock("Password") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (showPassword) record.password else "••••••••••••",
+                        modifier = Modifier.weight(1f),
+                        fontFamily = if (showPassword) FontFamily.Monospace else FontFamily.Default
+                    )
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(
+                            if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                            contentDescription = if (showPassword) "Hide password" else "Show password"
+                        )
+                    }
+                    IconButton(onClick = onCopyPassword) {
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy password")
+                    }
+                }
+                if (record.password.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    PasswordStrengthIndicator(record.password)
+                }
+            }
+
+            if (expiry.state != ExpiryState.NONE) {
+                DetailBlock("Expiry") {
+                    Text(
+                        expiry.label,
+                        color = when (expiry.state) {
+                            ExpiryState.EXPIRED -> MaterialTheme.colorScheme.error
+                            ExpiryState.SOON -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+                }
+            }
+
+            if (record.notes.isNotBlank()) {
+                DetailBlock("Notes") { Text(record.notes) }
+            }
+
+            if (isMine) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    FilledTonalButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Edit")
+                    }
+                    OutlinedButton(
+                        onClick = onDelete,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Outlined.Delete, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete")
+                    }
+                }
+            } else {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Only the person who added this password can edit or delete it.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailBlock(label: String, content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(4.dp))
+            content()
+        }
+    }
+}
+
+// ───────────────────────── Add / edit sheet ─────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PasswordEditorSheet(
     saving: Boolean,
     initialRecord: PasswordRecordV2? = null,
+    defaultScope: String,
     categoryOptions: List<String>,
     onDismiss: () -> Unit,
-    onSave: (
-        String, String, String, String, String, String, Long?
-    ) -> Unit
+    onSave: (String, String, String, String, String, String, Long?) -> Unit
 ) {
+    val isEdit = initialRecord != null
     var website by remember(initialRecord?.id) { mutableStateOf(initialRecord?.websiteApp.orEmpty()) }
     var username by remember(initialRecord?.id) { mutableStateOf(initialRecord?.username.orEmpty()) }
     var password by remember(initialRecord?.id) { mutableStateOf(initialRecord?.password.orEmpty()) }
     var category by remember(initialRecord?.id) { mutableStateOf(initialRecord?.category ?: "Other") }
     var notes by remember(initialRecord?.id) { mutableStateOf(initialRecord?.notes.orEmpty()) }
-    var recordScope by remember(initialRecord?.id) {
-        mutableStateOf(initialRecord?.scope ?: PasswordRecordV2.SCOPE_SHARED)
-    }
+    var recordScope by remember(initialRecord?.id) { mutableStateOf(initialRecord?.scope ?: defaultScope) }
+    var expiryAt by remember(initialRecord?.id) { mutableStateOf(initialRecord?.expiryAt) }
+
     var showPassword by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
     var addingCustomCategory by remember { mutableStateOf(false) }
     var customCategory by remember { mutableStateOf("") }
     var customCategoryError by remember { mutableStateOf("") }
-    var expiryAt by remember(initialRecord?.id) { mutableStateOf(initialRecord?.expiryAt) }
     var showExpiryPicker by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf("") }
-    var validationAttempt by remember { mutableIntStateOf(0) }
     var websiteError by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf("") }
-    val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
-    val shake = remember { Animatable(0f) }
-    LaunchedEffect(validationAttempt) {
-        if (validationAttempt > 0) {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            @Suppress("DEPRECATION")
-            val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                context.getSystemService(VibratorManager::class.java)?.defaultVibrator
-            } else {
-                context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator
-            }
-            // Vibration is optional feedback. Never let a missing/restricted permission crash the app.
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator?.vibrate(VibrationEffect.createOneShot(45, VibrationEffect.DEFAULT_AMPLITUDE))
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator?.vibrate(45)
-                }
-            } catch (_: SecurityException) {
-                // The validation message and shake animation still work without vibration.
-            }
-            shake.snapTo(0f)
-            listOf(-9f, 9f, -7f, 7f, -4f, 4f, 0f).forEach { shake.animateTo(it, tween(35)) }
-        }
-    }
+
+    val savingNow by rememberUpdatedState(saving)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { !savingNow }
+    )
 
     if (showExpiryPicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = expiryAt)
         DatePickerDialog(
             onDismissRequest = { showExpiryPicker = false },
-            confirmButton = { TextButton(onClick = { expiryAt = datePickerState.selectedDateMillis; showExpiryPicker = false }) { Text("Done") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    expiryAt = datePickerState.selectedDateMillis
+                    showExpiryPicker = false
+                }) { Text("Done") }
+            },
             dismissButton = { TextButton(onClick = { showExpiryPicker = false }) { Text("Cancel") } }
         ) { DatePicker(state = datePickerState) }
     }
 
-    AlertDialog(
-        onDismissRequest = {
-            if (!saving) onDismiss()
-        },
-        shape = RoundedCornerShape(28.dp),
-        containerColor = Color(0xFFFCFCFF),
-        title = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(if (initialRecord == null) "Add Password" else "Edit Password", color = PvText, fontWeight = FontWeight.Bold); Text("Securely store your login details", color = PvMuted, style = MaterialTheme.typography.bodySmall) } },
-        text = {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .offset(x = shake.value.dp)
-                    .heightIn(max = 560.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (initialRecord == null) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = recordScope ==
-                                PasswordRecordV2.SCOPE_PERSONAL,
-                        onClick = {
-                            recordScope = PasswordRecordV2.SCOPE_PERSONAL
-                        },
-                        label = { Text("Personal") }
-                    )
+    ModalBottomSheet(
+        onDismissRequest = { if (!saving) onDismiss() },
+        sheetState = sheetState
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .imePadding()
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                if (isEdit) "Edit password" else "Add password",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold
+            )
 
-                    FilterChip(
-                        selected = recordScope ==
-                                PasswordRecordV2.SCOPE_SHARED,
-                        onClick = {
-                            recordScope = PasswordRecordV2.SCOPE_SHARED
-                        },
-                        label = { Text("Shared") }
-                    )
-                    }
-                } else {
-                    ScopeTagV2(recordScope)
+            if (!isEdit) {
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = recordScope == PasswordRecordV2.SCOPE_PERSONAL,
+                        onClick = { recordScope = PasswordRecordV2.SCOPE_PERSONAL },
+                        shape = SegmentedButtonDefaults.itemShape(0, 2)
+                    ) { Text("Personal") }
+                    SegmentedButton(
+                        selected = recordScope == PasswordRecordV2.SCOPE_SHARED,
+                        onClick = { recordScope = PasswordRecordV2.SCOPE_SHARED },
+                        shape = SegmentedButtonDefaults.itemShape(1, 2)
+                    ) { Text("Shared") }
                 }
-
-                OutlinedTextField(
-                    value = website,
-                    onValueChange = { website = it.take(30); websiteError = "" },
-                    label = { Text("Website / App *") },
-                    supportingText = { Text("${website.length}/30") },
-                    isError = websiteError.isNotBlank(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Text(
+                    if (recordScope == PasswordRecordV2.SCOPE_SHARED)
+                        "Both of you can see it. Only you can edit or delete it."
+                    else "Only you can see it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
 
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it.take(35) },
-                    label = { Text("Username / Email") },
-                    supportingText = { Text("${username.length}/35") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
+            OutlinedTextField(
+                value = website,
+                onValueChange = { website = it.take(MAX_WEBSITE); websiteError = "" },
+                label = { Text("Website or app") },
+                supportingText = { Text(websiteError.ifBlank { "${website.length}/$MAX_WEBSITE" }) },
+                isError = websiteError.isNotBlank(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it.take(25); passwordError = "" },
-                    label = { Text("Password *") },
-                    supportingText = { Text("${password.length}/25") },
-                    isError = passwordError.isNotBlank(),
-                    singleLine = true,
-                    visualTransformation = if (showPassword)
-                        VisualTransformation.None
-                    else
-                        PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(
-                            onClick = { showPassword = !showPassword }
-                        ) {
-                            Icon(
-                                if (showPassword)
-                                    Icons.Outlined.VisibilityOff
-                                else
-                                    Icons.Outlined.Visibility,
-                                null
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it.take(MAX_USERNAME) },
+                label = { Text("Username or email (optional)") },
+                supportingText = { Text("${username.length}/$MAX_USERNAME") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-                if (password.isNotBlank()) PasswordStrengthIndicator(password)
-
-                ExposedDropdownMenuBox(
-                    expanded = categoryExpanded,
-                    onExpandedChange = {
-                        categoryExpanded = it
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it.take(MAX_PASSWORD); passwordError = "" },
+                label = { Text("Password") },
+                supportingText = { Text(passwordError.ifBlank { "${password.length}/$MAX_PASSWORD" }) },
+                isError = passwordError.isNotBlank(),
+                singleLine = true,
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(
+                            if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                            contentDescription = if (showPassword) "Hide password" else "Show password"
+                        )
                     }
-                ) {
-                    OutlinedTextField(
-                        value = category,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category") },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(
-                                categoryExpanded
-                            )
-                        },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth()
-                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = {
+                    password = generatePassword(minOf(16, MAX_PASSWORD))
+                    passwordError = ""
+                    showPassword = true
+                }) {
+                    Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Generate strong password")
+                }
+            }
+            if (password.isNotBlank()) PasswordStrengthIndicator(password)
 
-                    ExposedDropdownMenu(
-                        expanded = categoryExpanded,
-                        onDismissRequest = {
-                            categoryExpanded = false
-                        }
-                    ) {
-                        categoryOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option) },
-                                onClick = {
-                                    category = option
-                                    categoryExpanded = false
-                                    addingCustomCategory = false
-                                }
-                            )
-                        }
+            ExposedDropdownMenuBox(
+                expanded = categoryExpanded,
+                onExpandedChange = { categoryExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = category,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Category") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = categoryExpanded,
+                    onDismissRequest = { categoryExpanded = false }
+                ) {
+                    categoryOptions.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text("+ Add custom category") },
+                            text = { Text(option) },
                             onClick = {
+                                category = option
                                 categoryExpanded = false
-                                customCategory = ""
-                                customCategoryError = ""
-                                addingCustomCategory = true
+                                addingCustomCategory = false
                             }
                         )
                     }
+                    DropdownMenuItem(
+                        text = { Text("Add custom category") },
+                        leadingIcon = { Icon(Icons.Outlined.Add, null) },
+                        onClick = {
+                            categoryExpanded = false
+                            customCategory = ""
+                            customCategoryError = ""
+                            addingCustomCategory = true
+                        }
+                    )
                 }
+            }
 
-                if (addingCustomCategory) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = customCategory,
-                            onValueChange = {
-                                customCategory = it.take(24)
-                                customCategoryError = ""
-                            },
-                            label = { Text("New category") },
-                            singleLine = true,
-                            isError = customCategoryError.isNotBlank(),
-                            supportingText = {
-                                Text(customCategoryError.ifBlank { customCategory.length.toString() + "/24" })
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = {
+            if (addingCustomCategory) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = customCategory,
+                        onValueChange = { customCategory = it.take(MAX_CATEGORY); customCategoryError = "" },
+                        label = { Text("New category") },
+                        singleLine = true,
+                        isError = customCategoryError.isNotBlank(),
+                        supportingText = { Text(customCategoryError.ifBlank { "${customCategory.length}/$MAX_CATEGORY" }) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilledTonalButton(
+                        onClick = {
                             val clean = customCategory.trim()
                             when {
-                                clean.isBlank() -> customCategoryError = "Enter a category."
+                                clean.isBlank() -> customCategoryError = "Enter a category name."
                                 categoryOptions.any { it.equals(clean, ignoreCase = true) } ->
-                                    customCategoryError = "Category already exists."
+                                    customCategoryError = "That category already exists."
                                 else -> {
                                     category = clean
                                     addingCustomCategory = false
                                     customCategory = ""
                                 }
                             }
-                        }) { Text("Add") }
-                    }
+                        },
+                        modifier = Modifier.padding(top = 6.dp)
+                    ) { Text("Add") }
                 }
+            }
 
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Password expiry", color = PvMuted, style = MaterialTheme.typography.labelMedium)
-                        Text(expiryAt?.let { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(it)) } ?: "No expiry date", color = PvText)
-                    }
-                    TextButton(onClick = {
-                        showExpiryPicker = true
-                    }) { Text(if (expiryAt == null) "Set date" else "Change") }
-                    if (expiryAt != null) TextButton(onClick = { expiryAt = null }) { Text("Clear") }
-                }
-
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it.take(30) },
-                    label = { Text("Notes") },
-                    supportingText = { Text("${notes.length}/30") },
-                    minLines = 2,
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
+            OutlinedButton(onClick = { showExpiryPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    expiryAt?.let {
+                        "Expires " + SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(it))
+                    } ?: "Set expiry date (optional)"
                 )
-
-                if (error.isNotBlank()) {
-                    Text(
-                        error,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
             }
-        },
-        confirmButton = {
-            Button(
-                enabled = !saving,
-                onClick = {
-                    websiteError = if (website.isBlank()) "Enter a website or app name." else ""
-                    passwordError = if (password.isBlank()) "Enter the password." else ""
-                    if (websiteError.isNotBlank() || passwordError.isNotBlank()) {
-                        error = "Please complete the required fields."
-                        validationAttempt++
+            if (expiryAt != null) {
+                TextButton(onClick = { expiryAt = null }) { Text("Remove expiry date") }
+            }
+
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it.take(MAX_NOTES) },
+                label = { Text("Notes (optional)") },
+                supportingText = { Text("${notes.length}/$MAX_NOTES") },
+                minLines = 2,
+                maxLines = 3,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    enabled = !saving,
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Cancel") }
+                Button(
+                    enabled = !saving,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        websiteError = if (website.isBlank()) "Enter a website or app name." else ""
+                        passwordError = if (password.isBlank()) "Enter the password." else ""
+                        if (websiteError.isNotBlank() || passwordError.isNotBlank()) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        } else {
+                            onSave(website, username, password, category, notes, recordScope, expiryAt)
+                        }
+                    }
+                ) {
+                    if (saving) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     } else {
-                        onSave(
-                            website,
-                            username,
-                            password,
-                            category,
-                            notes,
-                            recordScope,
-                            expiryAt
-                        )
+                        Text(if (isEdit) "Save changes" else "Save password")
                     }
                 }
-            ) {
-                if (saving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("Save")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(
-                enabled = !saving,
-                onClick = onDismiss
-            ) {
-                Text("Cancel")
             }
         }
-    )
+    }
 }
+
+// ───────────────────────── Password strength ─────────────────────────
 
 private enum class PasswordStrengthLevel(val label: String, val color: Color, val segments: Int) {
     VERY_WEAK("Very weak", Color(0xFFD14343), 1),
@@ -869,20 +1157,20 @@ private enum class PasswordStrengthLevel(val label: String, val color: Color, va
 private fun evaluatePasswordStrength(password: String): PasswordStrengthLevel {
     if (password.isEmpty()) return PasswordStrengthLevel.VERY_WEAK
     val lower = password.lowercase()
-    val hasLower = password.any { it.isLowerCase() }
-    val hasUpper = password.any { it.isUpperCase() }
-    val hasDigit = password.any { it.isDigit() }
-    val hasSymbol = password.any { !it.isLetterOrDigit() }
-    val variety = listOf(hasLower, hasUpper, hasDigit, hasSymbol).count { it }
+    val variety = listOf(
+        password.any { it.isLowerCase() },
+        password.any { it.isUpperCase() },
+        password.any { it.isDigit() },
+        password.any { !it.isLetterOrDigit() }
+    ).count { it }
     val repeated = password.length >= 3 && password.all { it == password.first() }
-    val sequential = listOf("123456", "abcdef", "qwerty", "password", "letmein", "admin")
-        .any { lower.contains(it) }
+    val common = listOf("123456", "abcdef", "qwerty", "password", "letmein", "admin").any { lower.contains(it) }
     val score = (if (password.length >= 8) 1 else 0) +
         (if (password.length >= 12) 1 else 0) +
         (if (password.length >= 16) 1 else 0) +
         variety +
         (if (repeated) -3 else 0) +
-        (if (sequential) -2 else 0)
+        (if (common) -2 else 0)
     return when {
         repeated || password.length < 6 || score <= 2 -> PasswordStrengthLevel.VERY_WEAK
         score <= 4 -> PasswordStrengthLevel.WEAK
@@ -895,15 +1183,13 @@ private fun evaluatePasswordStrength(password: String): PasswordStrengthLevel {
 @Composable
 private fun PasswordStrengthIndicator(password: String) {
     val strength = remember(password) { evaluatePasswordStrength(password) }
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Password strength", style = MaterialTheme.typography.labelMedium, color = PvMuted)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Strength",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(Modifier.weight(1f))
             Text(
                 strength.label,
@@ -912,150 +1198,61 @@ private fun PasswordStrengthIndicator(password: String) {
                 fontWeight = FontWeight.SemiBold
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             repeat(4) { index ->
                 Box(
-                    modifier = Modifier
+                    Modifier
                         .weight(1f)
                         .height(6.dp)
+                        .clip(CircleShape)
                         .background(
-                            color = if (index < strength.segments) strength.color else Color(0xFFE5E7EB),
-                            shape = RoundedCornerShape(50)
+                            if (index < strength.segments) strength.color
+                            else MaterialTheme.colorScheme.surfaceContainerHighest
                         )
                 )
             }
         }
-        if (password.isNotEmpty()) {
-            Text(
-                when (strength) {
-                    PasswordStrengthLevel.VERY_WEAK -> "Use a longer password with a mix of character types."
-                    PasswordStrengthLevel.WEAK -> "Add length and more character variety."
-                    PasswordStrengthLevel.FAIR -> "Consider a longer, less predictable password."
-                    PasswordStrengthLevel.STRONG -> "Good password. Avoid reusing it on other sites."
-                    PasswordStrengthLevel.VERY_STRONG -> "Excellent strength. Keep it unique to this account."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = PvMuted
-            )
-        }
     }
 }
 
-@Composable
-private fun ScopeTagV2(scope: String) {
-    val shared = scope == PasswordRecordV2.SCOPE_SHARED
-    Surface(color = if (shared) Color(0xFFF0EAFE) else Color(0xFFE5F5F1), shape = RoundedCornerShape(50)) {
-        Text(if (shared) "SHARED" else "PERSONAL", Modifier.padding(horizontal = 11.dp, vertical = 6.dp), color = if (shared) Color(0xFF6841B8) else Color(0xFF08785C), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+// ───────────────────────── Helpers ─────────────────────────
+
+private enum class ExpiryState { NONE, LATER, SOON, EXPIRED }
+
+private data class ExpiryInfo(val state: ExpiryState, val label: String)
+
+private fun expiryInfo(expiryAt: Long?): ExpiryInfo {
+    if (expiryAt == null) return ExpiryInfo(ExpiryState.NONE, "No expiry date")
+    val days = Math.floorDiv(expiryAt - System.currentTimeMillis(), DAY_MS)
+    val date = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(expiryAt))
+    return when {
+        days < 0 -> ExpiryInfo(ExpiryState.EXPIRED, "Expired on $date")
+        days == 0L -> ExpiryInfo(ExpiryState.SOON, "Expires today")
+        days == 1L -> ExpiryInfo(ExpiryState.SOON, "Expires tomorrow")
+        days <= EXPIRY_SOON_DAYS -> ExpiryInfo(ExpiryState.SOON, "Expires in $days days")
+        else -> ExpiryInfo(ExpiryState.LATER, "Expires on $date")
     }
 }
 
-@Composable
-private fun PasswordDetailsDialogV2(
-    record: PasswordRecordV2,
-    canManage: Boolean,
-    onDismiss: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onCopyUsername: () -> Unit,
-    onCopyPassword: () -> Unit
-) {
-    var showPassword by remember(record.id) {
-        mutableStateOf(false)
-    }
-    LaunchedEffect(showPassword) {
-        if (showPassword) {
-            kotlinx.coroutines.delay(15_000L)
-            showPassword = false
-        }
-    }
+private fun initialOf(name: String): String =
+    name.trim().firstOrNull()?.takeIf { it.isLetter() }?.uppercaseChar()?.toString() ?: "#"
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        containerColor = Color(0xFFFCFCFF),
-        title = { Spacer(Modifier.height(0.dp)) },
-        text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("Website / App", color = PvMuted, style = MaterialTheme.typography.labelMedium)
-                Text(record.websiteApp, color = PvText, fontWeight = FontWeight.SemiBold)
-                HorizontalDivider()
-                Text("Username / Email", color = PvMuted, style = MaterialTheme.typography.labelMedium)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        record.username.ifBlank { "—" },
-                        Modifier.weight(1f)
-                    )
-                    IconButton(onClick = onCopyUsername) {
-                        Icon(Icons.Outlined.ContentCopy, null)
-                    }
-                }
-
-                HorizontalDivider()
-
-                Text("Password")
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (showPassword) record.password else "••••••••••••",
-                        Modifier.weight(1f)
-                    )
-
-                    IconButton(
-                        onClick = { showPassword = !showPassword }
-                    ) {
-                        Icon(
-                            if (showPassword)
-                                Icons.Outlined.VisibilityOff
-                            else
-                                Icons.Outlined.Visibility,
-                            null
-                        )
-                    }
-
-                    IconButton(onClick = onCopyPassword) {
-                        Icon(Icons.Outlined.ContentCopy, null)
-                    }
-                }
-
-                if (record.password.isNotBlank()) PasswordStrengthIndicator(record.password)
-
-                HorizontalDivider()
-
-                Text("Category", color = PvMuted, style = MaterialTheme.typography.labelMedium)
-                Text(record.category, color = PvText, fontWeight = FontWeight.SemiBold)
-                Text("Notes", color = PvMuted, style = MaterialTheme.typography.labelMedium)
-                Text(record.notes.ifBlank { "—" }, color = PvText)
-                Text("Expiry date", color = PvMuted, style = MaterialTheme.typography.labelMedium)
-                Text(record.expiryAt?.let { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(it)) } ?: "No expiry date", color = PvText)
-                ScopeTagV2(record.scope)
-            }
-        },
-        confirmButton = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (canManage) {
-                    TextButton(onClick = onEdit) {
-                        Icon(Icons.Outlined.Edit, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Edit")
-                    }
-                    TextButton(onClick = onDelete) {
-                        Icon(Icons.Outlined.Delete, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-                TextButton(onClick = onDismiss) { Text("Close") }
-            }
-        }
-    )
+private fun generatePassword(length: Int = 16): String {
+    val lower = "abcdefghijkmnopqrstuvwxyz"
+    val upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    val digits = "23456789"
+    val symbols = "!@#$%^&*-_=+?"
+    val all = lower + upper + digits + symbols
+    val random = SecureRandom()
+    fun String.pick() = this[random.nextInt(this.length)]
+    val chars = mutableListOf(lower.pick(), upper.pick(), digits.pick(), symbols.pick())
+    while (chars.size < length) chars.add(all.pick())
+    Collections.shuffle(chars, random)
+    return chars.joinToString("")
 }
 
-private tailrec fun android.content.Context.findActivity(): Activity? = when (this) {
+private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
-    is android.content.ContextWrapper -> baseContext.findActivity()
+    is ContextWrapper -> baseContext.findActivity()
     else -> null
 }
