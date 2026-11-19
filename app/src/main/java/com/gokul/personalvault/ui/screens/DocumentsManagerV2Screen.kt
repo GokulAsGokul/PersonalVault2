@@ -87,6 +87,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var uploading by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
     var currentFileProgress by remember { mutableFloatStateOf(0f) }
+    var currentUploadIndex by remember { mutableIntStateOf(-1) }
     var message by remember { mutableStateOf("") }
     var categoryDialog by remember { mutableStateOf(false) }
     var newCategory by remember { mutableStateOf("") }
@@ -577,9 +578,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                     if (uploading) {
                         Text(message, style = MaterialTheme.typography.bodySmall)
-                        val activeUpload = pendingUploads.getOrNull(
-                            message.substringAfter("Uploading ").substringBefore(" of ").toIntOrNull()?.minus(1) ?: -1
-                        )
+                        val activeUpload = pendingUploads.getOrNull(currentUploadIndex)
                         if (activeUpload != null) {
                             Text(
                                 "${formatDocumentBytes((activeUpload.sizeBytes * currentFileProgress).toLong())} / ${formatDocumentBytes(activeUpload.sizeBytes)}",
@@ -612,6 +611,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 pendingUploads.toList().forEachIndexed { index, pending ->
                                     message = "Uploading ${index + 1} of $total: ${pending.fileName}"
                                     currentFileProgress = 0f
+                                    currentUploadIndex = index
                                     try {
                                         repository.upload(
                                             vaultId, memberUid, pending.uri, context.contentResolver,
@@ -815,6 +815,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     if (replacementTarget?.id == doc.id) {
                         pendingReplacement = null
                         replacementTarget = null
+                        editTitle = doc.title
                     }
                     editingDocument = null
                 }
@@ -837,24 +838,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        if (pendingReplacement?.let { replacementTarget?.id == doc.id } == true) {
-                        Text(
-                            "Ready to upload: ${pendingReplacement?.fileName}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        if (replacingDocument) {
-                            Text(
-                                "${formatDocumentBytes((pendingReplacement!!.sizeBytes * replacementProgress).toLong())} / ${formatDocumentBytes(pendingReplacement!!.sizeBytes)}",
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                            LinearProgressIndicator(
-                                progress = { replacementProgress },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                    TextButton(
+                        TextButton(
                             enabled = !busyDocument && !replacingDocument,
                             onClick = {
                                 replacementTarget = doc
@@ -864,6 +848,23 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         ) {
                             Icon(Icons.Outlined.Edit, null)
                             Text("Change File")
+                        }
+                    }
+                    pendingReplacement?.takeIf { replacementTarget?.id == doc.id }?.let { selected ->
+                        Text(
+                            "Ready to upload: ${selected.fileName}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (replacingDocument) {
+                            Text(
+                                "${formatDocumentBytes((selected.sizeBytes * replacementProgress).toLong())} / ${formatDocumentBytes(selected.sizeBytes)}",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            LinearProgressIndicator(
+                                progress = { replacementProgress },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                     OutlinedTextField(editTitle, { editTitle = it.take(30) }, label = { Text("Title (max 30)") }, singleLine = true)
@@ -921,6 +922,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     if (replacementTarget?.id == doc.id) {
                         pendingReplacement = null
                         replacementTarget = null
+                        editTitle = doc.title
                     }
                     editingDocument = null
                 }) { Text("Cancel") }
