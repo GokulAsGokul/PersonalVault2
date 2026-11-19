@@ -249,7 +249,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
               'scope', 'title', 'titleLower', 'categoryId', 'description',
-              'updatedAt'
+              'originalFileName', 'contentType', 'sizeBytes', 'updatedAt'
             ])
           && validDocumentRecord()
           && request.resource.data.isDeleted == resource.data.isDeleted
