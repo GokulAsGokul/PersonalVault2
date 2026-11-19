@@ -59,6 +59,12 @@ private data class PendingDocumentUploadV2(
     val notes: String = ""
 )
 
+private data class PendingDocumentReplacementV2(
+    val uri: Uri,
+    val fileName: String,
+    val sizeBytes: Long
+)
+
 private const val MAX_DOCUMENT_BATCH_COUNT = 10
 private const val MAX_DOCUMENT_BATCH_BYTES = 200L * 1024L * 1024L
 private const val MAX_DOCUMENT_FILE_BYTES = 50L * 1024L * 1024L
@@ -99,6 +105,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var uploadCategory by remember { mutableStateOf("other") }
     var uploadScope by remember { mutableStateOf("PERSONAL") }
     var uploadCategoryMenu by remember { mutableStateOf(false) }
+    var replacementTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
+    var pendingReplacement by remember { mutableStateOf<PendingDocumentReplacementV2?>(null) }
+    var replacingDocument by remember { mutableStateOf(false) }
+    var replacementProgress by remember { mutableFloatStateOf(0f) }
 
     DisposableEffect(vaultId) {
         val sharedDocs = mutableMapOf<String, DocumentRecordV2>()
@@ -180,6 +190,25 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             showAddDocuments = true
         } else {
             message = "No files selected."
+        }
+    }
+
+    val replacementPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        VaultExternalActivityState.documentPickerActive = false
+        if (uri != null) {
+            val fileName = runCatching {
+                repository.readDisplayName(context.contentResolver, uri)
+            }.getOrDefault("document")
+            val sizeBytes = repository.readSizeBytes(context.contentResolver, uri)
+            when {
+                sizeBytes !in 1..MAX_DOCUMENT_FILE_BYTES ->
+                    message = "The replacement file must be between 1 byte and 50 MB."
+                fileName.substringAfterLast('.', "").isBlank() ->
+                    message = "Choose a file with a valid extension."
+                else -> pendingReplacement = PendingDocumentReplacementV2(uri, fileName, sizeBytes)
+            }
+        } else {
+            replacementTarget = null
         }
     }
 
@@ -696,6 +725,14 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (!doc.isDeleted) {
+                        if (doc.ownerUid == memberUid) {
+                            TextButton(enabled = !busyDocument, onClick = {
+                                selectedDocument = null
+                                replacementTarget = doc
+                                VaultExternalActivityState.documentPickerActive = true
+                                replacementPicker.launch(arrayOf("*/*"))
+                            }) { Text("Replace") }
+                        }
                         TextButton(enabled = !busyDocument, onClick = {
                             editTitle = doc.title; editDescription = doc.description
                             editCategory = doc.categoryId; editScope = doc.scope
@@ -743,6 +780,64 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             },
             dismissButton = { TextButton(onClick = { selectedDocument = null }) { Text("Close") } }
         )
+    }
+
+    pendingReplacement?.let { pending ->
+        val target = replacementTarget
+        if (target != null) {
+            AlertDialog(
+                onDismissRequest = { if (!replacingDocument) { pendingReplacement = null; replacementTarget = null } },
+                title = { Text("Replace Document") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Current file: " + target.originalFileName)
+                        Text("New file: " + pending.fileName)
+                        Text("Size: " + formatDocumentBytes(pending.sizeBytes))
+                        Text(
+                            "The existing file will be overwritten. The previous file will not be retained.",
+                            color = Color(0xFFB45309),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        if (replacingDocument) {
+                            LinearProgressIndicator(
+                                progress = { replacementProgress },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("Replacing file…", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !replacingDocument,
+                        onClick = {
+                            scope.launch {
+                                replacingDocument = true
+                                replacementProgress = 0f
+                                try {
+                                    repository.replaceFile(
+                                        vaultId, target, pending.uri, context.contentResolver
+                                    ) { value -> replacementProgress = value }
+                                    message = "Document file replaced successfully."
+                                    pendingReplacement = null
+                                    replacementTarget = null
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message ?: "Unable to replace document."
+                                } finally {
+                                    replacingDocument = false
+                                }
+                            }
+                        }
+                    ) { Text(if (replacingDocument) "Replacing…" else "Replace File") }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !replacingDocument,
+                        onClick = { pendingReplacement = null; replacementTarget = null }
+                    ) { Text("Cancel") }
+                }
+            )
+        }
     }
 
     editingDocument?.let { doc ->
