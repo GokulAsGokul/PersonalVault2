@@ -819,6 +819,14 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                         vaultId, target, pending.uri, context.contentResolver
                                     ) { value -> replacementProgress = value }
                                     message = "Document file replaced successfully."
+                                    if (editingDocument?.id == target.id) {
+                                        editingDocument = target.copy(
+                                            originalFileName = pending.fileName,
+                                            contentType = context.contentResolver.getType(pending.uri)
+                                                ?: "application/octet-stream",
+                                            sizeBytes = pending.sizeBytes
+                                        )
+                                    }
                                     pendingReplacement = null
                                     replacementTarget = null
                                 } catch (error: Exception) {
@@ -846,6 +854,29 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             title = { Text("Edit document") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Document file", style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(doc.originalFileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                            Text(formatDocumentBytes(doc.sizeBytes), style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(
+                            enabled = !busyDocument && !replacingDocument,
+                            onClick = {
+                                replacementTarget = doc
+                                VaultExternalActivityState.documentPickerActive = true
+                                replacementPicker.launch(arrayOf("*/*"))
+                            }
+                        ) {
+                            Icon(Icons.Outlined.Edit, null)
+                            Text("Change File")
+                        }
+                    }
                     OutlinedTextField(editTitle, { editTitle = it.take(30) }, label = { Text("Title (max 30)") }, singleLine = true)
                     OutlinedTextField(editDescription, { editDescription = it.take(35) },
                         label = { Text("Notes (max 35)") }, singleLine = true)
