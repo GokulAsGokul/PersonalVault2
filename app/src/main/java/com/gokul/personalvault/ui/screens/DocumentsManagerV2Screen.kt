@@ -302,7 +302,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         floatingActionButton = {
             if (!recycleBin) FloatingActionButton(
                 onClick = { VaultExternalActivityState.documentPickerActive = true; picker.launch(arrayOf("*/*")) },
-                containerColor = Color(0xFF315CDB), contentColor = Color.White
+                containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary
             ) { Icon(Icons.Outlined.Add, contentDescription = "Add document") }
         }
     ) { padding ->
