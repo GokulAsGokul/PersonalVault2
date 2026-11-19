@@ -214,7 +214,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 }
             }
         } else {
+            pendingReplacement = null
             replacementTarget = null
+            editTitle = editingDocument?.title ?: editTitle
         }
     }
 
