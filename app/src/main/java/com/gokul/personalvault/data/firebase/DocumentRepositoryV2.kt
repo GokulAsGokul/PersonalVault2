@@ -189,7 +189,7 @@ class DocumentRepositoryV2(
         uri: Uri,
         resolver: ContentResolver,
         onProgress: (Float) -> Unit = {}
-    ) {
+    ): String {
         require(!document.isDeleted) { "Restore this document before replacing its file." }
         val expectedPath = "vaultsV2/" + vaultId + "/documents/" +
             document.ownerUid + "/" + document.id
@@ -199,6 +199,24 @@ class DocumentRepositoryV2(
         require(size in 1..MAX_FILE_BYTES) { "The replacement file must be between 1 byte and 50 MB." }
         val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
         require(extension.isNotBlank()) { "The replacement file must have a file extension." }
+
+        // Derive the document title from the selected filename, excluding its extension.
+        val replacementTitle = fileName.substringBeforeLast('.')
+            .trim()
+            .take(30)
+        require(replacementTitle.isNotBlank()) { "The replacement filename must contain a valid title." }
+
+        // Check duplicates before overwriting the existing Storage object.
+        val duplicate = documentCollection(vaultId)
+            .whereEqualTo("ownerUid", document.ownerUid)
+            .whereEqualTo("categoryId", document.categoryId)
+            .whereEqualTo("titleLower", replacementTitle.lowercase(Locale.ROOT))
+            .whereEqualTo("isDeleted", false)
+            .limit(2).get().await().documents.any { it.id != document.id }
+        require(!duplicate) {
+            "Another document already uses the title '$replacementTitle' in this category. Rename that document or choose another file."
+        }
+
         val mimeType = resolver.getType(uri) ?: "application/octet-stream"
         val metadata = StorageMetadata.Builder()
             .setContentType(mimeType)
@@ -219,6 +237,8 @@ class DocumentRepositoryV2(
         try {
             documentCollection(vaultId).document(document.id).update(
                 mapOf(
+                    "title" to replacementTitle,
+                    "titleLower" to replacementTitle.lowercase(Locale.ROOT),
                     "originalFileName" to fileName,
                     "contentType" to mimeType,
                     "sizeBytes" to size,
@@ -232,6 +252,7 @@ class DocumentRepositoryV2(
             )
         }
         onProgress(1f)
+        return replacementTitle
     }
 
     suspend fun createCategory(vaultId: String, name: String): String {
