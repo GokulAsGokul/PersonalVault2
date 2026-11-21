@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.GridView
@@ -1628,16 +1629,16 @@ private fun DocumentCardV2(
         document.contentType.startsWith("image/") -> Icons.Outlined.Image
         else -> Icons.Outlined.InsertDriveFile
     }
-    Card(modifier, shape = RoundedCornerShape(15.dp),
+    Card(modifier, shape = RoundedCornerShape(13.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 7.dp),
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            DocumentTypeIcon(document.contentType, Modifier.size(44.dp))
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            DocumentTypeIcon(document.contentType, Modifier.size(38.dp))
+            Spacer(Modifier.width(7.dp))
+            Column(Modifier.weight(1f).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(document.originalFileName.ifBlank { document.title },
-                    fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 2,
-                    style = MaterialTheme.typography.bodyMedium)
+                    fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1,
+                    style = MaterialTheme.typography.labelMedium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Outlined.Storage, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                     Text(formatDocumentBytes(document.sizeBytes), color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1654,16 +1655,16 @@ private fun DocumentCardV2(
                 if (isRecycleBin) Text("Deleted", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelSmall)
             }
             if (!isRecycleBin) {
-                VerticalDivider(Modifier.height(76.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                VerticalDivider(Modifier.height(64.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = onDownload, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Outlined.Download, "Download", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(19.dp))
+                    IconButton(onClick = onDownload, modifier = Modifier.size(27.dp)) {
+                        Icon(Icons.Outlined.Download, "Download", tint = Color(0xFF6F35D5), modifier = Modifier.size(16.dp))
                     }
-                    IconButton(onClick = onEdit, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Outlined.Edit, "Edit", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(19.dp))
+                    IconButton(onClick = onEdit, modifier = Modifier.size(27.dp)) {
+                        Icon(Icons.Outlined.Edit, "Edit", tint = Color(0xFF6F35D5), modifier = Modifier.size(16.dp))
                     }
-                    IconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Outlined.Delete, "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(19.dp))
+                    IconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(27.dp)) {
+                        Icon(Icons.Outlined.Delete, "Delete", tint = Color(0xFFE53950), modifier = Modifier.size(16.dp))
                     }
                 }
             }
