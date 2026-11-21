@@ -65,6 +65,129 @@ class DocumentRepositoryV2(
     fun customCategoryCollection(vaultId: String) =
         firestore.collection(VAULTS).document(vaultId).collection("documentCategories")
 
+    fun folderCollection(vaultId: String) =
+        firestore.collection(VAULTS).document(vaultId).collection("documentFolders")
+
+    fun foldersQuery(vaultId: String, categoryId: String) =
+        folderCollection(vaultId).whereEqualTo("categoryId", categoryId)
+
+    suspend fun createFolder(
+        vaultId: String,
+        ownerUid: String,
+        name: String,
+        categoryId: String,
+        parentFolderId: String?,
+        scope: String
+    ): String {
+        val cleanName = name.trim()
+        require(cleanName.isNotEmpty() && cleanName.length <= 30) {
+            "Folder name must be between 1 and 30 characters."
+        }
+        require(categoryId.isNotBlank()) { "Choose a document category." }
+        require(scope == "PERSONAL" || scope == "SHARED") { "Invalid folder visibility." }
+
+        if (parentFolderId != null) {
+            val parent = folderCollection(vaultId).document(parentFolderId).get().await()
+            require(parent.exists()) { "The parent folder no longer exists." }
+            require(parent.getString("categoryId") == categoryId) {
+                "A subfolder must remain inside its parent's category."
+            }
+            require(parent.getString("scope") == scope) {
+                "A subfolder must use the same visibility as its parent folder."
+            }
+            require(scope != "PERSONAL" || parent.getString("ownerUid") == ownerUid) {
+                "You cannot create a folder inside another member's personal folder."
+            }
+        }
+
+        val siblings = folderCollection(vaultId)
+            .whereEqualTo("categoryId", categoryId)
+            .whereEqualTo("parentFolderId", parentFolderId)
+            .whereEqualTo("scope", scope)
+            .get().await()
+        val nameLower = cleanName.lowercase(Locale.ROOT)
+        require(siblings.documents.none {
+            it.getString("nameLower") == nameLower
+        }) { "A folder with this name already exists at this location." }
+
+        val folderId = UUID.randomUUID().toString()
+        val now = FieldValue.serverTimestamp()
+        folderCollection(vaultId).document(folderId).set(
+            mapOf(
+                "schemaVersion" to 1,
+                "name" to cleanName,
+                "nameLower" to nameLower,
+                "categoryId" to categoryId,
+                "parentFolderId" to parentFolderId,
+                "ownerUid" to ownerUid,
+                "scope" to scope,
+                "createdAt" to now,
+                "updatedAt" to now
+            )
+        ).await()
+        return folderId
+    }
+
+    suspend fun renameFolder(vaultId: String, folder: com.gokul.personalvault.data.model.DocumentFolderV2, name: String) {
+        val cleanName = name.trim()
+        require(cleanName.isNotEmpty() && cleanName.length <= 30) {
+            "Folder name must be between 1 and 30 characters."
+        }
+        val siblings = folderCollection(vaultId)
+            .whereEqualTo("categoryId", folder.categoryId)
+            .whereEqualTo("parentFolderId", folder.parentFolderId)
+            .whereEqualTo("scope", folder.scope)
+            .get().await()
+        val nameLower = cleanName.lowercase(Locale.ROOT)
+        require(siblings.documents.none {
+            it.id != folder.id && it.getString("nameLower") == nameLower
+        }) { "A folder with this name already exists at this location." }
+        folderCollection(vaultId).document(folder.id).update(
+            mapOf(
+                "name" to cleanName,
+                "nameLower" to nameLower,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+        ).await()
+    }
+
+    suspend fun deleteEmptyFolder(vaultId: String, folderId: String) {
+        val folderRef = folderCollection(vaultId).document(folderId)
+        val folder = folderRef.get().await()
+        require(folder.exists()) { "This folder no longer exists." }
+        val documents = documentCollection(vaultId)
+            .whereEqualTo("folderId", folderId).limit(1).get().await()
+        require(documents.isEmpty) { "Move or remove the documents from this folder before deleting it." }
+        val children = folderCollection(vaultId)
+            .whereEqualTo("parentFolderId", folderId).limit(1).get().await()
+        require(children.isEmpty) { "Delete or move the subfolders before deleting this folder." }
+        folderRef.delete().await()
+    }
+
+    suspend fun moveDocumentToFolder(
+        vaultId: String,
+        document: DocumentRecordV2,
+        targetFolderId: String?
+    ) {
+        require(!document.isDeleted) { "Restore this document before moving it." }
+        if (targetFolderId != null) {
+            val target = folderCollection(vaultId).document(targetFolderId).get().await()
+            require(target.exists()) { "The destination folder no longer exists." }
+            require(target.getString("categoryId") == document.categoryId) {
+                "Documents can only be moved within their existing category."
+            }
+            require(target.getString("scope") == document.scope) {
+                "The destination folder must have the same Personal / Shared visibility."
+            }
+            require(document.scope != "PERSONAL" || target.getString("ownerUid") == document.ownerUid) {
+                "You cannot move a personal document into another member's folder."
+            }
+        }
+        documentCollection(vaultId).document(document.id).update(
+            mapOf("folderId" to targetFolderId, "updatedAt" to FieldValue.serverTimestamp())
+        ).await()
+    }
+
     suspend fun upload(
         vaultId: String,
         ownerUid: String,
