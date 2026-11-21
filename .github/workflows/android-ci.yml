@@ -1,0 +1,112 @@
+name: Personal Vault CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-vault-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-unit-and-functions:
+    name: Android build, unit tests & Functions checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Android unit tests and build
+        run: ./gradlew testDebugUnitTest assembleDebug
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Lint Firebase Functions
+        working-directory: functions
+        run: npm run lint
+
+      - name: Build Firebase Functions
+        working-directory: functions
+        run: npm run build
+
+      - name: Upload Android unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-report
+          path: app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 14
+
+  android-ui:
+    name: Android emulator UI tests & video
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run UI tests on Android emulator and record screen
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            mkdir -p artifacts
+            adb logcat -c
+            adb shell 'screenrecord --time-limit 180 /sdcard/personal-vault-ui-tests.mp4 >/dev/null 2>&1 &' 
+            ./gradlew connectedDebugAndroidTest
+            adb shell 'pkill -INT screenrecord || true'
+            sleep 3
+            adb pull /sdcard/personal-vault-ui-tests.mp4 artifacts/personal-vault-ui-tests.mp4 || true
+            adb logcat -d > artifacts/logcat.txt
+
+      - name: Upload UI test video, reports and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-ui-test-recording-and-reports
+          path: |
+            artifacts/
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+          if-no-files-found: warn
+          retention-days: 14
