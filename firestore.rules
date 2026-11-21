@@ -251,9 +251,9 @@ service cloud.firestore {
             )
           );
 
-        // Empty-folder validation is performed by the repository before delete.
-        allow delete: if isVaultMember(vaultId)
-          && resource.data.ownerUid == request.auth.uid;
+        // Folder deletion stays disabled until a trusted callable validates
+        // that the folder has no documents or child folders.
+        allow delete: if false;
       }
 
       // Document metadata. Binary content lives in Firebase Storage.
