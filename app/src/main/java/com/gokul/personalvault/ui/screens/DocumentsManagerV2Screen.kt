@@ -42,6 +42,8 @@ import androidx.compose.material.icons.outlined.Flight
 import androidx.compose.material.icons.outlined.MedicalServices
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Gavel
+import androidx.compose.material.icons.outlined.DocumentScanner
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
