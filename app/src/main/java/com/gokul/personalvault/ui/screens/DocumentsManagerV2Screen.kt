@@ -142,7 +142,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         doc.data?.let { sharedDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
                     }
                     publishDocuments()
-                } else if (error != null) message = error.localizedMessage ?: "Unable to load shared documents."
+                } else if (error != null) message = "Shared documents: ${error.localizedMessage ?: "Unable to load documents."}"
             }
         val personalListener: ListenerRegistration = repository.personalDocumentsQuery(vaultId, memberUid)
             .addSnapshotListener { snapshot, error ->
@@ -152,7 +152,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         doc.data?.let { personalDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
                     }
                     publishDocuments()
-                } else if (error != null) message = error.localizedMessage ?: "Unable to load personal documents."
+                } else if (error != null) message = "Personal documents: ${error.localizedMessage ?: "Unable to load documents."}"
             }
         val categoriesListener = repository.customCategoryCollection(vaultId)
             .addSnapshotListener { snapshot, error ->
@@ -184,7 +184,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             doc.data?.let { sharedFolders[doc.id] = DocumentFolderV2.fromSnapshot(doc.id, it) }
                         }
                         publishFolders()
-                    } else if (error != null) message = error.localizedMessage ?: "Unable to load shared folders."
+                    } else if (error != null) message = "Shared folders: ${error.localizedMessage ?: "Unable to load folders."}"
                 }
             val personalFolderListener = repository.personalFoldersQuery(vaultId, category, memberUid)
                 .addSnapshotListener { snapshot, error ->
@@ -194,7 +194,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             doc.data?.let { personalFolders[doc.id] = DocumentFolderV2.fromSnapshot(doc.id, it) }
                         }
                         publishFolders()
-                    } else if (error != null) message = error.localizedMessage ?: "Unable to load personal folders."
+                    } else if (error != null) message = "Personal folders: ${error.localizedMessage ?: "Unable to load folders."}"
                 }
             onDispose {
                 sharedFolderListener.remove()
@@ -688,8 +688,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     onDownload = { downloadDocument(doc) },
                                     onEdit = { editDocument(doc) },
                                     onDelete = { deleteDocument(doc) },
-                                    canDelete = doc.ownerUid == memberUid,
-                                    addedByLabel = if (doc.ownerUid == memberUid) "You" else "Household Member"
+                                    canDelete = doc.ownerUid == memberUid
                                 )
                             }
                             if (pair.size == 1) Spacer(Modifier.weight(1f))
@@ -705,8 +704,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         onDownload = { downloadDocument(doc) },
                         onEdit = { editDocument(doc) },
                         onDelete = { deleteDocument(doc) },
-                        canDelete = doc.ownerUid == memberUid,
-                                    addedByLabel = if (doc.ownerUid == memberUid) "You" else "Household Member"
+                        canDelete = doc.ownerUid == memberUid
                     )
                 }
             }
@@ -1424,8 +1422,7 @@ private fun DocumentCardV2(
     onDownload: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    canDelete: Boolean,
-    addedByLabel: String
+    canDelete: Boolean
 ) {
     val fileIcon = when {
         document.contentType.contains("pdf", true) -> Icons.Outlined.PictureAsPdf
@@ -1438,11 +1435,6 @@ private fun DocumentCardV2(
             verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Icon(fileIcon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(31.dp))
-                Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(50)) {
-                    Text(categoryName, Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        color = MaterialTheme.colorScheme.onSecondaryContainer, style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -1458,7 +1450,7 @@ private fun DocumentCardV2(
                     Icon(if (document.scope == "SHARED") Icons.Outlined.Groups else Icons.Outlined.Person,
                         null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(17.dp))
                     Text(
-                        if (document.scope == "SHARED") "Shared Vault · Added By $addedByLabel" else "Personal Vault",
+                        if (document.scope == "SHARED") "Shared Vault" else "Personal Vault",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, maxLines = 1
                     )
                 }
