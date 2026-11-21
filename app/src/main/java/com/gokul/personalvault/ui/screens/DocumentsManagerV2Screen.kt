@@ -120,6 +120,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var showMoveFolder by remember { mutableStateOf(false) }
     var moveParentFolderId by remember { mutableStateOf<String?>(null) }
     var moveTargetChosen by remember { mutableStateOf(false) }
+    var showMoveDocument by remember { mutableStateOf(false) }
+    var moveDocumentTargetId by remember { mutableStateOf<String?>(null) }
+    var moveDocumentTargetChosen by remember { mutableStateOf(false) }
     var showDeleteFolderConfirm by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("all") }
@@ -618,28 +621,45 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     )
                 }
             } else if (!recycleBin) {
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { category = "all"; currentFolderId = null; showAllDocuments = false }) {
-                            Icon(Icons.Outlined.FolderOpen, null)
-                            Text("Documents")
+                if (category != "all") {
+                    val folderPath = remember(folders, currentFolderId) {
+                        val pathItems = mutableListOf<DocumentFolderV2>()
+                        var cursor = currentFolderId
+                        val visited = mutableSetOf<String>()
+                        while (cursor != null && visited.add(cursor)) {
+                            val folder = folders.firstOrNull { it.id == cursor } ?: break
+                            pathItems.add(0, folder)
+                            cursor = folder.parentFolderId
                         }
-                        Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(allCategories.firstOrNull { it.first == category }?.second ?: "Category",
-                            fontWeight = FontWeight.SemiBold)
+                        pathItems
+                    }
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            TextButton(
+                                onClick = { currentFolderId = null },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text(allCategories.firstOrNull { it.first == category }?.second ?: "Category") }
+                            folderPath.forEach { crumb ->
+                                Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                TextButton(
+                                    onClick = { currentFolderId = crumb.id },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(crumb.name, color = if (crumb.id == currentFolderId)
+                                        MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                        }
                     }
                 }
                 if (category != "all") {
                     val childFolders = folders.filter {
                         it.parentFolderId == currentFolderId && (visibility == "ALL" || it.scope == visibility)
                     }.sortedBy { it.name.lowercase(Locale.ROOT) }
-                    if (currentFolderId != null) {
-                        item {
-                            TextButton(onClick = {
-                                currentFolderId = folders.firstOrNull { it.id == currentFolderId }?.parentFolderId
-                            }) { Text("← Back to parent folder") }
-                        }
-                    }
                     if (childFolders.isNotEmpty()) {
                         items(childFolders, key = { "folder-${it.id}" }) { folder ->
                             ListItem(
@@ -661,7 +681,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     item {
                         TextButton(onClick = {
                             newFolderName = ""
-                            newFolderScope = if (visibility == "SHARED") "SHARED" else "PERSONAL"
+                            newFolderScope = currentFolderId?.let { id ->
+                                folders.firstOrNull { it.id == id }?.scope
+                            } ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
                             showCreateFolder = true
                         }) {
                             Icon(Icons.Outlined.Add, null)
@@ -1244,10 +1266,21 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         supportingText = { Text(newFolderName.length.toString() + "/30") },
                         singleLine = true
                     )
+                    val parentScope = currentFolderId?.let { id ->
+                        folders.firstOrNull { it.id == id }?.scope
+                    }
                     Text("Visibility", style = MaterialTheme.typography.labelMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(newFolderScope == "PERSONAL", { newFolderScope = "PERSONAL" }, label = { Text("Personal") })
-                        FilterChip(newFolderScope == "SHARED", { newFolderScope = "SHARED" }, label = { Text("Shared") })
+                    if (parentScope != null) {
+                        Text(
+                            if (parentScope == "SHARED") "Shared (inherited from parent folder)" else "Personal (inherited from parent folder)",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(newFolderScope == "PERSONAL", { newFolderScope = "PERSONAL" }, label = { Text("Personal") })
+                            FilterChip(newFolderScope == "SHARED", { newFolderScope = "SHARED" }, label = { Text("Shared") })
+                        }
                     }
                     Text(
                         if (currentFolderId == null) "Folder will be created inside " +
