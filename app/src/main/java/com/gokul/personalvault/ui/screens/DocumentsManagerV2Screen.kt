@@ -31,6 +31,8 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.DriveFileMove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,6 +84,14 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var showCreateFolder by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var newFolderScope by remember { mutableStateOf("PERSONAL") }
+    var selectedFolder by remember { mutableStateOf<DocumentFolderV2?>(null) }
+    var showFolderActions by remember { mutableStateOf(false) }
+    var showRenameFolder by remember { mutableStateOf(false) }
+    var renameFolderName by remember { mutableStateOf("") }
+    var showMoveFolder by remember { mutableStateOf(false) }
+    var moveParentFolderId by remember { mutableStateOf<String?>(null) }
+    var moveTargetChosen by remember { mutableStateOf(false) }
+    var showDeleteFolderConfirm by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("all") }
     var visibility by remember { mutableStateOf("ALL") }
@@ -471,7 +481,21 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     ) {
                                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                             Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                                            Text(folder.name, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                                Text(folder.name, fontWeight = FontWeight.SemiBold, maxLines = 2,
+                                                    modifier = Modifier.weight(1f))
+                                                if (folder.ownerUid == memberUid) {
+                                                    IconButton(
+                                                        onClick = {
+                                                            selectedFolder = folder
+                                                            showFolderActions = true
+                                                        },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(Icons.Outlined.MoreVert, contentDescription = "Folder actions")
+                                                    }
+                                                }
+                                            }
                                             Text(folder.scope.lowercase().replaceFirstChar { it.uppercase() },
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -834,6 +858,185 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 }) { Text("Save") }
             },
             dismissButton = { TextButton(onClick = { categoryToEdit = null }) { Text("Cancel") } }
+        )
+    }
+
+    if (showFolderActions) {
+        val folder = selectedFolder
+        if (folder != null) {
+            ModalBottomSheet(onDismissRequest = { showFolderActions = false }) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(folder.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Folder actions", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ListItem(
+                        headlineContent = { Text("Rename Folder") },
+                        leadingContent = { Icon(Icons.Outlined.Edit, null) },
+                        modifier = Modifier.clickable {
+                            renameFolderName = folder.name
+                            showFolderActions = false
+                            showRenameFolder = true
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Move Folder") },
+                        supportingContent = { Text("Move this folder with all its subfolders and files") },
+                        leadingContent = { Icon(Icons.Outlined.DriveFileMove, null) },
+                        modifier = Modifier.clickable {
+                            moveParentFolderId = folder.parentFolderId
+                            moveTargetChosen = false
+                            showFolderActions = false
+                            showMoveFolder = true
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Delete Empty Folder", color = MaterialTheme.colorScheme.error) },
+                        supportingContent = { Text("Available only when the folder has no files or subfolders") },
+                        leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                        modifier = Modifier.clickable {
+                            showFolderActions = false
+                            showDeleteFolderConfirm = true
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    if (showRenameFolder) {
+        AlertDialog(
+            onDismissRequest = { showRenameFolder = false },
+            title = { Text("Rename Folder") },
+            text = {
+                OutlinedTextField(
+                    value = renameFolderName,
+                    onValueChange = { renameFolderName = it.take(30) },
+                    label = { Text("Folder name") },
+                    supportingText = { Text(renameFolderName.length.toString() + "/30") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = renameFolderName.trim().isNotEmpty() && !busyDocument, onClick = {
+                    val folder = selectedFolder ?: return@TextButton
+                    scope.launch {
+                        busyDocument = true
+                        try {
+                            repository.renameFolder(vaultId, folder, renameFolderName)
+                            showRenameFolder = false
+                            message = "Folder renamed."
+                        } catch (error: Exception) {
+                            message = error.localizedMessage ?: error.message ?: "Unable to rename folder."
+                        } finally { busyDocument = false }
+                    }
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showRenameFolder = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showMoveFolder) {
+        val folder = selectedFolder
+        if (folder != null) {
+            val descendants = remember(folders, folder.id) {
+                val result = mutableSetOf<String>()
+                var changed = true
+                while (changed) {
+                    changed = false
+                    folders.filter { it.parentFolderId == folder.id || it.parentFolderId in result }
+                        .forEach { if (result.add(it.id)) changed = true }
+                }
+                result
+            }
+            val destinations = folders.filter {
+                it.id != folder.id && it.id !in descendants &&
+                    it.categoryId == folder.categoryId && it.scope == folder.scope
+            }.sortedBy { it.name.lowercase(Locale.ROOT) }
+            AlertDialog(
+                onDismissRequest = { showMoveFolder = false },
+                title = { Text("Move Folder") },
+                text = {
+                    Column(
+                        Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("Choose a destination. All subfolders and documents will move with this folder.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val rootLabel = allCategories.firstOrNull { it.first == folder.categoryId }?.second ?: "Category"
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                moveParentFolderId = null
+                                moveTargetChosen = true
+                            }.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = moveTargetChosen && moveParentFolderId == null, onClick = {
+                                moveParentFolderId = null
+                                moveTargetChosen = true
+                            })
+                            Text(rootLabel + " (Root)")
+                        }
+                        destinations.forEach { destination ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    moveParentFolderId = destination.id
+                                    moveTargetChosen = true
+                                }.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = moveTargetChosen && moveParentFolderId == destination.id, onClick = {
+                                    moveParentFolderId = destination.id
+                                    moveTargetChosen = true
+                                })
+                                Text(destination.name)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = moveTargetChosen && !busyDocument, onClick = {
+                        scope.launch {
+                            busyDocument = true
+                            try {
+                                repository.moveFolder(vaultId, folder, moveParentFolderId)
+                                showMoveFolder = false
+                                if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
+                                message = "Folder moved."
+                            } catch (error: Exception) {
+                                message = error.localizedMessage ?: error.message ?: "Unable to move folder."
+                            } finally { busyDocument = false }
+                        }
+                    }) { Text("Move") }
+                },
+                dismissButton = { TextButton(onClick = { showMoveFolder = false }) { Text("Cancel") } }
+            )
+        }
+    }
+
+    if (showDeleteFolderConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteFolderConfirm = false },
+            title = { Text("Delete Empty Folder?") },
+            text = { Text("Only an empty folder can be deleted. Documents and subfolders must be moved first.") },
+            confirmButton = {
+                TextButton(enabled = !busyDocument, onClick = {
+                    val folder = selectedFolder ?: return@TextButton
+                    scope.launch {
+                        busyDocument = true
+                        try {
+                            repository.deleteEmptyFolder(vaultId, folder.id)
+                            showDeleteFolderConfirm = false
+                            if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
+                            message = "Folder deleted."
+                        } catch (error: Exception) {
+                            message = error.localizedMessage ?: error.message ?: "Folder could not be deleted."
+                        } finally { busyDocument = false }
+                    }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteFolderConfirm = false }) { Text("Cancel") } }
         )
     }
 
