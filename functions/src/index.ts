@@ -897,6 +897,42 @@ export const permanentlyDeleteV2Document = onCall(async (request) => {
 });
 
 
+/** Delete a folder only when it has no documents and no child folders. */
+export const deleteEmptyV2DocumentFolder = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const folderId = requireString(data.folderId, "Folder ID", 128);
+  const vaultRef = db.collection(OWNER_VAULTS).doc(vaultId);
+  const folderRef = vaultRef.collection("documentFolders").doc(folderId);
+
+  await db.runTransaction(async (tx) => {
+    const [vault, folder] = await Promise.all([tx.get(vaultRef), tx.get(folderRef)]);
+    const members = assertValidOwnerVault(vault, vaultId);
+    if (!members.includes(uid)) {
+      throw new HttpsError("permission-denied", "You are not a household member.");
+    }
+    if (!folder.exists) return;
+    if (folder.get("ownerUid") !== uid) {
+      throw new HttpsError("permission-denied", "Only the folder owner can delete it.");
+    }
+
+    const [documents, children] = await Promise.all([
+      tx.get(vaultRef.collection("documents").where("folderId", "==", folderId).limit(1)),
+      tx.get(vaultRef.collection("documentFolders").where("parentFolderId", "==", folderId).limit(1)),
+    ]);
+    if (!documents.empty || !children.empty) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Only empty folders can be deleted. Move the documents and subfolders first."
+      );
+    }
+    tx.delete(folderRef);
+  });
+
+  return {status: "deleted"};
+});
+
 /** Create a shared custom category with a transaction-safe case-insensitive name check. */
 export const createV2DocumentCategory = onCall(async (request) => {
   const {uid} = requireIdentity(request);
