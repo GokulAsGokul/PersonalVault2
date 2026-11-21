@@ -384,10 +384,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
+                        color = MaterialTheme.colorScheme.primary
                     ) {
                         Icon(Icons.Outlined.FolderOpen, null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.padding(9.dp).size(27.dp))
                     }
                     Spacer(Modifier.width(10.dp))
@@ -454,8 +454,24 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     listOf("ALL" to "All", "PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
                         FilterChip(
                             selected = visibility == value,
-                            onClick = { visibility = value },
-                            label = { Text(label) }
+                            onClick = {
+                                visibility = value
+                                if (value == "ALL") {
+                                    category = "all"
+                                    currentFolderId = null
+                                    showAllDocuments = true
+                                } else {
+                                    category = "all"
+                                    currentFolderId = null
+                                    showAllDocuments = false
+                                }
+                            },
+                            label = { Text(label) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         )
                     }
                     FilterChip(
@@ -491,16 +507,16 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 else -> Icons.Outlined.Description
                             }
                             val accent = when (id) {
-                                "banking_finance" -> Color(0xFF159B68)
-                                "property" -> Color(0xFFF08A24)
-                                "insurance" -> Color(0xFF2587D8)
-                                "employment" -> Color(0xFF8A4DDB)
-                                "vehicle" -> Color(0xFF287BCB)
-                                "travel_visa" -> Color(0xFF168C9A)
-                                "medical" -> Color(0xFFE05A72)
-                                "education" -> Color(0xFFB07824)
-                                "legal_documents" -> Color(0xFF5365B8)
-                                "other" -> Color(0xFF8A4DDB)
+                                "banking_finance" -> Color(0xFF087747)
+                                "property" -> Color(0xFFD66A08)
+                                "insurance" -> Color(0xFF1767B1)
+                                "employment" -> Color(0xFF7134BD)
+                                "vehicle" -> Color(0xFF155C9F)
+                                "travel_visa" -> Color(0xFF087579)
+                                "medical" -> Color(0xFFC93655)
+                                "education" -> Color(0xFF8A5A0A)
+                                "legal_documents" -> Color(0xFF394B9B)
+                                "other" -> Color(0xFF7134BD)
                                 else -> Color(0xFF7652C8)
                             }
                             val iconTile = when (id) {
@@ -527,9 +543,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     1.5.dp, MaterialTheme.colorScheme.primary
                                 ) else null,
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (category == id)
-                                        iconTile.copy(alpha = 0.72f)
-                                    else MaterialTheme.colorScheme.surface
+                                    containerColor = iconTile.copy(alpha = 0.92f)
                                 )
                             ) {
                                 Column(
@@ -572,9 +586,6 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         onDelete = { deleteDocument(doc) },
                         canDelete = doc.ownerUid == memberUid
                     )
-                }
-                item {
-                    Text("All Documents", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
             } else if (!recycleBin) {
                 item {
