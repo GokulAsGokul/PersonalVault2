@@ -71,6 +71,15 @@ class DocumentRepositoryV2(
     fun foldersQuery(vaultId: String, categoryId: String) =
         folderCollection(vaultId).whereEqualTo("categoryId", categoryId)
 
+    fun sharedFoldersQuery(vaultId: String, categoryId: String) =
+        folderCollection(vaultId).whereEqualTo("categoryId", categoryId)
+            .whereEqualTo("scope", "SHARED")
+
+    fun personalFoldersQuery(vaultId: String, categoryId: String, memberUid: String) =
+        folderCollection(vaultId).whereEqualTo("categoryId", categoryId)
+            .whereEqualTo("scope", "PERSONAL")
+            .whereEqualTo("ownerUid", memberUid)
+
     suspend fun createFolder(
         vaultId: String,
         ownerUid: String,
