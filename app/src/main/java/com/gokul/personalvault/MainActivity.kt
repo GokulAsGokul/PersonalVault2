@@ -56,11 +56,6 @@ import com.gokul.personalvault.data.firebase.VaultRepositoryV2
 import com.gokul.personalvault.data.local.VaultKeySessionV2
 import com.gokul.personalvault.ui.screens.MasterPasswordV2Screen
 
-private val VaultNavy = Color(0xFF14213D)
-private val VaultBlue = Color(0xFF315CDB)
-private val VaultBackground = Color(0xFFF4F6FB)
-private val VaultMuted = Color(0xFF64748B)
-
 // Tracks the temporary system document-picker activity so returning from it does not lock the vault.
 object VaultExternalActivityState {
     @Volatile var documentPickerActive: Boolean = false
@@ -78,7 +73,7 @@ class MainActivity : ComponentActivity() {
             VaultTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = VaultBackground
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     FirebaseLoginScreen()
                 }
@@ -220,7 +215,7 @@ LaunchedEffect(currentUid) {
                 if (requestedUnlockDestination != null && vaultId != null && !sessionUnlocked) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
-                        color = VaultBackground
+                        color = MaterialTheme.colorScheme.background
                     ) {
                         MasterPasswordV2Screen(
                             vaultId = vaultId!!,
@@ -264,7 +259,7 @@ LaunchedEffect(currentUid) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(VaultBackground)
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
     ) {
         // Premium navy header
@@ -272,7 +267,7 @@ LaunchedEffect(currentUid) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    VaultNavy,
+                    MaterialTheme.colorScheme.onSurface,
                     RoundedCornerShape(
                         bottomStart = 34.dp,
                         bottomEnd = 34.dp
@@ -288,7 +283,7 @@ LaunchedEffect(currentUid) {
             Box(
                 modifier = Modifier
                     .size(58.dp)
-                    .background(VaultBlue, CircleShape),
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -341,7 +336,7 @@ LaunchedEffect(currentUid) {
                 .padding(top = 24.dp),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color.White
+                containerColor = MaterialTheme.colorScheme.surface
             ),
             elevation = CardDefaults.cardElevation(
                 defaultElevation = 3.dp
@@ -358,7 +353,7 @@ LaunchedEffect(currentUid) {
                     },
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = VaultNavy
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -369,7 +364,7 @@ LaunchedEffect(currentUid) {
                     } else {
                         "Sign in to access your secure vault."
                     },
-                    color = VaultMuted,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium
                 )
 
@@ -529,7 +524,7 @@ LaunchedEffect(currentUid) {
                         .height(54.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = VaultBlue
+                        containerColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
                     if (isLoading) {
@@ -567,7 +562,7 @@ LaunchedEffect(currentUid) {
                         } else {
                             "New to Personal Vault? Create account"
                         },
-                        color = VaultBlue
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
 
@@ -590,7 +585,7 @@ LaunchedEffect(currentUid) {
                 .fillMaxWidth()
                 .padding(bottom = 24.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            color = VaultMuted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold
         )
