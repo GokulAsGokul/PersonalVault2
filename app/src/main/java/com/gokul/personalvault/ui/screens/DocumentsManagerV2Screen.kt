@@ -945,7 +945,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 var changed = true
                 while (changed) {
                     changed = false
-                    folders.filter { it.parentFolderId == folder.id || it.parentFolderId in result }
+                    folders.filter { it.parentFolderId == folder.id || (it.parentFolderId != null && it.parentFolderId in result) }
                         .forEach { if (result.add(it.id)) changed = true }
                 }
                 result
