@@ -744,7 +744,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 }
             }
             if (!recycleBin && category == "all" && currentFolderId == null && !showAllDocuments) {
-                items(allCategories.chunked(3)) { categoryRow ->
+                items(allCategories.chunked(2)) { categoryRow ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         categoryRow.forEachIndexed { index, (id, name) ->
                             val count = active.count { it.categoryId == id }
@@ -818,7 +818,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 }
                             }
                         }
-                        repeat(3 - categoryRow.size) { Spacer(Modifier.weight(1f)) }
+                        repeat(2 - categoryRow.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
                 item {
@@ -1092,6 +1092,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             }
         }
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
                 shape = RoundedCornerShape(24.dp),
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp,
@@ -1160,6 +1166,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     if (showAddDocuments) {
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
             onDismissRequest = {
                 if (!uploading) {
                     showAddDocuments = false
@@ -1362,6 +1374,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     if (categoryDialog) {
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
             onDismissRequest = { categoryDialog = false },
             title = { Text("New category") },
             text = { OutlinedTextField(newCategory, { newCategory = it.take(30) },
@@ -1389,6 +1407,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     if (manageCategories) {
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
             onDismissRequest = { manageCategories = false; categoryToEdit = null },
             title = { Text("Manage custom categories") },
             text = {
@@ -1419,6 +1443,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     categoryToEdit?.let { (id, oldName) ->
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
             onDismissRequest = { categoryToEdit = null },
             title = { Text("Rename category") },
             text = { OutlinedTextField(categoryEditName, { categoryEditName = it.take(30) },
@@ -1487,6 +1517,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     if (showRenameFolder) {
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
             onDismissRequest = { showRenameFolder = false },
             title = { Text("Rename Folder") },
             text = {
@@ -1537,6 +1573,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     it.id != folder.parentFolderId
             }.sortedBy { it.name.lowercase(Locale.ROOT) }
             AlertDialog(
+
+                shape = RoundedCornerShape(24.dp),
+
+                containerColor = MaterialTheme.colorScheme.surface,
+
+                tonalElevation = 8.dp,
                 onDismissRequest = { showMoveFolder = false },
                 title = { Text("Move Folder") },
                 text = {
@@ -1599,6 +1641,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     if (showDeleteFolderConfirm) {
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
             onDismissRequest = { showDeleteFolderConfirm = false },
             title = { Text("Delete Empty Folder?") },
             text = { Text("Only an empty folder can be deleted. Documents and subfolders must be moved first.") },
@@ -1624,6 +1672,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     if (showCreateFolder) {
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
             onDismissRequest = { showCreateFolder = false },
             title = { Text("Create Folder") },
             text = {
@@ -1696,6 +1750,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     (doc.scope == "SHARED" || folder.ownerUid == doc.ownerUid)
             }.sortedBy { it.name.lowercase(Locale.ROOT) }
             AlertDialog(
+
+                shape = RoundedCornerShape(24.dp),
+
+                containerColor = MaterialTheme.colorScheme.surface,
+
+                tonalElevation = 8.dp,
                 onDismissRequest = { showMoveDocument = false; documentToMove = null },
                 title = { Text("Move Document") },
                 text = {
@@ -1926,6 +1986,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     permanentDeleteTarget?.let { doc ->
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
             onDismissRequest = { if (!busyDocument) permanentDeleteTarget = null },
             title = { Text("Permanently Delete Document?") },
             text = { Text("'"+doc.title+"' and its stored file will be deleted permanently. This action cannot be undone.") },
@@ -1961,6 +2027,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         val doc = selectedDocument
         if (doc != null) {
             AlertDialog(
+
+                shape = RoundedCornerShape(24.dp),
+
+                containerColor = MaterialTheme.colorScheme.surface,
+
+                tonalElevation = 8.dp,
                 onDismissRequest = { showDocumentDetails = false },
                 title = { Text("File Details") },
                 text = {
@@ -1993,6 +2065,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     editingDocument?.let { doc ->
         AlertDialog(
+
+            shape = RoundedCornerShape(24.dp),
+
+            containerColor = MaterialTheme.colorScheme.surface,
+
+            tonalElevation = 8.dp,
             onDismissRequest = {
                 if (!replacingDocument && !busyDocument) {
                     if (replacementTarget?.id == doc.id) {
@@ -2189,7 +2267,8 @@ private fun DocumentCardV2(
 
 @Composable
 private fun DocumentTypeIcon(contentType: String, modifier: Modifier = Modifier) {
-    val (tile, tint, image) = when {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val (lightTile, tint, image) = when {
         contentType.contains("pdf", true) ->
             Triple(Color(0xFFFFE1E1), Color(0xFFE52222), Icons.Outlined.PictureAsPdf)
         contentType.startsWith("image/") ->
@@ -2200,6 +2279,7 @@ private fun DocumentTypeIcon(contentType: String, modifier: Modifier = Modifier)
         else ->
             Triple(Color(0xFFE9DFFF), Color(0xFF7652C8), Icons.Outlined.InsertDriveFile)
     }
+    val tile = if (isDark) Color(0xFF30243D) else lightTile
     Surface(modifier = modifier, shape = RoundedCornerShape(10.dp), color = tile) {
         Box(contentAlignment = Alignment.Center) {
             Icon(image, null, tint = tint, modifier = Modifier.size(26.dp))
