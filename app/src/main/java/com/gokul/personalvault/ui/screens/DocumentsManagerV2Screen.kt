@@ -15,6 +15,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.GridView
@@ -503,16 +513,16 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         categoryRow.forEachIndexed { index, (id, name) ->
                             val count = active.count { it.categoryId == id }
                             val icon = when (id) {
-                                "banking_finance" -> Icons.Outlined.AccountBalance
-                                "property" -> Icons.Outlined.Home
-                                "insurance" -> Icons.Outlined.HealthAndSafety
-                                "employment" -> Icons.Outlined.Work
-                                "vehicle" -> Icons.Outlined.DirectionsCar
-                                "travel_visa" -> Icons.Outlined.Flight
-                                "medical" -> Icons.Outlined.MedicalServices
-                                "education" -> Icons.Outlined.School
-                                "legal_documents" -> Icons.Outlined.Gavel
-                                else -> Icons.Outlined.Description
+                                "banking_finance" -> Icons.Filled.AccountBalance
+                                "property" -> Icons.Filled.Home
+                                "insurance" -> Icons.Filled.HealthAndSafety
+                                "employment" -> Icons.Filled.Work
+                                "vehicle" -> Icons.Filled.DirectionsCar
+                                "travel_visa" -> Icons.Filled.Flight
+                                "medical" -> Icons.Filled.MedicalServices
+                                "education" -> Icons.Filled.School
+                                "legal_documents" -> Icons.Filled.Gavel
+                                else -> Icons.Filled.Description
                             }
                             val accent = when (id) {
                                 "banking_finance" -> Color(0xFF087747)
@@ -559,13 +569,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(11.dp),
-                                        color = iconTile
-                                    ) {
-                                        Icon(icon, null, tint = accent,
-                                            modifier = Modifier.padding(8.dp).size(22.dp))
-                                    }
+                                    Icon(
+                                        icon,
+                                        contentDescription = null,
+                                        tint = accent,
+                                        modifier = Modifier.size(27.dp)
+                                    )
                                     Text(name, style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.SemiBold, maxLines = 2)
                                     Text("$count files", style = MaterialTheme.typography.labelSmall,
