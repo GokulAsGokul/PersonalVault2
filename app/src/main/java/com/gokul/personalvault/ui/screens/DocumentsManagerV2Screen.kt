@@ -1,6 +1,8 @@
 package com.gokul.personalvault.ui.screens
 
 import android.app.DownloadManager
+import android.app.Activity
+import android.graphics.BitmapFactory
 import android.content.Context
 import android.content.Intent
 import android.content.ClipData
@@ -10,7 +12,9 @@ import android.net.Uri
 import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -71,6 +75,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -82,8 +88,14 @@ import com.gokul.personalvault.data.model.DocumentFolderV2
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import java.util.Locale
+import java.io.File
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 
 private enum class DocumentSortV2 { NAME_ASC, NAME_DESC, NEWEST, OLDEST, LARGEST, SMALLEST }
 
@@ -168,6 +180,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var pendingReplacement by remember { mutableStateOf<PendingDocumentReplacementV2?>(null) }
     var replacingDocument by remember { mutableStateOf(false) }
     var replacementProgress by remember { mutableFloatStateOf(0f) }
+    var capturedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingPhotoFile by remember { mutableStateOf<File?>(null) }
+    var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var showPhotoPreview by remember { mutableStateOf(false) }
 
     DisposableEffect(vaultId) {
         val sharedDocs = mutableMapOf<String, DocumentRecordV2>()
@@ -291,6 +307,75 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         }
     }
 
+    val scannerOptions = remember {
+        GmsDocumentScannerOptions.Builder()
+            .setGalleryImportAllowed(false)
+            .setPageLimit(MAX_DOCUMENT_BATCH_COUNT)
+            .setResultFormats(
+                GmsDocumentScannerOptions.RESULT_FORMAT_PDF,
+                GmsDocumentScannerOptions.RESULT_FORMAT_JPEG
+            )
+            .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+            .build()
+    }
+    val scannerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        VaultExternalActivityState.documentPickerActive = false
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
+            val pdfUri = scanResult?.pdf?.uri
+            if (pdfUri != null) {
+                val pageCount = scanResult.pdf?.pageCount ?: 1
+                val fileName = "Scanned_Document_${System.currentTimeMillis()}.pdf"
+                val sizeBytes = repository.readSizeBytes(context.contentResolver, pdfUri)
+                if (sizeBytes in 1..MAX_DOCUMENT_FILE_BYTES) {
+                    pendingUploads.clear()
+                    pendingUploads.add(
+                        PendingDocumentUploadV2(
+                            uri = pdfUri,
+                            fileName = fileName,
+                            sizeBytes = sizeBytes,
+                            title = "Scanned Document".take(50),
+                            notes = if (pageCount > 1) "${pageCount} pages scanned" else ""
+                        )
+                    )
+                    val parentFolder = folders.firstOrNull { it.id == currentFolderId }
+                    uploadCategory = parentFolder?.categoryId ?: if (category == "all") "other" else category
+                    uploadScope = parentFolder?.scope ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
+                    showAddDocuments = true
+                } else {
+                    message = if (sizeBytes < 0L) {
+                        "Unable to read the scanned PDF size. Please scan again."
+                    } else {
+                        "The scanned PDF exceeds the 50 MB file limit."
+                    }
+                }
+            } else {
+                message = "The scanner did not return a PDF. Please scan again."
+            }
+        } else if (result.resultCode != android.app.Activity.RESULT_CANCELED) {
+            message = "Document scanning was not completed."
+        }
+    }
+
+    val photoCaptureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        VaultExternalActivityState.documentPickerActive = false
+        val photoFile = pendingPhotoFile
+        val photoUri = pendingPhotoUri
+        if (success && photoFile != null && photoUri != null && photoFile.exists() && photoFile.length() > 0L) {
+            capturedPhotoUri = photoUri
+            showPhotoPreview = true
+        } else {
+            photoFile?.delete()
+            pendingPhotoFile = null
+            pendingPhotoUri = null
+            message = if (success) "The camera did not save a photo. Please try again." else "Photo capture cancelled."
+        }
+    }
+
     val replacementPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         VaultExternalActivityState.documentPickerActive = false
         if (uri != null) {
@@ -314,6 +399,55 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             replacementTarget = null
             editTitle = editingDocument?.title ?: editTitle
         }
+    }
+
+    fun launchPhotoCapture() {
+        try {
+            val directory = File(context.cacheDir, "documents").apply { mkdirs() }
+            val photoFile = File(directory, "Photo_${System.currentTimeMillis()}.jpg")
+            val photoUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                photoFile
+            )
+            pendingPhotoFile = photoFile
+            pendingPhotoUri = photoUri
+            VaultExternalActivityState.documentPickerActive = true
+            photoCaptureLauncher.launch(photoUri)
+        } catch (error: Exception) {
+            VaultExternalActivityState.documentPickerActive = false
+            message = error.localizedMessage ?: "Unable to open the camera."
+        }
+    }
+
+    fun acceptCapturedPhoto() {
+        val photoFile = pendingPhotoFile
+        val photoUri = capturedPhotoUri
+        if (photoFile == null || photoUri == null || !photoFile.exists()) {
+            message = "The captured photo is no longer available. Please take it again."
+            showPhotoPreview = false
+            return
+        }
+        val sizeBytes = photoFile.length()
+        if (sizeBytes !in 1..MAX_DOCUMENT_FILE_BYTES) {
+            message = "The photo must be between 1 byte and 50 MB."
+            return
+        }
+        val fileName = photoFile.name
+        pendingUploads.clear()
+        pendingUploads.add(
+            PendingDocumentUploadV2(
+                uri = photoUri,
+                fileName = fileName,
+                sizeBytes = sizeBytes,
+                title = fileName.substringBeforeLast('.').take(50)
+            )
+        )
+        val parentFolder = folders.firstOrNull { it.id == currentFolderId }
+        uploadCategory = parentFolder?.categoryId ?: if (category == "all") "other" else category
+        uploadScope = parentFolder?.scope ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
+        showPhotoPreview = false
+        showAddDocuments = true
     }
 
     val active = documents.filter { !it.isDeleted }
@@ -858,7 +992,24 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     leadingContent = { Icon(Icons.Outlined.DocumentScanner, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.clickable {
                         showAddOptions = false
-                        message = "Document scanning will be connected in the next implementation step."
+                        val activity = context as? Activity
+                        if (activity == null) {
+                            message = "Unable to open the document scanner from this screen."
+                        } else {
+                            VaultExternalActivityState.documentPickerActive = true
+                            GmsDocumentScanning.getClient(scannerOptions)
+                                .getStartScanIntent(activity)
+                                .addOnSuccessListener { intentSender ->
+                                    scannerLauncher.launch(
+                                        IntentSenderRequest.Builder(intentSender).build()
+                                    )
+                                }
+                                .addOnFailureListener { error ->
+                                    VaultExternalActivityState.documentPickerActive = false
+                                    message = error.localizedMessage
+                                        ?: "Unable to start document scanning. Check Google Play services and try again."
+                                }
+                        }
                     }
                 )
                 ListItem(
@@ -867,11 +1018,87 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     leadingContent = { Icon(Icons.Outlined.PhotoCamera, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.clickable {
                         showAddOptions = false
-                        message = "Camera capture will be connected in the next implementation step."
+                        launchPhotoCapture()
                     }
                 )
             }
         }
+    }
+
+    if (showPhotoPreview) {
+        val photoUri = capturedPhotoUri
+        val previewBitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
+            initialValue = null,
+            key1 = photoUri
+        ) {
+            value = withContext(Dispatchers.IO) {
+                photoUri?.let { uri ->
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { stream ->
+                            BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                        }
+                    }.getOrNull()
+                }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = {
+                if (!uploading) {
+                    showPhotoPreview = false
+                    pendingPhotoFile?.delete()
+                    pendingPhotoFile = null
+                    pendingPhotoUri = null
+                    capturedPhotoUri = null
+                }
+            },
+            title = { Text("Photo Preview", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (previewBitmap != null) {
+                        Image(
+                            bitmap = previewBitmap!!,
+                            contentDescription = "Captured document photo",
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Box(
+                            Modifier.fillMaxWidth().height(180.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    Text(
+                        pendingPhotoFile?.name ?: "Captured photo",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "Review the photo before adding it to your Documents.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = previewBitmap != null,
+                    onClick = { acceptCapturedPhoto() }
+                ) { Text("Use Photo") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { launchPhotoCapture() }) { Text("Retake") }
+                    TextButton(onClick = {
+                        showPhotoPreview = false
+                        pendingPhotoFile?.delete()
+                        pendingPhotoFile = null
+                        pendingPhotoUri = null
+                        capturedPhotoUri = null
+                    }) { Text("Cancel") }
+                }
+            }
+        )
     }
 
     if (showAddDocuments) {
