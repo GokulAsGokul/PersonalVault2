@@ -44,6 +44,13 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.DeleteForever
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -133,6 +140,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     val pendingUploads = remember { mutableStateListOf<PendingDocumentUploadV2>() }
     var showAddDocuments by remember { mutableStateOf(false) }
     var showAddOptions by remember { mutableStateOf(false) }
+    var showDocumentDetails by remember { mutableStateOf(false) }
     var uploadCategory by remember { mutableStateOf("other") }
     var uploadScope by remember { mutableStateOf("PERSONAL") }
     var uploadCategoryMenu by remember { mutableStateOf(false) }
@@ -1252,83 +1260,197 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     }
 
     selectedDocument?.let { doc ->
-        AlertDialog(
+        ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
-            title = { Text(doc.title) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Category: ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: doc.categoryId}")
-                    Text("Notes: ${doc.description.ifBlank { "—" }}")
-                    Text("File: ${doc.originalFileName}")
-                    Text("Type: ${doc.contentType}")
-                    Text("Size: ${formatDocumentBytes(doc.sizeBytes)}")
-                    Text("Uploaded: ${doc.uploadedAt?.toDate()?.toString() ?: "—"}")
-                    Text("Last updated: ${doc.updatedAt?.toDate()?.toString() ?: "—"}")
-                    Text("Owner: ${if (doc.ownerUid == memberUid) "You" else "Household member"}")
-                    Text("Visibility: ${doc.scope}")
-                    if (doc.isDeleted) Text("Purge date: ${doc.purgeAt?.toDate()?.toString() ?: "—"}")
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(doc.title, style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold, maxLines = 2)
+                        Text(
+                            "${formatDocumentBytes(doc.sizeBytes)} · ${doc.contentType.substringAfter('/') .uppercase()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { selectedDocument = null }) {
+                        Icon(Icons.Outlined.Close, "Close")
+                    }
                 }
-            },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (!doc.isDeleted) {
-                        if (doc.ownerUid == memberUid) {
-                            TextButton(enabled = !busyDocument, onClick = {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        FilledTonalIconButton(
+                            onClick = {
+                                scope.launch {
+                                    busyDocument = true
+                                    try {
+                                        val url = repository.downloadUrl(vaultId, doc)
+                                        enqueueDocumentDownload(context, url, doc.originalFileName)
+                                        message = "Download started. Check your Downloads folder."
+                                        selectedDocument = null
+                                    } catch (error: Exception) {
+                                        message = error.localizedMessage ?: error.message ?: "Download failed."
+                                    } finally { busyDocument = false }
+                                }
+                            },
+                            enabled = !busyDocument
+                        ) { Icon(Icons.Outlined.Download, "Download") }
+                        Text("Download", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        FilledTonalIconButton(
+                            onClick = {
+                                editTitle = doc.title
+                                editDescription = doc.description
+                                editCategory = doc.categoryId
+                                editScope = doc.scope
+                                editingDocument = doc
                                 selectedDocument = null
-                                replacementTarget = doc
-                                VaultExternalActivityState.documentPickerActive = true
-                                replacementPicker.launch(arrayOf("*/*"))
-                            }) { Text("Replace") }
+                            },
+                            enabled = !busyDocument && !doc.isDeleted
+                        ) { Icon(Icons.Outlined.Edit, "Edit") }
+                        Text("Edit", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        FilledTonalIconButton(
+                            onClick = {
+                                scope.launch {
+                                    busyDocument = true
+                                    try {
+                                        val url = repository.downloadUrl(vaultId, doc)
+                                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(android.content.Intent.EXTRA_TEXT, url)
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(send, "Share document link"))
+                                        selectedDocument = null
+                                    } catch (error: Exception) {
+                                        message = error.localizedMessage ?: error.message ?: "Unable to share document."
+                                    } finally { busyDocument = false }
+                                }
+                            },
+                            enabled = !busyDocument && !doc.isDeleted
+                        ) { Icon(Icons.Outlined.Share, "Share") }
+                        Text("Share", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        FilledTonalIconButton(
+                            onClick = { showDocumentDetails = true },
+                            enabled = !busyDocument
+                        ) { Icon(Icons.Outlined.Info, "Details") }
+                        Text("Details", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                if (!doc.isDeleted) {
+                    ListItem(
+                        headlineContent = { Text("Change Access") },
+                        supportingContent = { Text(if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document") },
+                        leadingContent = { Icon(Icons.Outlined.Groups, null, tint = MaterialTheme.colorScheme.primary) },
+                        trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
+                        modifier = Modifier.clickable {
+                            editTitle = doc.title
+                            editDescription = doc.description
+                            editCategory = doc.categoryId
+                            editScope = doc.scope
+                            editingDocument = doc
+                            selectedDocument = null
                         }
-                        TextButton(enabled = !busyDocument, onClick = {
-                            editTitle = doc.title; editDescription = doc.description
-                            editCategory = doc.categoryId; editScope = doc.scope
-                            editingDocument = doc; selectedDocument = null
-                        }) { Icon(Icons.Outlined.Edit, null); Text("Edit") }
-                        TextButton(enabled = !busyDocument, onClick = {
+                    )
+                    ListItem(
+                        headlineContent = { Text("Move to Recycle Bin", color = MaterialTheme.colorScheme.error) },
+                        supportingContent = { Text("Keep it recoverable for 30 days") },
+                        leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                        modifier = Modifier.clickable(enabled = !busyDocument && doc.ownerUid == memberUid) {
                             scope.launch {
                                 busyDocument = true
                                 try {
-                                    val url = repository.downloadUrl(vaultId, doc)
-                                    enqueueDocumentDownload(context, url, doc.originalFileName)
-                                    message = "Download started. Check your Downloads folder."
+                                    repository.moveToRecycleBin(vaultId, doc)
                                     selectedDocument = null
-                                } catch (error: Exception) { message = error.message ?: "Download failed." }
-                                busyDocument = false
+                                    message = "Moved to Recycle Bin. Retained for 30 days."
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message ?: "Delete failed."
+                                } finally { busyDocument = false }
                             }
-                        }) { Icon(Icons.Outlined.Download, null); Text("Download") }
-                        TextButton(enabled = !busyDocument && doc.ownerUid == memberUid, onClick = {
+                        }
+                    )
+                } else if (doc.ownerUid == memberUid) {
+                    ListItem(
+                        headlineContent = { Text("Restore Document") },
+                        leadingContent = { Icon(Icons.Outlined.Restore, null, tint = MaterialTheme.colorScheme.primary) },
+                        modifier = Modifier.clickable(enabled = !busyDocument) {
                             scope.launch {
                                 busyDocument = true
-                                try { repository.moveToRecycleBin(vaultId, doc); selectedDocument = null; message = "Moved to Recycle Bin. Retained for 30 days." }
-                                catch (error: Exception) { message = error.message ?: "Delete failed." }
-                                busyDocument = false
+                                try {
+                                    repository.restore(vaultId, doc.id)
+                                    selectedDocument = null
+                                    message = "Document restored."
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message ?: "Restore failed."
+                                } finally { busyDocument = false }
                             }
-                        }) { Icon(Icons.Outlined.Delete, null); Text("Delete") }
-                    } else if (doc.ownerUid == memberUid) {
-                        TextButton(enabled = !busyDocument, onClick = {
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) },
+                        supportingContent = { Text("This action cannot be undone") },
+                        leadingContent = { Icon(Icons.Outlined.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
+                        modifier = Modifier.clickable(enabled = !busyDocument) {
                             scope.launch {
                                 busyDocument = true
-                                try { repository.restore(vaultId, doc.id); selectedDocument = null; message = "Document restored." }
-                                catch (error: Exception) { message = error.message ?: "Restore failed." }
-                                busyDocument = false
+                                try {
+                                    repository.permanentlyDelete(vaultId, doc.id)
+                                    selectedDocument = null
+                                    message = "Document permanently deleted."
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message ?: "Permanent deletion failed."
+                                } finally { busyDocument = false }
                             }
-                        }) { Icon(Icons.Outlined.Restore, null); Text("Restore") }
-                        TextButton(enabled = !busyDocument, onClick = {
-                            scope.launch {
-                                busyDocument = true
-                                try { repository.permanentlyDelete(vaultId, doc.id); selectedDocument = null; message = "Document permanently deleted." }
-                                catch (error: Exception) { message = error.message ?: "Permanent deletion failed." }
-                                busyDocument = false
-                            }
-                        }) { Icon(Icons.Outlined.Delete, null); Text("Delete forever") }
-                    }
+                        }
+                    )
                 }
-            },
-            dismissButton = { TextButton(onClick = { selectedDocument = null }) { Text("Close") } }
-        )
+            }
+        }
     }
 
+    if (showDocumentDetails) {
+        val doc = selectedDocument
+        if (doc != null) {
+            AlertDialog(
+                onDismissRequest = { showDocumentDetails = false },
+                title = { Text("File Details") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(doc.originalFileName, fontWeight = FontWeight.Bold)
+                        HorizontalDivider()
+                        ListItem(headlineContent = { Text("Location") },
+                            supportingContent = { Text("Documents / ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}") },
+                            leadingContent = { Icon(Icons.Outlined.FolderOpen, null) })
+                        ListItem(headlineContent = { Text("Access") },
+                            supportingContent = { Text(if (doc.scope == "SHARED") "Shared Vault" else "Personal Vault") },
+                            leadingContent = { Icon(Icons.Outlined.Groups, null) })
+                        ListItem(headlineContent = { Text("Added") },
+                            supportingContent = { Text(doc.uploadedAt?.toDate()?.toString() ?: "—") },
+                            leadingContent = { Icon(Icons.Outlined.CalendarToday, null) })
+                        ListItem(headlineContent = { Text("Modified") },
+                            supportingContent = { Text(doc.updatedAt?.toDate()?.toString() ?: "—") },
+                            leadingContent = { Icon(Icons.Outlined.History, null) })
+                        ListItem(headlineContent = { Text("Size") },
+                            supportingContent = { Text(formatDocumentBytes(doc.sizeBytes)) },
+                            leadingContent = { Icon(Icons.Outlined.Storage, null) })
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showDocumentDetails = false }) { Text("Close") }
+                }
+            )
+        }
+    }
 
     editingDocument?.let { doc ->
         AlertDialog(
