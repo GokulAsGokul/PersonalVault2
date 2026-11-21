@@ -670,67 +670,70 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                 }
             }
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(if (recycleBin) "Deleted Documents" else if (category == "all") "Documents"
-                            else "Files",
-                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("${visible.size} files", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall)
+            if (recycleBin || category != "all" || currentFolderId != null || showAllDocuments) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(if (recycleBin) "Deleted Documents" else if (category == "all") "Documents"
+                                else "Files",
+                                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("${visible.size} files", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Box {
+                            TextButton(onClick = { sortMenu = true }) { Text("Sort By") }
+                            DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                                listOf(
+                                    DocumentSortV2.NAME_ASC to "Name A–Z",
+                                    DocumentSortV2.NAME_DESC to "Name Z–A",
+                                    DocumentSortV2.NEWEST to "Newest first",
+                                    DocumentSortV2.OLDEST to "Oldest first",
+                                    DocumentSortV2.LARGEST to "Largest first",
+                                    DocumentSortV2.SMALLEST to "Smallest first"
+                                ).forEach { (value, label) ->
+                                    DropdownMenuItem(text = { Text(label) }, onClick = { sort = value; sortMenu = false })
+                                }
+                            }
+                        }
+                        IconButton(onClick = { grid = !grid }) {
+                            Icon(if (grid) Icons.Outlined.List else Icons.Outlined.GridView, "Toggle view")
+                        }
                     }
-                    Box {
-                        TextButton(onClick = { sortMenu = true }) { Text("Sort By") }
-                        DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                            listOf(
-                                DocumentSortV2.NAME_ASC to "Name A–Z",
-                                DocumentSortV2.NAME_DESC to "Name Z–A",
-                                DocumentSortV2.NEWEST to "Newest first",
-                                DocumentSortV2.OLDEST to "Oldest first",
-                                DocumentSortV2.LARGEST to "Largest first",
-                                DocumentSortV2.SMALLEST to "Smallest first"
-                            ).forEach { (value, label) ->
-                                DropdownMenuItem(text = { Text(label) }, onClick = { sort = value; sortMenu = false })
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        listOf("ALL" to "All", "PDF" to "Pdf", "IMAGE" to "Image", "OFFICE" to "Office", "OTHER" to "Other")
+                            .forEach { (value, label) ->
+                                FilterChip(fileType == value, { fileType = value }, label = { Text(label) })
+                            }
+                    }
+                }
+                if (visible.isEmpty()) {
+                    item {
+                        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary)
+                                Text(if (recycleBin) "Recycle Bin is empty" else "No documents found",
+                                    fontWeight = FontWeight.SemiBold)
+                                Text(if (recycleBin) "Deleted files will appear here." else "Upload a file to get started.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
-                    IconButton(onClick = { grid = !grid }) {
-                        Icon(if (grid) Icons.Outlined.List else Icons.Outlined.GridView, "Toggle view")
+                } else {
+                    items(visible, key = { it.id }) { doc ->
+                        DocumentCardV2(
+                            doc, Modifier.fillMaxWidth(), recycleBin,
+                            categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other",
+                            onClick = { selectedDocument = doc },
+                            onDownload = { downloadDocument(doc) },
+                            onEdit = { editDocument(doc) },
+                            onDelete = { deleteDocument(doc) },
+                            canDelete = doc.ownerUid == memberUid
+                        )
                     }
                 }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf("ALL" to "All", "PDF" to "Pdf", "IMAGE" to "Image", "OFFICE" to "Office", "OTHER" to "Other")
-                        .forEach { (value, label) ->
-                            FilterChip(fileType == value, { fileType = value }, label = { Text(label) })
-                        }
-                }
-            }
-            if (visible.isEmpty()) {
-                item {
-                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                        Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary)
-                            Text(if (recycleBin) "Recycle Bin is empty" else "No documents found",
-                                fontWeight = FontWeight.SemiBold)
-                            Text(if (recycleBin) "Deleted files will appear here." else "Upload a file to get started.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            } else {
-                items(visible, key = { it.id }) { doc ->
-                    DocumentCardV2(
-                        doc, Modifier.fillMaxWidth(), recycleBin,
-                        categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other",
-                        onClick = { selectedDocument = doc },
-                        onDownload = { downloadDocument(doc) },
-                        onEdit = { editDocument(doc) },
-                        onDelete = { deleteDocument(doc) },
-                        canDelete = doc.ownerUid == memberUid
-                    )
-                }
+    
             }
             if (uploading || message.isNotBlank()) {
                 item {
