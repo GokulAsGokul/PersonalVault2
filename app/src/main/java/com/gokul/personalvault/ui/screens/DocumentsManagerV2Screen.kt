@@ -182,6 +182,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var replacementProgress by remember { mutableFloatStateOf(0f) }
     var capturedPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var pendingPhotoFile by remember { mutableStateOf<File?>(null) }
+    var pendingScanFile by remember { mutableStateOf<File?>(null) }
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoPreview by remember { mutableStateOf(false) }
 
@@ -328,7 +329,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             if (pdfUri != null) {
                 val pageCount = scanResult.pdf?.pageCount ?: 1
                 scope.launch(Dispatchers.IO) {
-                    val fileName = "Scanned_Document_${System.currentTimeMillis()}.pdf"
+                    val timestamp = System.currentTimeMillis()
+                    val fileName = "Scanned_Document_${timestamp}.pdf"
                     val directory = File(context.cacheDir, "documents").apply { mkdirs() }
                     val scannedFile = File(directory, fileName)
                     try {
@@ -345,13 +347,15 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     "${context.packageName}.fileprovider",
                                     scannedFile
                                 )
+                                pendingScanFile?.delete()
+                                pendingScanFile = scannedFile
                                 pendingUploads.clear()
                                 pendingUploads.add(
                                     PendingDocumentUploadV2(
                                         uri = cachedUri,
                                         fileName = fileName,
                                         sizeBytes = sizeBytes,
-                                        title = "Scanned Document".take(50),
+                                        title = "Scanned Document ${timestamp}".take(50),
                                         notes = if (pageCount > 1) "${pageCount} pages scanned" else ""
                                     )
                                 )
@@ -1078,6 +1082,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     pendingPhotoFile = null
                     pendingPhotoUri = null
                     capturedPhotoUri = null
+                    pendingScanFile?.delete()
+                    pendingScanFile = null
                 }
             },
             title = { Text("Photo Preview", fontWeight = FontWeight.Bold) },
@@ -1124,6 +1130,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         pendingPhotoFile = null
                         pendingPhotoUri = null
                         capturedPhotoUri = null
+                        pendingScanFile?.delete()
+                        pendingScanFile = null
                     }) { Text("Cancel") }
                 }
             }
@@ -1140,6 +1148,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     pendingPhotoFile = null
                     pendingPhotoUri = null
                     capturedPhotoUri = null
+                    pendingScanFile?.delete()
+                    pendingScanFile = null
                 }
             },
             title = { Text("Add Documents") },
@@ -1322,6 +1332,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         pendingPhotoFile = null
                         pendingPhotoUri = null
                         capturedPhotoUri = null
+                        pendingScanFile?.delete()
+                        pendingScanFile = null
                     }
                 ) { Text("Cancel") }
             }
