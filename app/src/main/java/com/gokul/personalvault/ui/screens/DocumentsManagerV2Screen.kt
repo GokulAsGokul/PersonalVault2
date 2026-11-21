@@ -624,16 +624,13 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 }
             } else if (!recycleBin) {
                 if (category != "all") {
-                    val folderPath = remember(folders, currentFolderId) {
-                        val pathItems = mutableListOf<DocumentFolderV2>()
-                        var cursor = currentFolderId
-                        val visited = mutableSetOf<String>()
-                        while (cursor != null && visited.add(cursor)) {
-                            val folder = folders.firstOrNull { it.id == cursor } ?: break
-                            pathItems.add(0, folder)
-                            cursor = folder.parentFolderId
-                        }
-                        pathItems
+                    val folderPath = mutableListOf<DocumentFolderV2>()
+                    var folderCursor = currentFolderId
+                    val visitedFolderIds = mutableSetOf<String>()
+                    while (folderCursor != null && visitedFolderIds.add(folderCursor)) {
+                        val pathFolder = folders.firstOrNull { it.id == folderCursor } ?: break
+                        folderPath.add(0, pathFolder)
+                        folderCursor = pathFolder.parentFolderId
                     }
                     item {
                         Row(
