@@ -276,13 +276,13 @@ service cloud.firestore {
         function validDocumentRecord() {
           return request.resource.data.keys().hasAll([
             'schemaVersion', 'ownerUid', 'scope', 'title', 'titleLower',
-            'categoryId', 'folderId', 'description', 'originalFileName', 'contentType',
+            'categoryId', 'description', 'originalFileName', 'contentType',
             'sizeBytes', 'storagePath', 'uploadedAt', 'updatedAt',
             'isDeleted', 'deletedAt', 'purgeAt'
           ])
           && request.resource.data.keys().hasOnly([
             'schemaVersion', 'ownerUid', 'scope', 'title', 'titleLower',
-            'categoryId', 'description', 'originalFileName', 'contentType',
+            'categoryId', 'folderId', 'description', 'originalFileName', 'contentType',
             'sizeBytes', 'storagePath', 'uploadedAt', 'updatedAt',
             'isDeleted', 'deletedAt', 'purgeAt'
           ])
