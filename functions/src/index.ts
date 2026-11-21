@@ -757,8 +757,13 @@ export const purgeExpiredV2Documents = onSchedule(
     for (const doc of expired.docs) {
       const data = doc.data();
       const pathSegments = doc.ref.path.split("/");
-      const [collection, pathVaultId, documentsCollection, ownerUid, documentId] =
+      // Firestore document path is:
+      // vaultsV2/{vaultId}/documents/{documentId}
+      // The owner UID is stored in the document and is part of the Storage path,
+      // but it is not a Firestore path segment.
+      const [collection, pathVaultId, documentsCollection, documentId] =
         pathSegments;
+      const ownerUid = data.ownerUid;
       const expectedStoragePath =
         `vaultsV2/${pathVaultId}/documents/${ownerUid}/${documentId}`;
 
@@ -767,9 +772,10 @@ export const purgeExpiredV2Documents = onSchedule(
       if (
         collection !== OWNER_VAULTS ||
         documentsCollection !== "documents" ||
-        pathSegments.length !== 5 ||
+        pathSegments.length !== 4 ||
         documentId !== doc.id ||
-        data.ownerUid !== ownerUid ||
+        typeof ownerUid !== "string" ||
+        ownerUid.length === 0 ||
         data.isDeleted !== true ||
         !(data.purgeAt instanceof Timestamp) ||
         data.purgeAt.toMillis() > now.toMillis() ||
