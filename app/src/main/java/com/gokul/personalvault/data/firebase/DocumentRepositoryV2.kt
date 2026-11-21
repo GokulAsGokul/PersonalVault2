@@ -161,16 +161,8 @@ class DocumentRepositoryV2(
     }
 
     suspend fun deleteEmptyFolder(vaultId: String, folderId: String) {
-        val folderRef = folderCollection(vaultId).document(folderId)
-        val folder = folderRef.get().await()
-        require(folder.exists()) { "This folder no longer exists." }
-        val documents = documentCollection(vaultId)
-            .whereEqualTo("folderId", folderId).limit(1).get().await()
-        require(documents.isEmpty) { "Move or remove the documents from this folder before deleting it." }
-        val children = folderCollection(vaultId)
-            .whereEqualTo("parentFolderId", folderId).limit(1).get().await()
-        require(children.isEmpty) { "Delete or move the subfolders before deleting this folder." }
-        folderRef.delete().await()
+        functions.getHttpsCallable("deleteEmptyV2DocumentFolder")
+            .call(mapOf("vaultId" to vaultId, "folderId" to folderId)).await()
     }
 
     suspend fun moveFolder(
