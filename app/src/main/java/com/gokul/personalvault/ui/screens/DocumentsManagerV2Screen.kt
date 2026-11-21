@@ -129,6 +129,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var moveDocumentTargetId by remember { mutableStateOf<String?>(null) }
     var moveDocumentTargetChosen by remember { mutableStateOf(false) }
     var showDeleteFolderConfirm by remember { mutableStateOf(false) }
+    var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var search by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("all") }
     var visibility by remember { mutableStateOf("ALL") }
@@ -1496,7 +1497,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     DocumentActionIcon(
                         icon = { Icon(Icons.Outlined.Download, null, tint = Color(0xFF7652C8)) },
                         label = "Download",
-                        enabled = !busyDocument,
+                        enabled = !busyDocument && !doc.isDeleted,
                         onClick = {
                             scope.launch {
                                 busyDocument = true
@@ -1607,21 +1608,45 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         supportingContent = { Text("This action cannot be undone") },
                         leadingContent = { Icon(Icons.Outlined.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
                         modifier = Modifier.clickable(enabled = !busyDocument) {
-                            scope.launch {
-                                busyDocument = true
-                                try {
-                                    repository.permanentlyDelete(vaultId, doc.id)
-                                    selectedDocument = null
-                                    message = "Document permanently deleted."
-                                } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Permanent deletion failed."
-                                } finally { busyDocument = false }
-                            }
+                            permanentDeleteTarget = doc
                         }
                     )
                 }
             }
         }
+    }
+
+    permanentDeleteTarget?.let { doc ->
+        AlertDialog(
+            onDismissRequest = { if (!busyDocument) permanentDeleteTarget = null },
+            title = { Text("Permanently Delete Document?") },
+            text = { Text("'"+doc.title+"' and its stored file will be deleted permanently. This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    enabled = !busyDocument,
+                    onClick = {
+                        scope.launch {
+                            busyDocument = true
+                            try {
+                                repository.permanentlyDelete(vaultId, doc.id)
+                                selectedDocument = null
+                                permanentDeleteTarget = null
+                                message = "Document permanently deleted."
+                            } catch (error: Exception) {
+                                message = error.localizedMessage ?: error.message ?: "Permanent deletion failed."
+                            } finally {
+                                busyDocument = false
+                            }
+                        }
+                    }
+                ) { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = !busyDocument, onClick = { permanentDeleteTarget = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showDocumentDetails) {
