@@ -386,34 +386,35 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            if (!recycleBin) FloatingActionButton(
+            if (!recycleBin) SmallFloatingActionButton(
                 onClick = { showAddOptions = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = Color(0xFF6F35D5),
+                contentColor = Color.White,
+                shape = RoundedCornerShape(15.dp)
             ) { Icon(Icons.Outlined.Add, contentDescription = "Add documents") }
         }
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primary
+                        shape = RoundedCornerShape(9.dp),
+                        color = Color(0xFF6F35D5)
                     ) {
-                        Icon(Icons.Outlined.FolderOpen, null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(9.dp).size(27.dp))
+                        Icon(Icons.Filled.FolderOpen, null,
+                            tint = Color.White,
+                            modifier = Modifier.padding(8.dp).size(22.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(9.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
                             if (recycleBin) "Recycle Bin" else if (category == "all") "Documents"
                                 else allCategories.firstOrNull { it.first == category }?.second ?: "Documents",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
@@ -423,12 +424,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = { search = if (search.isBlank()) " " else "" }) {
+                    IconButton(onClick = { search = if (search.isBlank()) " " else "" }, modifier = Modifier.size(36.dp)) {
                         Icon(Icons.Outlined.Search, "Search")
                     }
                     Box {
                         var menuExpanded by remember { mutableStateOf(false) }
-                        IconButton(onClick = { menuExpanded = true }) {
+                        IconButton(onClick = { menuExpanded = true }, modifier = Modifier.size(36.dp)) {
                             Icon(Icons.Outlined.MoreVert, "More options")
                         }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
@@ -467,7 +468,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             item {
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     listOf("ALL" to "All", "PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
                         FilterChip(
@@ -484,15 +485,23 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     showAllDocuments = false
                                 }
                             },
-                            label = { Text(label) },
+                            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.height(29.dp),
+                            shape = RoundedCornerShape(50),
+                            border = null,
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
+                                selectedContainerColor = Color(0xFF6F35D5),
+                                selectedLabelColor = Color.White,
+                                selectedLeadingIconColor = Color.White,
+                                containerColor = Color(0xFFF1EAFB),
+                                labelColor = Color(0xFF34264B)
                             )
                         )
                     }
                     FilterChip(
+                        modifier = Modifier.height(29.dp),
+                        shape = RoundedCornerShape(50),
+                        border = null,
                         selected = recycleBin,
                         onClick = {
                             recycleBin = !recycleBin
@@ -500,14 +509,17 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             showAllDocuments = false
                             currentFolderId = null
                         },
-                        label = { Text("Recycle Bin") }
+                        label = { Text("Recycle Bin", style = MaterialTheme.typography.labelSmall) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFF6F35D5),
+                            selectedLabelColor = Color.White,
+                            containerColor = Color(0xFFF1EAFB),
+                            labelColor = Color(0xFF34264B)
+                        )
                     )
                 }
             }
             if (!recycleBin && category == "all" && currentFolderId == null && !showAllDocuments) {
-                item {
-                    Text("Categories", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
                 items(allCategories.chunked(3)) { categoryRow ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         categoryRow.forEachIndexed { index, (id, name) ->
@@ -565,7 +577,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 )
                             ) {
                                 Column(
-                                    Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 8.dp),
+                                    Modifier.fillMaxWidth().heightIn(min = 78.dp).padding(vertical = 8.dp, horizontal = 5.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
@@ -573,10 +585,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                         icon,
                                         contentDescription = null,
                                         tint = accent,
-                                        modifier = Modifier.size(27.dp)
+                                        modifier = Modifier.size(23.dp)
                                     )
-                                    Text(name, style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.SemiBold, maxLines = 2)
+                                    Text(name, style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold, maxLines = 1)
                                     Text("$count files", style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
@@ -593,7 +605,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                 }
                 items(active.filter { visibility == "ALL" || it.scope == visibility }
-                    .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(3), key = { "recent-${it.id}" }) { doc ->
+                    .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(2), key = { "recent-${it.id}" }) { doc ->
                     DocumentCardV2(
                         doc, Modifier.fillMaxWidth(), false,
                         categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other",
