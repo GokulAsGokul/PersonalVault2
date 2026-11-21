@@ -327,28 +327,50 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             val pdfUri = scanResult?.pdf?.uri
             if (pdfUri != null) {
                 val pageCount = scanResult.pdf?.pageCount ?: 1
-                val fileName = "Scanned_Document_${System.currentTimeMillis()}.pdf"
-                val sizeBytes = repository.readSizeBytes(context.contentResolver, pdfUri)
-                if (sizeBytes in 1..MAX_DOCUMENT_FILE_BYTES) {
-                    pendingUploads.clear()
-                    pendingUploads.add(
-                        PendingDocumentUploadV2(
-                            uri = pdfUri,
-                            fileName = fileName,
-                            sizeBytes = sizeBytes,
-                            title = "Scanned Document".take(50),
-                            notes = if (pageCount > 1) "${pageCount} pages scanned" else ""
-                        )
-                    )
-                    val parentFolder = folders.firstOrNull { it.id == currentFolderId }
-                    uploadCategory = parentFolder?.categoryId ?: if (category == "all") "other" else category
-                    uploadScope = parentFolder?.scope ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
-                    showAddDocuments = true
-                } else {
-                    message = if (sizeBytes < 0L) {
-                        "Unable to read the scanned PDF size. Please scan again."
-                    } else {
-                        "The scanned PDF exceeds the 50 MB file limit."
+                scope.launch(Dispatchers.IO) {
+                    val fileName = "Scanned_Document_${System.currentTimeMillis()}.pdf"
+                    val directory = File(context.cacheDir, "documents").apply { mkdirs() }
+                    val scannedFile = File(directory, fileName)
+                    try {
+                        val input = context.contentResolver.openInputStream(pdfUri)
+                            ?: throw IllegalStateException("Unable to read the scanned PDF.")
+                        input.use { source ->
+                            scannedFile.outputStream().use { output -> source.copyTo(output) }
+                        }
+                        val sizeBytes = scannedFile.length()
+                        withContext(Dispatchers.Main) {
+                            if (sizeBytes in 1..MAX_DOCUMENT_FILE_BYTES) {
+                                val cachedUri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    scannedFile
+                                )
+                                pendingUploads.clear()
+                                pendingUploads.add(
+                                    PendingDocumentUploadV2(
+                                        uri = cachedUri,
+                                        fileName = fileName,
+                                        sizeBytes = sizeBytes,
+                                        title = "Scanned Document".take(50),
+                                        notes = if (pageCount > 1) "${pageCount} pages scanned" else ""
+                                    )
+                                )
+                                val parentFolder = folders.firstOrNull { it.id == currentFolderId }
+                                uploadCategory = parentFolder?.categoryId
+                                    ?: if (category == "all") "other" else category
+                                uploadScope = parentFolder?.scope
+                                    ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
+                                showAddDocuments = true
+                            } else {
+                                scannedFile.delete()
+                                message = "The scanned PDF must be between 1 byte and 50 MB."
+                            }
+                        }
+                    } catch (error: Exception) {
+                        scannedFile.delete()
+                        withContext(Dispatchers.Main) {
+                            message = error.localizedMessage ?: "Unable to prepare the scanned PDF."
+                        }
                     }
                 }
             } else {
@@ -372,6 +394,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             photoFile?.delete()
             pendingPhotoFile = null
             pendingPhotoUri = null
+            capturedPhotoUri = null
+            showPhotoPreview = false
             message = if (success) "The camera did not save a photo. Please try again." else "Photo capture cancelled."
         }
     }
@@ -403,6 +427,11 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     fun launchPhotoCapture() {
         try {
+            pendingPhotoFile?.delete()
+            pendingPhotoFile = null
+            pendingPhotoUri = null
+            capturedPhotoUri = null
+            showPhotoPreview = false
             val directory = File(context.cacheDir, "documents").apply { mkdirs() }
             val photoFile = File(directory, "Photo_${System.currentTimeMillis()}.jpg")
             val photoUri = FileProvider.getUriForFile(
@@ -1103,7 +1132,16 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     if (showAddDocuments) {
         AlertDialog(
-            onDismissRequest = { if (!uploading) { showAddDocuments = false; pendingUploads.clear() } },
+            onDismissRequest = {
+                if (!uploading) {
+                    showAddDocuments = false
+                    pendingUploads.clear()
+                    pendingPhotoFile?.delete()
+                    pendingPhotoFile = null
+                    pendingPhotoUri = null
+                    capturedPhotoUri = null
+                }
+            },
             title = { Text("Add Documents") },
             text = {
                 Column(
@@ -1261,6 +1299,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     else "$completed uploaded; ${failures.size} failed. " + failures.joinToString(" | ")
                                 showAddDocuments = false
                                 pendingUploads.clear()
+                                pendingPhotoFile?.delete()
+                                pendingPhotoFile = null
+                                pendingPhotoUri = null
+                                capturedPhotoUri = null
                             } catch (error: Exception) {
                                 message = "Upload failed: ${error.localizedMessage ?: error.message ?: "Unknown error"}"
                             } finally {
@@ -1273,7 +1315,14 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             dismissButton = {
                 TextButton(
                     enabled = !uploading,
-                    onClick = { showAddDocuments = false; pendingUploads.clear() }
+                    onClick = {
+                        showAddDocuments = false
+                        pendingUploads.clear()
+                        pendingPhotoFile?.delete()
+                        pendingPhotoFile = null
+                        pendingPhotoUri = null
+                        capturedPhotoUri = null
+                    }
                 ) { Text("Cancel") }
             }
         )
