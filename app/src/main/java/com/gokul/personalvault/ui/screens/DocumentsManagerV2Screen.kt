@@ -490,6 +490,32 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 "legal_documents" -> Icons.Outlined.Gavel
                                 else -> Icons.Outlined.Description
                             }
+                            val accent = when (id) {
+                                "banking_finance" -> Color(0xFF159B68)
+                                "property" -> Color(0xFFF08A24)
+                                "insurance" -> Color(0xFF2587D8)
+                                "employment" -> Color(0xFF8A4DDB)
+                                "vehicle" -> Color(0xFF287BCB)
+                                "travel_visa" -> Color(0xFF168C9A)
+                                "medical" -> Color(0xFFE05A72)
+                                "education" -> Color(0xFFB07824)
+                                "legal_documents" -> Color(0xFF5365B8)
+                                "other" -> Color(0xFF8A4DDB)
+                                else -> Color(0xFF7652C8)
+                            }
+                            val iconTile = when (id) {
+                                "banking_finance" -> Color(0xFFE0F5EA)
+                                "property" -> Color(0xFFFFEBD8)
+                                "insurance" -> Color(0xFFE1F0FF)
+                                "employment" -> Color(0xFFF0E5FF)
+                                "vehicle" -> Color(0xFFE3F0FF)
+                                "travel_visa" -> Color(0xFFDFF4F3)
+                                "medical" -> Color(0xFFFFE7EC)
+                                "education" -> Color(0xFFFFF2D8)
+                                "legal_documents" -> Color(0xFFE8EBFF)
+                                "other" -> Color(0xFFF0E5FF)
+                                else -> Color(0xFFE9DFFF)
+                            }
                             Card(
                                 Modifier.weight(1f).clickable {
                                     category = id
@@ -502,7 +528,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 ) else null,
                                 colors = CardDefaults.cardColors(
                                     containerColor = if (category == id)
-                                        MaterialTheme.colorScheme.secondaryContainer
+                                        iconTile.copy(alpha = 0.72f)
                                     else MaterialTheme.colorScheme.surface
                                 )
                             ) {
@@ -513,9 +539,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(11.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer
+                                        color = iconTile
                                     ) {
-                                        Icon(icon, null, tint = MaterialTheme.colorScheme.primary,
+                                        Icon(icon, null, tint = accent,
                                             modifier = Modifier.padding(8.dp).size(22.dp))
                                     }
                                     Text(name, style = MaterialTheme.typography.labelMedium,
