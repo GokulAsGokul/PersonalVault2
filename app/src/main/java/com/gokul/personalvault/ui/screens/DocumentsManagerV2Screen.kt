@@ -357,29 +357,47 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         floatingActionButton = {
             if (!recycleBin) FloatingActionButton(
                 onClick = { VaultExternalActivityState.documentPickerActive = true; picker.launch(arrayOf("*/*")) },
-                containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) { Icon(Icons.Outlined.Add, contentDescription = "Add document") }
         }
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(18.dp, 0.dp, 18.dp, 96.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(18.dp, 8.dp, 18.dp, 96.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
-                        Column {
-                            Text(if (recycleBin) "Recycle Bin" else "Documents",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            Text(if (recycleBin) "Deleted Files Are Kept For 30 Days" else "Your Secure Files",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            if (recycleBin) "Recycle Bin" else "Documents",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            if (recycleBin) "Deleted files are kept for 30 days" else "Your secure files, all in one place",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    if (!recycleBin) {
+                        FilledTonalIconButton(
+                            onClick = {
+                                VaultExternalActivityState.documentPickerActive = true
+                                picker.launch(arrayOf("*/*"))
+                            }
+                        ) {
+                            Icon(Icons.Outlined.Add, contentDescription = "Upload files")
                         }
                     }
-                    TextButton(onClick = { recycleBin = !recycleBin; category = "all"; visibility = "ALL" }) {
+                    TextButton(onClick = {
+                        recycleBin = !recycleBin
+                        category = "all"
+                        visibility = "ALL"
+                        currentFolderId = null
+                    }) {
                         Icon(Icons.Outlined.Delete, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(if (recycleBin) "All Documents" else "Recycle Bin")
@@ -388,21 +406,72 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             }
             if (!recycleBin) {
                 item {
-                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF14213D))) {
-                        Column(Modifier.padding(18.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Outlined.Storage, null, tint = Color(0xFFB9C9E2), modifier = Modifier.size(16.dp)); Text("Storage Used · Estimated From Document Records",
-                                color = Color(0xFFB9C9E2), style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold) }
-                            Text(formatDocumentBytes(bytes), color = Color.White,
-                                style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("${active.size} Active Documents", color = Color(0xFFCBD5E1),
-                                style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = search,
+                        onValueChange = { search = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search documents") },
+                        leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                }
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(18.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    Icon(
+                                        Icons.Outlined.Storage,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        "Storage Used",
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Text(
+                                    formatDocumentBytes(bytes),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Tracked across ${active.size} active documents",
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.FolderOpen,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(14.dp).size(30.dp)
+                                )
+                            }
                         }
                     }
                 }
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         DocumentSummaryTile("Files", active.size.toString(), Modifier.weight(1f))
                         DocumentSummaryTile("Images", images.toString(), Modifier.weight(1f))
                         DocumentSummaryTile("PDFs", pdfs.toString(), Modifier.weight(1f))
@@ -410,33 +479,67 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                 }
                 item {
-                    OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search Title or Notes") },
-                        leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                        singleLine = true, shape = RoundedCornerShape(16.dp))
-                }
-                item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Categories", style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(
+                            "Categories",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
                         TextButton(onClick = { categoryDialog = true }) {
-                            Icon(Icons.Outlined.Add, null); Text("Add")
+                            Icon(Icons.Outlined.Add, null)
+                            Text("Add")
                         }
                     }
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        DocumentCategoryChip("All", "all", category) {
-                            category = it
-                            currentFolderId = null
-                        }
-                        allCategories.forEach { (id, name) ->
-                            DocumentCategoryChip(name, id, category) {
-                                category = it
-                                currentFolderId = null
+                }
+                items((listOf("all" to "All Documents") + allCategories).chunked(2)) { categoryPair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        categoryPair.forEach { (id, name) ->
+                            val count = if (id == "all") active.size else active.count { it.categoryId == id }
+                            Card(
+                                Modifier.weight(1f).clickable {
+                                    category = id
+                                    currentFolderId = null
+                                },
+                                shape = RoundedCornerShape(18.dp),
+                                border = if (category == id) androidx.compose.foundation.BorderStroke(
+                                    1.5.dp, MaterialTheme.colorScheme.primary
+                                ) else null,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (category == id)
+                                        MaterialTheme.colorScheme.secondaryContainer
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(13.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Icon(
+                                            if (id == "all") Icons.Outlined.FolderOpen else Icons.Outlined.Description,
+                                            null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(9.dp).size(22.dp)
+                                        )
+                                    }
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(name, fontWeight = FontWeight.SemiBold,
+                                            style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                                        Text(
+                                            "$count files",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
+                                }
                             }
                         }
+                        if (categoryPair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
                 if (category != "all") {
