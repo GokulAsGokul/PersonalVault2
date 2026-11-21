@@ -792,6 +792,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     leadingContent = { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.clickable {
                         showAddOptions = false
+                        val parentFolder = folders.firstOrNull { it.id == currentFolderId }
+                        uploadCategory = if (category == "all") "other" else category
+                        uploadScope = parentFolder?.scope
+                            ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
                         VaultExternalActivityState.documentPickerActive = true
                         picker.launch(arrayOf("*/*"))
                     }
@@ -855,40 +859,56 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         style = MaterialTheme.typography.labelSmall
                     )
                     Text("Save to", fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = uploadScope == "PERSONAL",
-                            onClick = { uploadScope = "PERSONAL" },
-                            label = { Text("Personal") },
-                            enabled = !uploading
+                    val uploadParentFolder = folders.firstOrNull { it.id == currentFolderId }
+                    if (uploadParentFolder != null) {
+                        Text(
+                            "Saving inside ${uploadParentFolder.name} · ${uploadParentFolder.scope.lowercase().replaceFirstChar { it.uppercase() }}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
                         )
-                        FilterChip(
-                            selected = uploadScope == "SHARED",
-                            onClick = { uploadScope = "SHARED" },
-                            label = { Text("Shared") },
-                            enabled = !uploading
-                        )
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = uploadScope == "PERSONAL",
+                                onClick = { uploadScope = "PERSONAL" },
+                                label = { Text("Personal") },
+                                enabled = !uploading
+                            )
+                            FilterChip(
+                                selected = uploadScope == "SHARED",
+                                onClick = { uploadScope = "SHARED" },
+                                label = { Text("Shared") },
+                                enabled = !uploading
+                            )
+                        }
                     }
                     Text("Category", fontWeight = FontWeight.SemiBold)
-                    Box {
-                        OutlinedButton(
-                            onClick = { uploadCategoryMenu = true },
-                            enabled = !uploading,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(allCategories.firstOrNull { it.first == uploadCategory }?.second ?: "Other")
-                            Spacer(Modifier.weight(1f))
-                            Text("⌄")
-                        }
-                        DropdownMenu(
-                            expanded = uploadCategoryMenu,
-                            onDismissRequest = { uploadCategoryMenu = false }
-                        ) {
-                            allCategories.forEach { (id, name) ->
-                                DropdownMenuItem(
-                                    text = { Text(name) },
-                                    onClick = { uploadCategory = id; uploadCategoryMenu = false }
-                                )
+                    if (uploadParentFolder != null) {
+                        Text(
+                            allCategories.firstOrNull { it.first == uploadParentFolder.categoryId }?.second ?: "Category",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Box {
+                            OutlinedButton(
+                                onClick = { uploadCategoryMenu = true },
+                                enabled = !uploading,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(allCategories.firstOrNull { it.first == uploadCategory }?.second ?: "Other")
+                                Spacer(Modifier.weight(1f))
+                                Text("⌄")
+                            }
+                            DropdownMenu(
+                                expanded = uploadCategoryMenu,
+                                onDismissRequest = { uploadCategoryMenu = false }
+                            ) {
+                                allCategories.forEach { (id, name) ->
+                                    DropdownMenuItem(
+                                        text = { Text(name) },
+                                        onClick = { uploadCategory = id; uploadCategoryMenu = false }
+                                    )
+                                }
                             }
                         }
                     }
