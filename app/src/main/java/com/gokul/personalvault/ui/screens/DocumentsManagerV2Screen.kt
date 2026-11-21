@@ -33,6 +33,15 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.DriveFileMove
+import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.HealthAndSafety
+import androidx.compose.material.icons.outlined.Work
+import androidx.compose.material.icons.outlined.DirectionsCar
+import androidx.compose.material.icons.outlined.Flight
+import androidx.compose.material.icons.outlined.MedicalServices
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -120,6 +129,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var busyDocument by remember { mutableStateOf(false) }
     val pendingUploads = remember { mutableStateListOf<PendingDocumentUploadV2>() }
     var showAddDocuments by remember { mutableStateOf(false) }
+    var showAddOptions by remember { mutableStateOf(false) }
     var uploadCategory by remember { mutableStateOf("other") }
     var uploadScope by remember { mutableStateOf("PERSONAL") }
     var uploadCategoryMenu by remember { mutableStateOf(false) }
@@ -356,7 +366,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             if (!recycleBin) FloatingActionButton(
-                onClick = { showAddDocuments = true },
+                onClick = { showAddOptions = true },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) { Icon(Icons.Outlined.Add, contentDescription = "Add documents") }
@@ -661,6 +671,64 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             style = MaterialTheme.typography.bodySmall)
                     }
                 }
+            }
+        }
+    }
+
+    if (showAddOptions) {
+        ModalBottomSheet(
+            onDismissRequest = { showAddOptions = false },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("Add to Documents", style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold)
+                ListItem(
+                    headlineContent = { Text("Upload Files", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("From device (PDF, images, documents, etc.)") },
+                    leadingContent = { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable {
+                        showAddOptions = false
+                        VaultExternalActivityState.documentPickerActive = true
+                        picker.launch(arrayOf("*/*"))
+                    }
+                )
+                ListItem(
+                    headlineContent = { Text("Create Folder", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Organise your documents") },
+                    leadingContent = { Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable {
+                        showAddOptions = false
+                        if (category == "all") {
+                            message = "Choose a category before creating a folder."
+                        } else {
+                            newFolderName = ""
+                            newFolderScope = if (visibility == "SHARED") "SHARED" else "PERSONAL"
+                            showCreateFolder = true
+                        }
+                    }
+                )
+                ListItem(
+                    headlineContent = { Text("Scan Document", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Use camera to scan (PDF)") },
+                    leadingContent = { Icon(Icons.Outlined.DocumentScanner, null, tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable {
+                        showAddOptions = false
+                        message = "Document scanning will be connected in the next implementation step."
+                    }
+                )
+                ListItem(
+                    headlineContent = { Text("Take Photo", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Capture and save as document") },
+                    leadingContent = { Icon(Icons.Outlined.PhotoCamera, null, tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable {
+                        showAddOptions = false
+                        message = "Camera capture will be connected in the next implementation step."
+                    }
+                )
             }
         }
     }
