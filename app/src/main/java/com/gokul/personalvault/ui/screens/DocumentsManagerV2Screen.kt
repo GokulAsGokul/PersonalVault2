@@ -1184,7 +1184,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             }
             val destinations = folders.filter {
                 it.id != folder.id && it.id !in descendants &&
-                    it.categoryId == folder.categoryId && it.scope == folder.scope
+                    it.categoryId == folder.categoryId && it.scope == folder.scope &&
+                    (folder.scope == "SHARED" || it.ownerUid == folder.ownerUid) &&
+                    it.id != folder.parentFolderId
             }.sortedBy { it.name.lowercase(Locale.ROOT) }
             AlertDialog(
                 onDismissRequest = { showMoveFolder = false },
