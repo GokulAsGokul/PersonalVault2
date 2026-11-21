@@ -201,8 +201,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         onDispose { sharedListener.remove(); personalListener.remove(); categoriesListener.remove() }
     }
 
-    DisposableEffect(vaultId, category) {
-        if (category == "all") {
+    DisposableEffect(vaultId, category, documentToMove?.categoryId) {
+        val folderCategory = if (category == "all") documentToMove?.categoryId else category
+        if (folderCategory == null) {
             folders = emptyList()
             currentFolderId = null
             onDispose { }
@@ -212,7 +213,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             fun publishFolders() {
                 folders = (sharedFolders.values + personalFolders.values).distinctBy { it.id }
             }
-            val sharedFolderListener = repository.sharedFoldersQuery(vaultId, category)
+            val sharedFolderListener = repository.sharedFoldersQuery(vaultId, folderCategory)
                 .addSnapshotListener { snapshot, error ->
                     if (error == null && snapshot != null) {
                         sharedFolders.clear()
@@ -222,7 +223,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         publishFolders()
                     } else if (error != null) message = "Shared folders: ${error.localizedMessage ?: "Unable to load folders."}"
                 }
-            val personalFolderListener = repository.personalFoldersQuery(vaultId, category, memberUid)
+            val personalFolderListener = repository.personalFoldersQuery(vaultId, folderCategory, memberUid)
                 .addSnapshotListener { snapshot, error ->
                     if (error == null && snapshot != null) {
                         personalFolders.clear()
