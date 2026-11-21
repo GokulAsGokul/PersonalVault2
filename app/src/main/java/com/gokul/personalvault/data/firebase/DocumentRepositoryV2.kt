@@ -206,12 +206,26 @@ class DocumentRepositoryV2(
         categoryId: String,
         description: String,
         scope: String,
+        folderId: String? = null,
         onProgress: (Float) -> Unit = {}
     ): UploadResult {
         val cleanTitle = title.trim()
         require(cleanTitle.isNotEmpty() && cleanTitle.length <= 30) { "Enter a title up to 30 characters." }
         require(description.length <= 35) { "Notes must be 35 characters or fewer." }
         require(scope == "PERSONAL" || scope == "SHARED") { "Invalid document visibility." }
+        if (folderId != null) {
+            val folder = folderCollection(vaultId).document(folderId).get().await()
+            require(folder.exists()) { "The selected folder no longer exists." }
+            require(folder.getString("categoryId") == categoryId) {
+                "The selected folder belongs to a different category."
+            }
+            require(folder.getString("scope") == scope) {
+                "The selected folder must have the same Personal / Shared visibility."
+            }
+            require(scope != "PERSONAL" || folder.getString("ownerUid") == ownerUid) {
+                "You cannot upload a personal document into another member's folder."
+            }
+        }
         val fileName = readDisplayName(resolver, uri)
         val size = readSizeBytes(resolver, uri)
         require(size in 1..MAX_FILE_BYTES) { "Each file must be between 1 byte and 50 MB." }
@@ -256,6 +270,7 @@ class DocumentRepositoryV2(
             "title" to cleanTitle,
             "titleLower" to titleLower,
             "categoryId" to categoryId,
+            "folderId" to folderId,
             "description" to description.trim(),
             "originalFileName" to fileName,
             "contentType" to mimeType,
