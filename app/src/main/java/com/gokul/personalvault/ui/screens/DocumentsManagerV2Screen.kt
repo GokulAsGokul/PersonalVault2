@@ -417,9 +417,15 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        DocumentCategoryChip("All", "all", category) { category = it }
+                        DocumentCategoryChip("All", "all", category) {
+                            category = it
+                            currentFolderId = null
+                        }
                         allCategories.forEach { (id, name) ->
-                            DocumentCategoryChip(name, id, category) { category = it }
+                            DocumentCategoryChip(name, id, category) {
+                                category = it
+                                currentFolderId = null
+                            }
                         }
                     }
                 }
@@ -716,7 +722,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     try {
                                         repository.upload(
                                             vaultId, memberUid, pending.uri, context.contentResolver,
-                                            pending.title.trim(), uploadCategory, pending.notes.trim(), uploadScope
+                                            pending.title.trim(), uploadCategory, pending.notes.trim(), uploadScope,
+                                            currentFolderId
                                         ) { value ->
                                             currentFileProgress = value
                                             progress = (completed + value) / total.toFloat()
