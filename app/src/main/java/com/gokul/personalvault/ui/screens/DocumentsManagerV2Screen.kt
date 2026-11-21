@@ -723,7 +723,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                         repository.upload(
                                             vaultId, memberUid, pending.uri, context.contentResolver,
                                             pending.title.trim(), uploadCategory, pending.notes.trim(), uploadScope,
-                                            currentFolderId
+                                            currentFolderId.takeIf { uploadCategory == category }
                                         ) { value ->
                                             currentFileProgress = value
                                             progress = (completed + value) / total.toFloat()
