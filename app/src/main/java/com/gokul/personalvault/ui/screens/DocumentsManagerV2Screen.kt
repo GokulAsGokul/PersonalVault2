@@ -2,6 +2,10 @@ package com.gokul.personalvault.ui.screens
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
+import android.content.ClipData
+import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
 import android.net.Uri
 import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -256,7 +260,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     uri = uri,
                     fileName = fileName,
                     sizeBytes = sizeBytes,
-                    title = fileName.substringBeforeLast('.', fileName).take(30)
+                    title = fileName.substringBeforeLast('.', fileName).take(50)
                 )
             }
             val oversized = selectedFiles.filter { it.sizeBytes > MAX_DOCUMENT_FILE_BYTES }
@@ -300,7 +304,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     message = "Choose a file with a valid extension."
                 else -> {
                     pendingReplacement = PendingDocumentReplacementV2(uri, fileName, sizeBytes)
-                    val derivedTitle = fileName.substringBeforeLast('.').trim().take(30)
+                    val derivedTitle = fileName.substringBeforeLast('.').trim().take(50)
                     if (derivedTitle.isNotBlank()) editTitle = derivedTitle
                 }
             }
@@ -360,15 +364,56 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         editingDocument = doc
     }
 
-    fun downloadDocument(doc: DocumentRecordV2) {
+    fun openDocument(doc: DocumentRecordV2) {
+        if (doc.isDeleted) {
+            selectedDocument = doc
+            return
+        }
         scope.launch {
             busyDocument = true
             try {
-                val url = repository.downloadUrl(vaultId, doc)
-                enqueueDocumentDownload(context, url, doc.originalFileName)
-                message = "Download Started. Check Your Downloads Folder."
+                val file = repository.downloadToCache(context.cacheDir, vaultId, doc)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                val mimeType = doc.contentType.takeIf {
+                    it.isNotBlank() && it != "application/octet-stream"
+                } ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(
+                    doc.originalFileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                ) ?: "*/*"
+                val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mimeType)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    clipData = ClipData.newUri(context.contentResolver, doc.originalFileName, uri)
+                }
+                context.startActivity(Intent.createChooser(viewIntent, "Open document"))
             } catch (error: Exception) {
-                message = error.message ?: "Download Failed."
+                message = error.localizedMessage ?: error.message ?: "Unable to open document."
+            } finally {
+                busyDocument = false
+            }
+        }
+    }
+
+    fun shareDocument(doc: DocumentRecordV2) {
+        scope.launch {
+            busyDocument = true
+            try {
+                val file = repository.downloadToCache(context.cacheDir, vaultId, doc)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                val mimeType = doc.contentType.takeIf {
+                    it.isNotBlank() && it != "application/octet-stream"
+                } ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(
+                    doc.originalFileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                ) ?: "*/*"
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = mimeType
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    clipData = ClipData.newUri(context.contentResolver, doc.originalFileName, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(sendIntent, "Share document"))
+                selectedDocument = null
+            } catch (error: Exception) {
+                message = error.localizedMessage ?: error.message ?: "Unable to share document."
             } finally {
                 busyDocument = false
             }
@@ -613,13 +658,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 items(active.filter { visibility == "ALL" || it.scope == visibility }
                     .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(2), key = { "recent-${it.id}" }) { doc ->
                     DocumentCardV2(
-                        doc, Modifier.fillMaxWidth(), false,
+                        doc, Modifier.fillMaxWidth(), false, memberUid,
                         categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other",
-                        onClick = { selectedDocument = doc },
-                        onDownload = { downloadDocument(doc) },
-                        onEdit = { editDocument(doc) },
-                        onDelete = { deleteDocument(doc) },
-                        canDelete = doc.ownerUid == memberUid
+                        onClick = { openDocument(doc) },
+                        onMore = { selectedDocument = doc }
                     )
                 }
             } else if (!recycleBin) {
@@ -744,13 +786,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 } else {
                     items(visible, key = { it.id }) { doc ->
                         DocumentCardV2(
-                            doc, Modifier.fillMaxWidth(), recycleBin,
+                            doc, Modifier.fillMaxWidth(), recycleBin, memberUid,
                             categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other",
-                            onClick = { selectedDocument = doc },
-                            onDownload = { downloadDocument(doc) },
-                            onEdit = { editDocument(doc) },
-                            onDelete = { deleteDocument(doc) },
-                            canDelete = doc.ownerUid == memberUid
+                            onClick = { if (recycleBin) selectedDocument = doc else openDocument(doc) },
+                            onMore = { selectedDocument = doc }
                         )
                     }
                 }
@@ -917,10 +956,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             OutlinedTextField(
                                 value = pending.title,
                                 onValueChange = { value ->
-                                    pendingUploads[index] = pending.copy(title = value.take(30))
+                                    pendingUploads[index] = pending.copy(title = value.take(50))
                                 },
-                                label = { Text("Title (max 30)") },
-                                supportingText = { Text("${pending.title.length}/30") },
+                                label = { Text("File name (max 50)") },
+                                supportingText = { Text("${pending.title.length}/50") },
                                 singleLine = true,
                                 enabled = !uploading,
                                 modifier = Modifier.fillMaxWidth()
@@ -928,10 +967,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             OutlinedTextField(
                                 value = pending.notes,
                                 onValueChange = { value ->
-                                    pendingUploads[index] = pending.copy(notes = value.take(35))
+                                    pendingUploads[index] = pending.copy(notes = value.take(50))
                                 },
-                                label = { Text("Notes (max 35)") },
-                                supportingText = { Text("${pending.notes.length}/35") },
+                                label = { Text("Notes (max 50)") },
+                                supportingText = { Text("${pending.notes.length}/50") },
                                 singleLine = true,
                                 enabled = !uploading,
                                 modifier = Modifier.fillMaxWidth()
@@ -1485,22 +1524,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         icon = { Icon(Icons.Outlined.Share, null, tint = Color(0xFF7652C8)) },
                         label = "Share",
                         enabled = !busyDocument && !doc.isDeleted,
-                        onClick = {
-                            scope.launch {
-                                busyDocument = true
-                                try {
-                                    val url = repository.downloadUrl(vaultId, doc)
-                                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(android.content.Intent.EXTRA_TEXT, url)
-                                    }
-                                    context.startActivity(android.content.Intent.createChooser(send, "Share document link"))
-                                    selectedDocument = null
-                                } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Unable to share document."
-                                } finally { busyDocument = false }
-                            }
-                        }
+                        onClick = { shareDocument(doc) }
                     )
                     DocumentActionIcon(
                         icon = { Icon(Icons.Outlined.Info, null, tint = Color(0xFF7652C8)) },
@@ -1689,9 +1713,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             )
                         }
                     }
-                    OutlinedTextField(editTitle, { editTitle = it.take(30) }, label = { Text("Title (max 30)") }, singleLine = true)
-                    OutlinedTextField(editDescription, { editDescription = it.take(35) },
-                        label = { Text("Notes (max 35)") }, singleLine = true)
+                    OutlinedTextField(editTitle, { editTitle = it.take(50) }, label = { Text("File name (max 50)") }, singleLine = true)
+                    OutlinedTextField(editDescription, { editDescription = it.take(50) },
+                        label = { Text("Notes (max 50)") }, singleLine = true)
                     Text("Category")
                     allCategories.forEach { (id, name) ->
                         if (editCategory == id) Text("✓ $name")
@@ -1783,61 +1807,48 @@ private fun DocumentCardV2(
     document: DocumentRecordV2,
     modifier: Modifier,
     isRecycleBin: Boolean,
+    currentMemberUid: String,
     categoryName: String,
     onClick: () -> Unit,
-    onDownload: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    canDelete: Boolean
+    onMore: () -> Unit
 ) {
-    val fileIcon = when {
-        document.contentType.contains("pdf", true) -> Icons.Outlined.PictureAsPdf
-        document.contentType.startsWith("image/") -> Icons.Outlined.Image
-        else -> Icons.Outlined.InsertDriveFile
-    }
-    Card(modifier, shape = RoundedCornerShape(13.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            DocumentTypeIcon(document.contentType, Modifier.size(38.dp))
-            Spacer(Modifier.width(7.dp))
-            Column(Modifier.weight(1f).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(document.originalFileName.ifBlank { document.title },
-                    fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1,
-                    style = MaterialTheme.typography.labelMedium)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(Icons.Outlined.Storage, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
-                    Text(formatDocumentBytes(document.sizeBytes), color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Icon(if (document.scope == "SHARED") Icons.Outlined.Groups else Icons.Outlined.Person,
-                        null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(17.dp))
-                    Text(
-                        if (document.scope == "SHARED") "Shared Vault" else "Personal Vault",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, maxLines = 1
-                    )
-                }
-                if (isRecycleBin) Text("Deleted", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelSmall)
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(13.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DocumentTypeIcon(document.contentType, Modifier.size(42.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    document.originalFileName.ifBlank { document.title }.take(50),
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(formatDocumentBytes(document.sizeBytes),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall)
+                Text(
+                    if (document.ownerUid == currentMemberUid) "Personal" else "Shared by Spouse",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1
+                )
+                if (isRecycleBin) Text("Deleted", color = MaterialTheme.colorScheme.tertiary,
+                    style = MaterialTheme.typography.labelSmall)
             }
-            if (!isRecycleBin) {
-                VerticalDivider(Modifier.height(64.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = onDownload, modifier = Modifier.size(27.dp)) {
-                        Icon(Icons.Outlined.Download, "Download", tint = Color(0xFF6F35D5), modifier = Modifier.size(16.dp))
-                    }
-                    IconButton(onClick = onEdit, enabled = canDelete, modifier = Modifier.size(27.dp)) {
-                        Icon(Icons.Outlined.Edit, "Edit", tint = Color(0xFF6F35D5), modifier = Modifier.size(16.dp))
-                    }
-                    IconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(27.dp)) {
-                        Icon(Icons.Outlined.Delete, "Delete", tint = Color(0xFFE53950), modifier = Modifier.size(16.dp))
-                    }
-                }
+            IconButton(onClick = onMore) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = "More document options")
             }
         }
     }
 }
-
 
 @Composable
 private fun DocumentTypeIcon(contentType: String, modifier: Modifier = Modifier) {
