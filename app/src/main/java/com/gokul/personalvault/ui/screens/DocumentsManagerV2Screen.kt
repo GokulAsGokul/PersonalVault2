@@ -1339,10 +1339,12 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         Text("Share", style = MaterialTheme.typography.labelSmall)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FilledTonalIconButton(
-                            onClick = { showDocumentDetails = true },
-                            enabled = !busyDocument
-                        ) { Icon(Icons.Outlined.Info, "Details") }
+                        DocumentActionIcon(
+                            icon = { Icon(Icons.Outlined.Info, null, tint = Color(0xFF7652C8)) },
+                            label = "Details",
+                            enabled = !busyDocument,
+                            onClick = { showDocumentDetails = true }
+                        )
                         Text("Details", style = MaterialTheme.typography.labelSmall)
                     }
                 }
@@ -1612,9 +1614,7 @@ private fun DocumentCardV2(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Icon(fileIcon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(31.dp))
-            }
+            DocumentTypeIcon(document.contentType, Modifier.size(44.dp))
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(document.originalFileName.ifBlank { document.title },
@@ -1650,6 +1650,51 @@ private fun DocumentCardV2(
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun DocumentTypeIcon(contentType: String, modifier: Modifier = Modifier) {
+    val (tile, tint, image) = when {
+        contentType.contains("pdf", true) ->
+            Triple(Color(0xFFFFE1E1), Color(0xFFE52222), Icons.Outlined.PictureAsPdf)
+        contentType.startsWith("image/") ->
+            Triple(Color(0xFFDCEBFF), Color(0xFF2377D8), Icons.Outlined.Image)
+        contentType.contains("spreadsheet", true) || contentType.contains("excel", true) ||
+            contentType.contains("sheet", true) ->
+            Triple(Color(0xFFDDF4E5), Color(0xFF16834A), Icons.Outlined.Description)
+        else ->
+            Triple(Color(0xFFE9DFFF), Color(0xFF7652C8), Icons.Outlined.InsertDriveFile)
+    }
+    Surface(modifier = modifier, shape = RoundedCornerShape(10.dp), color = tile) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(image, null, tint = tint, modifier = Modifier.size(26.dp))
+        }
+    }
+}
+
+@Composable
+private fun DocumentActionIcon(
+    icon: @Composable () -> Unit,
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.width(66.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Surface(
+            onClick = onClick,
+            enabled = enabled,
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFFF0E8FF)
+        ) {
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { icon() }
+        }
+        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
