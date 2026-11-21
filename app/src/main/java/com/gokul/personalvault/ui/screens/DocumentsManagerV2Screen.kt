@@ -1283,61 +1283,58 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FilledTonalIconButton(
-                            onClick = {
-                                scope.launch {
-                                    busyDocument = true
-                                    try {
-                                        val url = repository.downloadUrl(vaultId, doc)
-                                        enqueueDocumentDownload(context, url, doc.originalFileName)
-                                        message = "Download started. Check your Downloads folder."
-                                        selectedDocument = null
-                                    } catch (error: Exception) {
-                                        message = error.localizedMessage ?: error.message ?: "Download failed."
-                                    } finally { busyDocument = false }
-                                }
-                            },
-                            enabled = !busyDocument
-                        ) { Icon(Icons.Outlined.Download, "Download") }
-                        Text("Download", style = MaterialTheme.typography.labelSmall)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FilledTonalIconButton(
-                            onClick = {
-                                editTitle = doc.title
-                                editDescription = doc.description
-                                editCategory = doc.categoryId
-                                editScope = doc.scope
-                                editingDocument = doc
-                                selectedDocument = null
-                            },
-                            enabled = !busyDocument && !doc.isDeleted
-                        ) { Icon(Icons.Outlined.Edit, "Edit") }
-                        Text("Edit", style = MaterialTheme.typography.labelSmall)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FilledTonalIconButton(
-                            onClick = {
-                                scope.launch {
-                                    busyDocument = true
-                                    try {
-                                        val url = repository.downloadUrl(vaultId, doc)
-                                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(android.content.Intent.EXTRA_TEXT, url)
-                                        }
-                                        context.startActivity(android.content.Intent.createChooser(send, "Share document link"))
-                                        selectedDocument = null
-                                    } catch (error: Exception) {
-                                        message = error.localizedMessage ?: error.message ?: "Unable to share document."
-                                    } finally { busyDocument = false }
-                                }
-                            },
-                            enabled = !busyDocument && !doc.isDeleted
-                        ) { Icon(Icons.Outlined.Share, "Share") }
-                        Text("Share", style = MaterialTheme.typography.labelSmall)
-                    }
+                    DocumentActionIcon(
+                        icon = { Icon(Icons.Outlined.Download, null, tint = Color(0xFF7652C8)) },
+                        label = "Download",
+                        enabled = !busyDocument,
+                        onClick = {
+                            scope.launch {
+                                busyDocument = true
+                                try {
+                                    val url = repository.downloadUrl(vaultId, doc)
+                                    enqueueDocumentDownload(context, url, doc.originalFileName)
+                                    message = "Download started. Check your Downloads folder."
+                                    selectedDocument = null
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message ?: "Download failed."
+                                } finally { busyDocument = false }
+                            }
+                        }
+                    )
+                    DocumentActionIcon(
+                        icon = { Icon(Icons.Outlined.Edit, null, tint = Color(0xFF7652C8)) },
+                        label = "Edit",
+                        enabled = !busyDocument && !doc.isDeleted,
+                        onClick = {
+                            editTitle = doc.title
+                            editDescription = doc.description
+                            editCategory = doc.categoryId
+                            editScope = doc.scope
+                            editingDocument = doc
+                            selectedDocument = null
+                        }
+                    )
+                    DocumentActionIcon(
+                        icon = { Icon(Icons.Outlined.Share, null, tint = Color(0xFF7652C8)) },
+                        label = "Share",
+                        enabled = !busyDocument && !doc.isDeleted,
+                        onClick = {
+                            scope.launch {
+                                busyDocument = true
+                                try {
+                                    val url = repository.downloadUrl(vaultId, doc)
+                                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(android.content.Intent.EXTRA_TEXT, url)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(send, "Share document link"))
+                                    selectedDocument = null
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message ?: "Unable to share document."
+                                } finally { busyDocument = false }
+                            }
+                        }
+                    )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         DocumentActionIcon(
                             icon = { Icon(Icons.Outlined.Info, null, tint = Color(0xFF7652C8)) },
