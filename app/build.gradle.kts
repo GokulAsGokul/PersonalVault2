@@ -62,6 +62,7 @@ dependencies {
     implementation("com.google.firebase:firebase-functions")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
 
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
