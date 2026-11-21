@@ -358,6 +358,9 @@ class DocumentRepositoryV2(
                 "description" to description.trim(),
                 "categoryId" to categoryId,
                 "scope" to scope,
+                // A folder is bound to one category and one visibility.
+                // Clear the folder assignment when either is changed.
+                "folderId" to if (categoryId != document.categoryId || scope != document.scope) null else document.folderId,
                 "updatedAt" to FieldValue.serverTimestamp()
             )
         ).await()
