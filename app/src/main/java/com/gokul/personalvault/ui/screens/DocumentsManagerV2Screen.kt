@@ -1472,7 +1472,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     DocumentActionIcon(
                         icon = { Icon(Icons.Outlined.Edit, null, tint = Color(0xFF7652C8)) },
                         label = "Edit",
-                        enabled = !busyDocument && !doc.isDeleted,
+                        enabled = !busyDocument && !doc.isDeleted && doc.ownerUid == memberUid,
                         onClick = {
                             editTitle = doc.title
                             editDescription = doc.description
@@ -1503,33 +1503,30 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             }
                         }
                     )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        DocumentActionIcon(
-                            icon = { Icon(Icons.Outlined.Info, null, tint = Color(0xFF7652C8)) },
-                            label = "Details",
-                            enabled = !busyDocument,
-                            onClick = { showDocumentDetails = true }
-                        )
-                        Text("Details", style = MaterialTheme.typography.labelSmall)
-                    }
+                    DocumentActionIcon(
+                        icon = { Icon(Icons.Outlined.Info, null, tint = Color(0xFF7652C8)) },
+                        label = "Details",
+                        enabled = !busyDocument,
+                        onClick = { showDocumentDetails = true }
+                    )
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 if (!doc.isDeleted) {
-                    ListItem(
-                        headlineContent = { Text("Change Access") },
-                        supportingContent = { Text(if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document") },
-                        leadingContent = { Icon(Icons.Outlined.Groups, null, tint = MaterialTheme.colorScheme.primary) },
-                        trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
-                        modifier = Modifier.clickable {
-                            editTitle = doc.title
-                            editDescription = doc.description
-                            editCategory = doc.categoryId
-                            editScope = doc.scope
-                            editingDocument = doc
-                            selectedDocument = null
-                        }
-                    )
                     if (doc.ownerUid == memberUid) {
+                        ListItem(
+                            headlineContent = { Text("Change Access") },
+                            supportingContent = { Text(if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document") },
+                            leadingContent = { Icon(Icons.Outlined.Groups, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
+                            modifier = Modifier.clickable {
+                                editTitle = doc.title
+                                editDescription = doc.description
+                                editCategory = doc.categoryId
+                                editScope = doc.scope
+                                editingDocument = doc
+                                selectedDocument = null
+                            }
+                        )
                         ListItem(
                             headlineContent = { Text("Move to Folder") },
                             supportingContent = { Text("Organise this file inside a folder in the same category") },
@@ -1821,7 +1818,7 @@ private fun DocumentCardV2(
                     IconButton(onClick = onDownload, modifier = Modifier.size(27.dp)) {
                         Icon(Icons.Outlined.Download, "Download", tint = Color(0xFF6F35D5), modifier = Modifier.size(16.dp))
                     }
-                    IconButton(onClick = onEdit, modifier = Modifier.size(27.dp)) {
+                    IconButton(onClick = onEdit, enabled = canDelete, modifier = Modifier.size(27.dp)) {
                         Icon(Icons.Outlined.Edit, "Edit", tint = Color(0xFF6F35D5), modifier = Modifier.size(16.dp))
                     }
                     IconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(27.dp)) {
