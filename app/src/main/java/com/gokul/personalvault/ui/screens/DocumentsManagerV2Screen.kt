@@ -121,6 +121,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var moveParentFolderId by remember { mutableStateOf<String?>(null) }
     var moveTargetChosen by remember { mutableStateOf(false) }
     var showMoveDocument by remember { mutableStateOf(false) }
+    var documentToMove by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var moveDocumentTargetId by remember { mutableStateOf<String?>(null) }
     var moveDocumentTargetChosen by remember { mutableStateOf(false) }
     var showDeleteFolderConfirm by remember { mutableStateOf(false) }
@@ -1317,6 +1318,94 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         )
     }
 
+
+    if (showMoveDocument) {
+        val doc = documentToMove
+        if (doc != null) {
+            val eligibleFolders = folders.filter { folder ->
+                folder.categoryId == doc.categoryId &&
+                    folder.scope == doc.scope &&
+                    (doc.scope == "SHARED" || folder.ownerUid == doc.ownerUid)
+            }.sortedBy { it.name.lowercase(Locale.ROOT) }
+            AlertDialog(
+                onDismissRequest = { showMoveDocument = false; documentToMove = null },
+                title = { Text("Move Document") },
+                text = {
+                    Column(
+                        Modifier.fillMaxWidth().heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "Choose a folder in ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "this category"}. Personal and Shared access cannot be mixed inside a folder.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                moveDocumentTargetId = null
+                                moveDocumentTargetChosen = true
+                            }.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = moveDocumentTargetChosen && moveDocumentTargetId == null,
+                                onClick = { moveDocumentTargetId = null; moveDocumentTargetChosen = true }
+                            )
+                            Column {
+                                Text("Category root", fontWeight = FontWeight.SemiBold)
+                                Text("Move out of the current folder", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        eligibleFolders.forEach { folder ->
+                            val depth = generateSequence(folder.parentFolderId) { parentId ->
+                                eligibleFolders.firstOrNull { it.id == parentId }?.parentFolderId
+                            }.take(8).count()
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    moveDocumentTargetId = folder.id
+                                    moveDocumentTargetChosen = true
+                                }.padding(start = (depth * 14).dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = moveDocumentTargetChosen && moveDocumentTargetId == folder.id,
+                                    onClick = { moveDocumentTargetId = folder.id; moveDocumentTargetChosen = true }
+                                )
+                                Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.width(8.dp))
+                                Text(folder.name)
+                            }
+                        }
+                        if (eligibleFolders.isEmpty()) {
+                            Text("No eligible folders. Create a folder in this category first.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = moveDocumentTargetChosen && !busyDocument, onClick = {
+                        scope.launch {
+                            busyDocument = true
+                            try {
+                                repository.moveDocumentToFolder(vaultId, doc, moveDocumentTargetId)
+                                showMoveDocument = false
+                                documentToMove = null
+                                message = if (moveDocumentTargetId == null) "Document moved to category root."
+                                    else "Document moved to folder."
+                            } catch (error: Exception) {
+                                message = error.localizedMessage ?: error.message ?: "Unable to move document."
+                            } finally { busyDocument = false }
+                        }
+                    }) { Text("Move") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showMoveDocument = false; documentToMove = null }) { Text("Cancel") }
+                }
+            )
+        }
+    }
+
     selectedDocument?.let { doc ->
         ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
@@ -1419,6 +1508,21 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             selectedDocument = null
                         }
                     )
+                    if (doc.ownerUid == memberUid) {
+                        ListItem(
+                            headlineContent = { Text("Move to Folder") },
+                            supportingContent = { Text("Organise this file inside a folder in the same category") },
+                            leadingContent = { Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
+                            modifier = Modifier.clickable {
+                                documentToMove = doc
+                                moveDocumentTargetId = doc.folderId
+                                moveDocumentTargetChosen = false
+                                selectedDocument = null
+                                showMoveDocument = true
+                            }
+                        )
+                    }
                     ListItem(
                         headlineContent = { Text("Move to Recycle Bin", color = MaterialTheme.colorScheme.error) },
                         supportingContent = { Text("Keep it recoverable for 30 days") },
