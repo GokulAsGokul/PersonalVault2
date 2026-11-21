@@ -43,6 +43,7 @@ import com.gokul.personalvault.VaultExternalActivityState
 import com.gokul.personalvault.data.firebase.DocumentRepositoryV2
 import com.gokul.personalvault.data.model.BuiltInDocumentCategoriesV2
 import com.gokul.personalvault.data.model.DocumentRecordV2
+import com.gokul.personalvault.data.model.DocumentFolderV2
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.launch
@@ -76,6 +77,11 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     val repository = remember { DocumentRepositoryV2() }
     val scope = rememberCoroutineScope()
     var documents by remember { mutableStateOf<List<DocumentRecordV2>>(emptyList()) }
+    var folders by remember { mutableStateOf<List<DocumentFolderV2>>(emptyList()) }
+    var currentFolderId by remember { mutableStateOf<String?>(null) }
+    var showCreateFolder by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+    var newFolderScope by remember { mutableStateOf("PERSONAL") }
     var search by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("all") }
     var visibility by remember { mutableStateOf("ALL") }
@@ -147,6 +153,44 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 }
             }
         onDispose { sharedListener.remove(); personalListener.remove(); categoriesListener.remove() }
+    }
+
+    DisposableEffect(vaultId, category) {
+        if (category == "all") {
+            folders = emptyList()
+            currentFolderId = null
+            onDispose { }
+        } else {
+            val sharedFolders = mutableMapOf<String, DocumentFolderV2>()
+            val personalFolders = mutableMapOf<String, DocumentFolderV2>()
+            fun publishFolders() {
+                folders = (sharedFolders.values + personalFolders.values).distinctBy { it.id }
+            }
+            val sharedFolderListener = repository.sharedFoldersQuery(vaultId, category)
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null && snapshot != null) {
+                        sharedFolders.clear()
+                        snapshot.documents.forEach { doc ->
+                            doc.data?.let { sharedFolders[doc.id] = DocumentFolderV2.fromSnapshot(doc.id, it) }
+                        }
+                        publishFolders()
+                    } else if (error != null) message = error.localizedMessage ?: "Unable to load shared folders."
+                }
+            val personalFolderListener = repository.personalFoldersQuery(vaultId, category, memberUid)
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null && snapshot != null) {
+                        personalFolders.clear()
+                        snapshot.documents.forEach { doc ->
+                            doc.data?.let { personalFolders[doc.id] = DocumentFolderV2.fromSnapshot(doc.id, it) }
+                        }
+                        publishFolders()
+                    } else if (error != null) message = error.localizedMessage ?: "Unable to load personal folders."
+                }
+            onDispose {
+                sharedFolderListener.remove()
+                personalFolderListener.remove()
+            }
+        }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -226,6 +270,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     val visible = source
         .filter { visibility == "ALL" || it.scope == visibility }
         .filter { category == "all" || it.categoryId == category }
+        .filter { it.folderId == currentFolderId }
         .filter {
             val q = search.trim().lowercase(Locale.ROOT)
             q.isEmpty() || it.title.lowercase(Locale.ROOT).contains(q) ||
@@ -375,6 +420,60 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         DocumentCategoryChip("All", "all", category) { category = it }
                         allCategories.forEach { (id, name) ->
                             DocumentCategoryChip(name, id, category) { category = it }
+                        }
+                    }
+                }
+                if (category != "all") {
+                    item {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    if (currentFolderId == null) "Folders" else folders.firstOrNull { it.id == currentFolderId }?.name ?: "Folder",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(if (currentFolderId == null) "Category root" else "Inside selected folder",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            TextButton(onClick = {
+                                newFolderName = ""
+                                newFolderScope = if (visibility == "SHARED") "SHARED" else "PERSONAL"
+                                showCreateFolder = true
+                            }) {
+                                Icon(Icons.Outlined.Add, null)
+                                Text("Create Folder")
+                            }
+                        }
+                        if (currentFolderId != null) {
+                            TextButton(onClick = {
+                                currentFolderId = folders.firstOrNull { it.id == currentFolderId }?.parentFolderId
+                            }) { Text("← Back to parent folder") }
+                        }
+                    }
+                    val childFolders = folders.filter {
+                        it.parentFolderId == currentFolderId && (visibility == "ALL" || it.scope == visibility)
+                    }.sortedBy { it.name.lowercase(Locale.ROOT) }
+                    if (childFolders.isNotEmpty()) {
+                        items(childFolders.chunked(2)) { folderPair ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                folderPair.forEach { folder ->
+                                    Card(
+                                        Modifier.weight(1f).clickable { currentFolderId = folder.id },
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                                    ) {
+                                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                            Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+                                            Text(folder.name, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                                            Text(folder.scope.lowercase().replaceFirstChar { it.uppercase() },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                                if (folderPair.size == 1) Spacer(Modifier.weight(1f))
+                            }
                         }
                     }
                 }
@@ -728,6 +827,59 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                 }) { Text("Save") }
             },
             dismissButton = { TextButton(onClick = { categoryToEdit = null }) { Text("Cancel") } }
+        )
+    }
+
+    if (showCreateFolder) {
+        AlertDialog(
+            onDismissRequest = { showCreateFolder = false },
+            title = { Text("Create Folder") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = newFolderName,
+                        onValueChange = { newFolderName = it.take(30) },
+                        label = { Text("Folder name") },
+                        supportingText = { Text(newFolderName.length.toString() + "/30") },
+                        singleLine = true
+                    )
+                    Text("Visibility", style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(newFolderScope == "PERSONAL", { newFolderScope = "PERSONAL" }, label = { Text("Personal") })
+                        FilterChip(newFolderScope == "SHARED", { newFolderScope = "SHARED" }, label = { Text("Shared") })
+                    }
+                    Text(
+                        if (currentFolderId == null) "Folder will be created inside " +
+                            (allCategories.firstOrNull { it.first == category }?.second ?: "this category") + "."
+                        else "Folder will be created inside " +
+                            (folders.firstOrNull { it.id == currentFolderId }?.name ?: "the selected folder") + ".",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = newFolderName.trim().isNotEmpty() && !busyDocument,
+                    onClick = {
+                        scope.launch {
+                            busyDocument = true
+                            try {
+                                repository.createFolder(
+                                    vaultId, memberUid, newFolderName, category, currentFolderId, newFolderScope
+                                )
+                                showCreateFolder = false
+                                message = "Folder created."
+                            } catch (error: Exception) {
+                                message = error.localizedMessage ?: error.message ?: "Unable to create folder."
+                            } finally {
+                                busyDocument = false
+                            }
+                        }
+                    }
+                ) { Text("Create") }
+            },
+            dismissButton = { TextButton(onClick = { showCreateFolder = false }) { Text("Cancel") } }
         )
     }
 
