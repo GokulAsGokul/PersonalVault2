@@ -11,6 +11,7 @@ import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.tasks.await
 import java.util.Locale
+import java.io.File
 import java.util.UUID
 
 class DocumentRepositoryV2(
@@ -248,8 +249,8 @@ class DocumentRepositoryV2(
         onProgress: (Float) -> Unit = {}
     ): UploadResult {
         val cleanTitle = title.trim()
-        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 30) { "Enter a title up to 30 characters." }
-        require(description.length <= 35) { "Notes must be 35 characters or fewer." }
+        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 50) { "Enter a file name up to 50 characters." }
+        require(description.length <= 50) { "Notes must be 50 characters or fewer." }
         require(scope == "PERSONAL" || scope == "SHARED") { "Invalid document visibility." }
         if (folderId != null) {
             val folder = folderCollection(vaultId).document(folderId).get().await()
@@ -341,8 +342,8 @@ class DocumentRepositoryV2(
         scope: String
     ) {
         val cleanTitle = title.trim()
-        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 30) { "Title must be 1–30 characters." }
-        require(description.length <= 35) { "Notes must be 35 characters or fewer." }
+        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 50) { "File name must be 1–50 characters." }
+        require(description.length <= 50) { "Notes must be 50 characters or fewer." }
         require(scope == "PERSONAL" || scope == "SHARED") { "Invalid visibility." }
         val duplicate = documentCollection(vaultId)
             .whereEqualTo("ownerUid", document.ownerUid)
@@ -391,7 +392,7 @@ class DocumentRepositoryV2(
         // Derive the document title from the selected filename, excluding its extension.
         val replacementTitle = fileName.substringBeforeLast('.')
             .trim()
-            .take(30)
+            .take(50)
         require(replacementTitle.isNotBlank()) { "The replacement filename must contain a valid title." }
 
         // Check duplicates before overwriting the existing Storage object.
@@ -473,6 +474,21 @@ class DocumentRepositoryV2(
     suspend fun permanentlyDelete(vaultId: String, documentId: String) {
         functions.getHttpsCallable("permanentlyDeleteV2Document")
             .call(mapOf("vaultId" to vaultId, "documentId" to documentId)).await()
+    }
+
+    suspend fun downloadToCache(cacheDir: File, vaultId: String, document: DocumentRecordV2): File {
+        require(!document.isDeleted) { "Restore this document before opening or sharing it." }
+        require(document.storagePath.startsWith("vaultsV2/$vaultId/documents/")) {
+            "Invalid document storage path."
+        }
+        val extension = document.originalFileName.substringAfterLast('.', "")
+            .lowercase(Locale.ROOT)
+            .filter { it.isLetterOrDigit() }
+            .take(10)
+        val targetDirectory = File(cacheDir, "documents").apply { mkdirs() }
+        val localFile = File(targetDirectory, document.id + if (extension.isBlank()) "" else ".$extension")
+        storage.reference.child(document.storagePath).getFile(localFile).await()
+        return localFile
     }
 
     suspend fun downloadUrl(vaultId: String, document: DocumentRecordV2): String {
