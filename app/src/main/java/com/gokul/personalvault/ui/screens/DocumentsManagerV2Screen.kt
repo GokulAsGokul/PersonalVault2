@@ -1311,21 +1311,65 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         if (index != pendingUploads.lastIndex) Divider()
                     }
                     if (uploading) {
-                        Text(message, style = MaterialTheme.typography.bodySmall)
-                        val activeUpload = pendingUploads.getOrNull(currentUploadIndex)
-                        if (activeUpload != null) {
-                            Text(
-                                "${formatDocumentBytes((activeUpload.sizeBytes * currentFileProgress).toLong())} / ${formatDocumentBytes(activeUpload.sizeBytes)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            LinearProgressIndicator(
-                                progress = { currentFileProgress },
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        Text("Uploading Files", style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold)
+                        pendingUploads.forEachIndexed { index, pending ->
+                            val itemProgress = when {
+                                index < currentUploadIndex -> 1f
+                                index == currentUploadIndex -> currentFileProgress
+                                else -> 0f
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    DocumentTypeIcon(
+                                        if (pending.fileName.endsWith(".pdf", true)) "application/pdf" else "application/octet-stream",
+                                        Modifier.size(34.dp)
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(pending.fileName, style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                        Text(
+                                            when {
+                                                index < currentUploadIndex -> "${formatDocumentBytes(pending.sizeBytes)} · 100%"
+                                                index == currentUploadIndex -> "${formatDocumentBytes((pending.sizeBytes * itemProgress).toLong())} · ${(itemProgress * 100).toInt()}%"
+                                                else -> "${formatDocumentBytes(pending.sizeBytes)} · Pending…"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    if (index < currentUploadIndex) {
+                                        Icon(Icons.Outlined.Restore, contentDescription = "Completed",
+                                            tint = Color(0xFF31C56B))
+                                    } else if (index == currentUploadIndex) {
+                                        CircularProgressIndicator(progress = { itemProgress },
+                                            modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    }
+                                }
+                                LinearProgressIndicator(
+                                    progress = { itemProgress },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = documentAccent
+                                )
+                            }
                         }
-                        Text("Batch progress", style = MaterialTheme.typography.labelSmall)
-                        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = documentCardSurface),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Uploading…", fontWeight = FontWeight.Bold)
+                                Text("${currentUploadIndex.coerceAtLeast(0) + 1} of ${pendingUploads.size} files uploaded",
+                                    style = MaterialTheme.typography.bodySmall)
+                                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(),
+                                    color = documentAccent)
+                                Text("Please keep the app open until upload is complete.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
             },
