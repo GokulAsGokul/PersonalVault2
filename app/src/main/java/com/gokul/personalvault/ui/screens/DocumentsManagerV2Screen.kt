@@ -1067,8 +1067,19 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             value = withContext(Dispatchers.IO) {
                 photoUri?.let { uri ->
                     runCatching {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                         context.contentResolver.openInputStream(uri)?.use { stream ->
-                            BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                            BitmapFactory.decodeStream(stream, null, bounds)
+                        }
+                        var sampleSize = 1
+                        while (bounds.outWidth / sampleSize > 1200 ||
+                            bounds.outHeight / sampleSize > 1200
+                        ) {
+                            sampleSize *= 2
+                        }
+                        val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                        context.contentResolver.openInputStream(uri)?.use { stream ->
+                            BitmapFactory.decodeStream(stream, null, options)?.asImageBitmap()
                         }
                     }.getOrNull()
                 }
