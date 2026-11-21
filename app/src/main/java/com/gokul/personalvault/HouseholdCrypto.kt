@@ -146,9 +146,8 @@ object HouseholdCrypto {
         )
     }
 
-    /** Member operation: unwrap their own Firestore envelope using this device's private key. */
+    /** Unwraps an envelope using the private key belonging to this exact installation. */
     @Synchronized
-            /** Unwraps an envelope using the private key belonging to this exact installation. */
     fun unwrapHouseholdKey(
         firebaseUid: String,
         deviceId: String,

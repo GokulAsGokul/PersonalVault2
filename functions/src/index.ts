@@ -169,7 +169,7 @@ export const createV2JoinCode = onCall(async (request) => {
 });
 
 /**
- * Wife submits the code while signed in with her own Firebase account.
+ * Member submits the code while signed in with her own Firebase account.
  * The code is consumed immediately, before owner approval.
  */
 export const submitV2JoinCode = onCall(async (request) => {
@@ -652,13 +652,24 @@ export const listV2SharedDevices = onCall(async (request) => {
   const {uid} = requireIdentity(request);
   const vault = await db.collection(OWNER_VAULTS).doc(uid).get();
   const members = assertValidOwnerVault(vault, uid);
+
+  // Fetch all members' device sub-collections in parallel.
+  const snapshots = await Promise.all(
+    members.map((memberUid) =>
+      db.collection(OWNER_VAULTS).doc(uid)
+        .collection("members").doc(memberUid)
+        .collection("devices")
+        .get()
+        .then((snap) => ({memberUid, snap}))
+    )
+  );
+
   const devices: Array<Record<string, unknown>> = [];
 
-  for (const memberUid of members) {
-    const snapshot = await db.collection(OWNER_VAULTS).doc(uid)
-      .collection("members").doc(memberUid).collection("devices").get();
-    snapshot.docs.forEach((doc) => {
+  for (const {memberUid, snap} of snapshots) {
+    snap.docs.forEach((doc) => {
       const data = doc.data();
+
       devices.push({
         memberUid,
         deviceId: doc.id,
@@ -720,9 +731,6 @@ export const approveV2SharedDevice = onCall(async (request) => {
 
   return {status: "approved", memberUid, deviceId};
 });
-
-
-
 
 const DOCUMENT_RETENTION_DAYS = 30;
 const DOCUMENT_BATCH_LIMIT = 100;

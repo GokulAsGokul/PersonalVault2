@@ -33,25 +33,36 @@ object PasswordRepositoryFirestoreV2 {
 
         val collection = passwordCollection(vaultId)
 
-        val sharedSnapshot = collection
-            .whereEqualTo("scope", PasswordRecordV2.SCOPE_SHARED)
-            .get()
-            .await()
-
+        // Fetch personal records unconditionally.
         val personalSnapshot = collection
             .whereEqualTo("scope", PasswordRecordV2.SCOPE_PERSONAL)
             .whereEqualTo("ownerUid", memberUid)
             .get()
             .await()
 
-        val documents = sharedSnapshot.documents + personalSnapshot.documents
+        // Fetch shared records only when the household vault is unlocked.
+        val householdUnlocked = HouseholdCrypto.isUnlocked(vaultId)
+
+        val sharedSnapshot = if (householdUnlocked) {
+            collection
+                .whereEqualTo("scope", PasswordRecordV2.SCOPE_SHARED)
+                .get()
+                .await()
+        } else {
+            null
+        }
+
+        val documents =
+            (sharedSnapshot?.documents ?: emptyList()) +
+                    personalSnapshot.documents
 
         if (documents.isEmpty()) {
             return emptyList()
         }
 
         val needsPersonalKey = personalSnapshot.documents.isNotEmpty()
-        val needsHouseholdKey = sharedSnapshot.documents.isNotEmpty()
+        val needsHouseholdKey =
+            sharedSnapshot != null && sharedSnapshot.documents.isNotEmpty()
 
         var personalKey: ByteArray? = null
         var householdKey: ByteArray? = null

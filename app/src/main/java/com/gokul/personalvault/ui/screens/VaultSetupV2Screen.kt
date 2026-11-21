@@ -35,7 +35,6 @@ fun VaultSetupV2Screen(
 ) {
     var isLoading by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf("") }
-    var createdVaultId by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
 
     Surface(
@@ -81,14 +80,12 @@ fun VaultSetupV2Screen(
                             isLoading = true
                             isError = false
                             resultMessage = ""
-                            createdVaultId = null
 
                             VaultRepositoryV2.createOrLoadOwnerVault { result ->
                                 isLoading = false
 
                                 result.fold(
                                     onSuccess = { vault ->
-                                        createdVaultId = vault.vaultId
                                         resultMessage =
                                             if (vault.memberUids.size == 1) {
                                                 "Your V2 vault is ready. You are currently its only member."
@@ -127,13 +124,6 @@ fun VaultSetupV2Screen(
                         )
                     }
 
-                    if (createdVaultId != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Vault ID: $createdVaultId",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
                 }
             }
 

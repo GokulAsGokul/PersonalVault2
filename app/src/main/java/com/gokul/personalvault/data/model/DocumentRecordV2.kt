@@ -2,8 +2,6 @@ package com.gokul.personalvault.data.model
 
 import com.google.firebase.Timestamp
 
-enum class DocumentScopeV2 { PERSONAL, SHARED }
-
 data class DocumentRecordV2(
     val id: String = "",
     val ownerUid: String = "",
