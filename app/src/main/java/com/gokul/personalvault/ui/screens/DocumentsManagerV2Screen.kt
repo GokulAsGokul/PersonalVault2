@@ -75,6 +75,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -121,6 +122,10 @@ private const val MAX_DOCUMENT_FILE_BYTES = 50L * 1024L * 1024L
 @Composable
 fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     val context = LocalContext.current
+    val isDarkUi = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val documentAccent = if (isDarkUi) Color(0xFFB45CFF) else Color(0xFF6F35D5)
+    val documentSurface = if (isDarkUi) Color(0xFF17151D) else MaterialTheme.colorScheme.surface
+    val documentCardSurface = if (isDarkUi) Color(0xFF211E29) else MaterialTheme.colorScheme.surface
     val repository = remember { DocumentRepositoryV2() }
     val scope = rememberCoroutineScope()
     var documents by remember { mutableStateOf<List<DocumentRecordV2>>(emptyList()) }
@@ -607,7 +612,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         floatingActionButton = {
             if (!recycleBin) SmallFloatingActionButton(
                 onClick = { showAddOptions = true },
-                containerColor = Color(0xFF6F35D5),
+                containerColor = documentAccent,
                 contentColor = Color.White,
                 shape = RoundedCornerShape(15.dp)
             ) { Icon(Icons.Outlined.Add, contentDescription = "Add documents") }
@@ -709,11 +714,11 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             shape = RoundedCornerShape(50),
                             border = null,
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF6F35D5),
+                                selectedContainerColor = documentAccent,
                                 selectedLabelColor = Color.White,
                                 selectedLeadingIconColor = Color.White,
-                                containerColor = Color(0xFFF1EAFB),
-                                labelColor = Color(0xFF34264B)
+                                containerColor = if (isDarkUi) Color(0xFF24212D) else Color(0xFFF1EAFB),
+                                labelColor = if (isDarkUi) MaterialTheme.colorScheme.onSurface else Color(0xFF34264B)
                             )
                         )
                     }
@@ -792,7 +797,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     1.5.dp, MaterialTheme.colorScheme.primary
                                 ) else null,
                                 colors = CardDefaults.cardColors(
-                                    containerColor = iconTile.copy(alpha = 0.92f)
+                                    containerColor = if (isDarkUi) Color(0xFF211E29) else iconTile.copy(alpha = 0.92f)
                                 )
                             ) {
                                 Column(
@@ -982,7 +987,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     if (showAddOptions) {
         ModalBottomSheet(
             onDismissRequest = { showAddOptions = false },
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = documentSurface,
+            tonalElevation = 8.dp
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
@@ -1086,6 +1092,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             }
         }
         AlertDialog(
+                shape = RoundedCornerShape(24.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp,
             onDismissRequest = {
                 if (!uploading) {
                     showPhotoPreview = false
@@ -1435,7 +1444,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     if (showFolderActions) {
         val folder = selectedFolder
         if (folder != null) {
-            ModalBottomSheet(onDismissRequest = { showFolderActions = false }) {
+            ModalBottomSheet(onDismissRequest = { showFolderActions = false }, containerColor = documentSurface) {
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -2143,10 +2152,10 @@ private fun DocumentCardV2(
     Card(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(13.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = documentCardSurface)
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             DocumentTypeIcon(document.contentType, Modifier.size(42.dp))
@@ -2214,7 +2223,7 @@ private fun DocumentActionIcon(
             onClick = onClick,
             enabled = enabled,
             shape = RoundedCornerShape(12.dp),
-            color = Color(0xFFF0E8FF)
+            color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF30243D) else Color(0xFFF0E8FF)
         ) {
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { icon() }
         }
