@@ -1424,7 +1424,11 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 Modifier.fillMaxWidth().clickable {
                                     moveDocumentTargetId = folder.id
                                     moveDocumentTargetChosen = true
-                                }.padding(start = (depth * 14).dp, vertical = 7.dp),
+                                }.padding(
+    start = (depth * 14).dp,
+    top = 7.dp,
+    bottom = 7.dp
+),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
