@@ -81,6 +81,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.gokul.personalvault.VaultExternalActivityState
 import com.gokul.personalvault.data.firebase.DocumentRepositoryV2
 import com.gokul.personalvault.data.model.BuiltInDocumentCategoriesV2
@@ -1160,6 +1161,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     if (showAddDocuments) {
         AlertDialog(
+            modifier = Modifier.fillMaxSize(),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
 
             shape = RoundedCornerShape(24.dp),
 
@@ -1252,9 +1255,36 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     }
                     Divider()
                     pendingUploads.forEachIndexed { index, pending ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = documentCardSurface)
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                DocumentTypeIcon(
+                                    pending.fileName.substringAfterLast('.', "").let {
+                                        if (it.equals("pdf", true)) "application/pdf" else "application/octet-stream"
+                                    },
+                                    Modifier.size(38.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(pending.fileName, fontWeight = FontWeight.SemiBold,
+                                        style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                                    Text(formatDocumentBytes(pending.sizeBytes),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                IconButton(
+                                    enabled = !uploading,
+                                    onClick = { pendingUploads.removeAt(index) }
+                                ) { Icon(Icons.Outlined.Close, contentDescription = "Remove file") }
+                            }
+                        }
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(pending.fileName, fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodySmall, maxLines = 2)
                             OutlinedTextField(
                                 value = pending.title,
                                 onValueChange = { value ->
@@ -2021,6 +2051,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         val doc = selectedDocument
         if (doc != null) {
             AlertDialog(
+            modifier = Modifier.fillMaxSize(),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
 
                 shape = RoundedCornerShape(24.dp),
 
@@ -2059,6 +2091,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
 
     editingDocument?.let { doc ->
         AlertDialog(
+            modifier = Modifier.fillMaxSize(),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
 
             shape = RoundedCornerShape(24.dp),
 
