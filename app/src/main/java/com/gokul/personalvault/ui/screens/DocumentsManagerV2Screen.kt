@@ -1092,15 +1092,9 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             }
         }
         AlertDialog(
-
             shape = RoundedCornerShape(24.dp),
-
             containerColor = MaterialTheme.colorScheme.surface,
-
             tonalElevation = 8.dp,
-                shape = RoundedCornerShape(24.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
             onDismissRequest = {
                 if (!uploading) {
                     showPhotoPreview = false
@@ -2230,7 +2224,10 @@ private fun DocumentCardV2(
     Card(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(13.dp),
-        colors = CardDefaults.cardColors(containerColor = documentCardSurface)
+        colors = CardDefaults.cardColors(
+            containerColor = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+                Color(0xFF211E29) else MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
