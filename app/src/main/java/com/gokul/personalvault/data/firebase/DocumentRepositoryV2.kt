@@ -173,6 +173,52 @@ class DocumentRepositoryV2(
         folderRef.delete().await()
     }
 
+    suspend fun moveFolder(
+        vaultId: String,
+        folder: com.gokul.personalvault.data.model.DocumentFolderV2,
+        newParentFolderId: String?
+    ) {
+        require(newParentFolderId != folder.id) { "A folder cannot be moved inside itself." }
+        if (newParentFolderId != null) {
+            val parent = folderCollection(vaultId).document(newParentFolderId).get().await()
+            require(parent.exists()) { "The destination folder no longer exists." }
+            require(parent.getString("categoryId") == folder.categoryId) {
+                "Folders can only be moved within the same category."
+            }
+            require(parent.getString("scope") == folder.scope) {
+                "The destination must have the same Personal / Shared visibility."
+            }
+            require(folder.scope != "PERSONAL" || parent.getString("ownerUid") == folder.ownerUid) {
+                "You cannot move a personal folder into another member's folder."
+            }
+
+            // Walk the destination's ancestors to prevent moving a folder into its own subtree.
+            var ancestorId: String? = newParentFolderId
+            val visited = mutableSetOf<String>()
+            while (ancestorId != null) {
+                require(ancestorId != folder.id) { "A folder cannot be moved inside its own subfolder." }
+                require(visited.add(ancestorId)) { "The destination folder hierarchy contains a cycle." }
+                val ancestor = folderCollection(vaultId).document(ancestorId).get().await()
+                require(ancestor.exists()) { "The destination folder hierarchy is incomplete." }
+                ancestorId = ancestor.getString("parentFolderId")
+            }
+        }
+
+        val siblings = folderCollection(vaultId)
+            .whereEqualTo("categoryId", folder.categoryId)
+            .whereEqualTo("parentFolderId", newParentFolderId)
+            .whereEqualTo("scope", folder.scope)
+            .get().await()
+        require(siblings.documents.none {
+            it.id != folder.id && it.getString("nameLower") == folder.nameLower
+        }) { "A folder with this name already exists at the destination." }
+
+        folderCollection(vaultId).document(folder.id).update(
+            mapOf("parentFolderId" to newParentFolderId, "updatedAt" to FieldValue.serverTimestamp())
+        ).await()
+    }
+
+
     suspend fun moveDocumentToFolder(
         vaultId: String,
         document: DocumentRecordV2,
