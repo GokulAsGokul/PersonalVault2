@@ -2159,14 +2159,54 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     OutlinedTextField(editTitle, { editTitle = it.take(50) }, label = { Text("File name (max 50)") }, singleLine = true)
                     OutlinedTextField(editDescription, { editDescription = it.take(50) },
                         label = { Text("Notes (max 50)") }, singleLine = true)
-                    Text("Category")
-                    allCategories.forEach { (id, name) ->
-                        if (editCategory == id) Text("✓ $name")
-                        else TextButton(onClick = { editCategory = id }) { Text(name) }
+                    Text("Category", style = MaterialTheme.typography.labelLarge)
+                    var editCategoryMenuExpanded by remember(doc.id) { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(
+                            onClick = { editCategoryMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                allCategories.firstOrNull { it.first == editCategory }?.second ?: "Other",
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(Icons.Outlined.ChevronRight, contentDescription = "Choose category")
+                        }
+                        DropdownMenu(
+                            expanded = editCategoryMenuExpanded,
+                            onDismissRequest = { editCategoryMenuExpanded = false }
+                        ) {
+                            allCategories.forEach { (id, name) ->
+                                DropdownMenuItem(
+                                    text = { Text(name) },
+                                    onClick = { editCategory = id; editCategoryMenuExpanded = false }
+                                )
+                            }
+                        }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(editScope == "PERSONAL", { editScope = "PERSONAL" }, label = { Text("Personal") })
-                        FilterChip(editScope == "SHARED", { editScope = "SHARED" }, label = { Text("Shared") })
+                    Text("Access", style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        Modifier.fillMaxWidth().clickable { editScope = "PERSONAL" }.padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = editScope == "PERSONAL", onClick = { editScope = "PERSONAL" })
+                        Column {
+                            Text("Personal", fontWeight = FontWeight.SemiBold)
+                            Text("Only you can access", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().clickable { editScope = "SHARED" }.padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = editScope == "SHARED", onClick = { editScope = "SHARED" })
+                        Column {
+                            Text("Shared", fontWeight = FontWeight.SemiBold)
+                            Text("Both household members can access", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                     if (doc.folderId != null &&
                         (editCategory != doc.categoryId || editScope != doc.scope)
