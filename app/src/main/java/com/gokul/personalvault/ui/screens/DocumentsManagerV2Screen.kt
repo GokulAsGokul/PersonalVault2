@@ -1701,6 +1701,15 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         FilterChip(editScope == "PERSONAL", { editScope = "PERSONAL" }, label = { Text("Personal") })
                         FilterChip(editScope == "SHARED", { editScope = "SHARED" }, label = { Text("Shared") })
                     }
+                    if (doc.folderId != null &&
+                        (editCategory != doc.categoryId || editScope != doc.scope)
+                    ) {
+                        Text(
+                            "Changing the category or access will move this document to the category root because folders keep a fixed category and visibility.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             },
             confirmButton = {
