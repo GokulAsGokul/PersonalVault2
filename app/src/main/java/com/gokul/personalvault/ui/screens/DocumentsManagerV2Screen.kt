@@ -111,6 +111,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var sortMenu by remember { mutableStateOf(false) }
     var grid by remember { mutableStateOf(false) }
     var recycleBin by remember { mutableStateOf(false) }
+    var showAllDocuments by remember { mutableStateOf(false) }
     var uploading by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
     var currentFileProgress by remember { mutableFloatStateOf(0f) }
@@ -418,6 +419,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 onClick = {
                                     recycleBin = !recycleBin
                                     category = "all"
+                                    showAllDocuments = false
                                     visibility = "ALL"
                                     currentFolderId = null
                                     menuExpanded = false
@@ -461,13 +463,14 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         onClick = {
                             recycleBin = !recycleBin
                             category = "all"
+                            showAllDocuments = false
                             currentFolderId = null
                         },
                         label = { Text("Recycle Bin") }
                     )
                 }
             }
-            if (!recycleBin && category == "all" && currentFolderId == null) {
+            if (!recycleBin && category == "all" && currentFolderId == null && !showAllDocuments) {
                 item {
                     Text("Categories", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
@@ -491,6 +494,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 Modifier.weight(1f).clickable {
                                     category = id
                                     currentFolderId = null
+                                    showAllDocuments = false
                                 },
                                 shape = RoundedCornerShape(15.dp),
                                 border = if (category == id) androidx.compose.foundation.BorderStroke(
@@ -528,7 +532,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Recent Files", Modifier.weight(1f),
                             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        TextButton(onClick = { category = "all"; currentFolderId = null }) { Text("See all") }
+                        TextButton(onClick = { showAllDocuments = true }) { Text("See all") }
                     }
                 }
                 items(active.filter { visibility == "ALL" || it.scope == visibility }
@@ -549,7 +553,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             } else if (!recycleBin) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { category = "all"; currentFolderId = null }) {
+                        TextButton(onClick = { category = "all"; currentFolderId = null; showAllDocuments = false }) {
                             Icon(Icons.Outlined.FolderOpen, null)
                             Text("Documents")
                         }
