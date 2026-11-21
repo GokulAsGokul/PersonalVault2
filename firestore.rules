@@ -172,12 +172,111 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Folder metadata. Folder contents remain in the documents collection.
+      // A null parentFolderId represents a folder directly under its category.
+      match /documentFolders/{folderId} {
+        function validFolderRecord() {
+          return request.resource.data.keys().hasAll([
+            'schemaVersion', 'name', 'nameLower', 'categoryId',
+            'parentFolderId', 'ownerUid', 'scope', 'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'schemaVersion', 'name', 'nameLower', 'categoryId',
+            'parentFolderId', 'ownerUid', 'scope', 'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.schemaVersion == 1
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 30
+          && request.resource.data.nameLower == request.resource.data.name.lower()
+          && request.resource.data.categoryId is string
+          && request.resource.data.categoryId.size() > 0
+          && (
+            request.resource.data.parentFolderId == null
+            || request.resource.data.parentFolderId is string
+          )
+          && request.resource.data.ownerUid == request.auth.uid
+          && (
+            request.resource.data.scope == 'PERSONAL'
+            || request.resource.data.scope == 'SHARED'
+          )
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+        }
+
+        allow get, list: if isVaultMember(vaultId)
+          && (
+            resource.data.ownerUid == request.auth.uid
+            || resource.data.scope == 'SHARED'
+          );
+
+        allow create: if isVaultMember(vaultId)
+          && validFolderRecord()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && (
+            request.resource.data.parentFolderId == null
+            || (
+              exists(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.parentFolderId))
+              && get(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.parentFolderId)).data.categoryId == request.resource.data.categoryId
+              && get(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.parentFolderId)).data.scope == request.resource.data.scope
+              && (
+                request.resource.data.scope == 'SHARED'
+                || get(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.parentFolderId)).data.ownerUid == request.auth.uid
+              )
+            )
+          );
+
+        allow update: if isVaultMember(vaultId)
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.categoryId == resource.data.categoryId
+          && request.resource.data.scope == resource.data.scope
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['name', 'nameLower', 'parentFolderId', 'updatedAt'])
+          && validFolderRecord()
+          && request.resource.data.updatedAt == request.time
+          && (
+            request.resource.data.parentFolderId == null
+            || (
+              request.resource.data.parentFolderId != folderId
+              && exists(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.parentFolderId))
+              && get(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.parentFolderId)).data.categoryId == resource.data.categoryId
+              && get(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.parentFolderId)).data.scope == resource.data.scope
+              && (
+                resource.data.scope == 'SHARED'
+                || get(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.parentFolderId)).data.ownerUid == request.auth.uid
+              )
+            )
+          );
+
+        // Empty-folder validation is performed by the repository before delete.
+        allow delete: if isVaultMember(vaultId)
+          && resource.data.ownerUid == request.auth.uid;
+      }
+
       // Document metadata. Binary content lives in Firebase Storage.
       match /documents/{documentId} {
+        function validDocumentFolder() {
+          return !('folderId' in request.resource.data)
+            || request.resource.data.folderId == null
+            || (
+              request.resource.data.folderId is string
+              && exists(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.folderId))
+              && get(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.folderId)).data.categoryId == request.resource.data.categoryId
+              && get(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.folderId)).data.scope == request.resource.data.scope
+              && (
+                request.resource.data.scope == 'SHARED'
+                || get(/databases/$(database)/documents/vaultsV2/$(vaultId)/documentFolders/$(request.resource.data.folderId)).data.ownerUid == request.auth.uid
+              )
+            );
+        }
+
         function validDocumentRecord() {
           return request.resource.data.keys().hasAll([
             'schemaVersion', 'ownerUid', 'scope', 'title', 'titleLower',
-            'categoryId', 'description', 'originalFileName', 'contentType',
+            'categoryId', 'folderId', 'description', 'originalFileName', 'contentType',
             'sizeBytes', 'storagePath', 'uploadedAt', 'updatedAt',
             'isDeleted', 'deletedAt', 'purgeAt'
           ])
@@ -230,6 +329,7 @@ service cloud.firestore {
 
         allow create: if isVaultMember(vaultId)
           && validDocumentRecord()
+          && validDocumentFolder()
           && request.resource.data.ownerUid == request.auth.uid
           && request.resource.data.uploadedAt == request.time
           && request.resource.data.updatedAt == request.time
@@ -248,10 +348,11 @@ service cloud.firestore {
           && request.resource.data.storagePath == resource.data.storagePath
           && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
-              'scope', 'title', 'titleLower', 'categoryId', 'description',
+              'scope', 'title', 'titleLower', 'categoryId', 'folderId', 'description',
               'originalFileName', 'contentType', 'sizeBytes', 'updatedAt'
             ])
           && validDocumentRecord()
+          && validDocumentFolder()
           && request.resource.data.isDeleted == resource.data.isDeleted
           && request.resource.data.deletedAt == resource.data.deletedAt
           && request.resource.data.purgeAt == resource.data.purgeAt
