@@ -93,7 +93,7 @@ Do not list these as currently available features:
 
 ## 5. Required release gates
 
-1. On `production`, run `.\gradlew.bat clean`, `.\gradlew.bat test` and `.\gradlew.bat assembleDebug`; retain successful logs.
+1. On `production`, run `.\\gradlew.bat clean`, `.\\gradlew.bat test` and `.\\gradlew.bat assembleDebug`; retain successful logs.
 2. From `functions/`, run `npm ci`, `npm run lint` and `npm run build`.
 3. Run `connectedDebugAndroidTest` on an emulator and manual regression on both household accounts.
 4. Verify Firebase project alias and deployed Firestore rules, Storage rules, indexes and Cloud Functions; confirm scheduled purge function and region.
@@ -109,7 +109,6 @@ Do not list these as currently available features:
 - Membership approval does not automatically provision a shared-key envelope.
 - Notification delivery depends on Android notification permission and OS scheduling.
 - Google ML Kit scanner UI is provider/system UI; app-owned preview/upload UI is theme-controlled.
-- `README-FIRST.md` and `docs/PROJECT-STATUS.md` are historical documents; this file and the production README describe the current baseline.
 
 ## 7. Release recommendation
 
