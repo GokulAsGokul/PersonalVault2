@@ -1813,20 +1813,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     (folder.scope == "SHARED" || it.ownerUid == folder.ownerUid) &&
                     it.id != folder.parentFolderId
             }
-        val orderedEligibleFolders = buildList {
-            val visited = mutableSetOf<String>()
-            fun appendChildren(parentId: String?) {
-                eligibleFolders.filter { it.parentFolderId == parentId }
-                    .sortedBy { it.name.lowercase(Locale.ROOT) }
-                    .forEach { folder ->
-                        if (visited.add(folder.id)) {
-                            add(folder)
-                            appendChildren(folder.id)
-                        }
-                    }
-            }
-            appendChildren(null)
-        }
             AlertDialog(
 
                 shape = RoundedCornerShape(24.dp),
@@ -1979,7 +1965,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                     Text(
                         if (currentFolderId == null) "Folder will be created inside " +
-                            (allCategories.firstOrNull { it.first == category }?.second ?: "this category") + "."
+                            (allCategories.firstOrNull { it.first == (if (category == "all") newFolderCategory else category) }?.second ?: "this category") + "."
                         else "Folder will be created inside " +
                             (folders.firstOrNull { it.id == currentFolderId }?.name ?: "the selected folder") + ".",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2022,7 +2008,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 folder.categoryId == doc.categoryId &&
                     folder.scope == doc.scope &&
                     (doc.scope == "SHARED" || folder.ownerUid == doc.ownerUid)
-            }.sortedBy { it.name.lowercase(Locale.ROOT) }
+            }
+            val orderedEligibleFolders = buildList {
+                val visited = mutableSetOf<String>()
+                fun appendChildren(parentId: String?) {
+                    eligibleFolders.filter { it.parentFolderId == parentId }
+                        .sortedBy { it.name.lowercase(Locale.ROOT) }
+                        .forEach { folder ->
+                            if (visited.add(folder.id)) {
+                                add(folder)
+                                appendChildren(folder.id)
+                            }
+                        }
+                }
+                appendChildren(null)
+            }
             AlertDialog(
 
                 shape = RoundedCornerShape(24.dp),
