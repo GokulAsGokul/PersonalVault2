@@ -2515,6 +2515,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                             editingDocument = null
                         } catch (error: Exception) {
+                            editingDocument = null
+                            replacementTarget = null
                             message = error.localizedMessage ?: error.message ?: "Save failed."
                         } finally {
                             replacingDocument = false
