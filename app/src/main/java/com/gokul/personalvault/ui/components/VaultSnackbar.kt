@@ -86,6 +86,7 @@ fun VaultSnackbarOverlay(
     val type = classifyVaultSnackbar(message)
     val haptics = LocalHapticFeedback.current
     val bottomOffset = with(LocalDensity.current) { 72.dp.roundToPx() }
+
     LaunchedEffect(message) {
         if (message.isNotBlank()) {
             if (type == VaultSnackbarType.ERROR) {
@@ -95,12 +96,14 @@ fun VaultSnackbarOverlay(
             onDismiss()
         }
     }
+
     if (message.isNotBlank()) {
         val background = when (type) {
             VaultSnackbarType.SUCCESS -> VaultSuccessGreen
             VaultSnackbarType.ERROR -> VaultErrorRed
             VaultSnackbarType.INFO -> VaultInfoBlue
         }
+
         Popup(
             alignment = Alignment.BottomCenter,
             offset = IntOffset(0, -bottomOffset),
@@ -112,11 +115,9 @@ fun VaultSnackbarOverlay(
                 containerColor = background,
                 contentColor = Color.White,
                 actionContentColor = Color.White,
-                dismissActionContentColor = Color.White,
-                content = {
-                    androidx.compose.material3.Text(message, color = Color.White)
-                }
-            )
+                dismissActionContentColor = Color.White
+            ) {
+                androidx.compose.material3.Text(message, color = Color.White)
             }
         }
     }
