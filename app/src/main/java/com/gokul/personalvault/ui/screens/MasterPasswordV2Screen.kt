@@ -53,6 +53,7 @@ fun MasterPasswordV2Screen(
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
+    var fieldError by remember { mutableStateOf<String?>(null) }
 
     val strongEnough = password.length >= 12 && password.any(Char::isUpperCase) &&
             password.any(Char::isLowerCase) && password.any(Char::isDigit) &&
@@ -75,10 +76,12 @@ fun MasterPasswordV2Screen(
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(18.dp)) {
                     OutlinedTextField(
-                        value = password, onValueChange = { password = it; message = "" },
+                        value = password, onValueChange = { password = it; message = ""; fieldError = null },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
                         label = { Text("Master password") },
-                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation()
+                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        isError = fieldError != null,
+                        supportingText = { fieldError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
                     )
                     TextButton(onClick = { showPassword = !showPassword }) {
                         Text(if (showPassword) "Hide password" else "Show password")
@@ -86,7 +89,7 @@ fun MasterPasswordV2Screen(
                     if (isSetup) {
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
-                            value = confirm, onValueChange = { confirm = it; message = "" },
+                            value = confirm, onValueChange = { confirm = it; message = ""; fieldError = null },
                             modifier = Modifier.fillMaxWidth(), singleLine = true,
                             label = { Text("Confirm master password") },
                             visualTransformation = PasswordVisualTransformation()
@@ -101,13 +104,13 @@ fun MasterPasswordV2Screen(
                         modifier = Modifier.fillMaxWidth(), enabled = !loading,
                         onClick = {
                             if (password.isBlank()) {
-                                error = true; message = "Enter your master password."
+                                error = true; fieldError = "Enter your master password."
                             } else if (isSetup && !strongEnough) {
-                                error = true; message = "Master password does not meet the requirements."
+                                error = true; fieldError = "Master password does not meet the requirements."
                             } else if (isSetup && password != confirm) {
-                                error = true; message = "The passwords do not match."
+                                error = true; fieldError = "The passwords do not match."
                             } else {
-                                loading = true; error = false; message = ""
+                                loading = true; error = false; fieldError = null; message = ""
                                 val submitted = password.toCharArray()
                                 password = ""; confirm = ""
                                 scope.launch {
@@ -118,7 +121,10 @@ fun MasterPasswordV2Screen(
                                     loading = false
                                     result.fold(
                                         onSuccess = { key -> onUnlocked(key) },
-                                        onFailure = { e -> error = true; message = e.localizedMessage ?: "Unable to unlock the vault." }
+                                        onFailure = { e ->
+                                            error = true
+                                            message = e.localizedMessage ?: "Unable to unlock the vault. Check your master password."
+                                        }
                                     )
                                 }
                             }
