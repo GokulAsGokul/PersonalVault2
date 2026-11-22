@@ -3,6 +3,7 @@ package com.gokul.personalvault.ui.screens
 import com.gokul.personalvault.ui.components.VaultSnackbarHost
 import com.gokul.personalvault.ui.components.classifyVaultSnackbar
 import com.gokul.personalvault.ui.components.triggerVaultErrorVibration
+import com.gokul.personalvault.ui.components.VaultSnackbarType
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -61,7 +62,7 @@ fun VaultSetupV2Screen(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = {
-                VaultSnackbarHost(snackbarHostState, classifyVaultSnackbar(resultMessage))
+                VaultSnackbarHost(snackbarHostState, if (isError) VaultSnackbarType.ERROR else VaultSnackbarType.SUCCESS)
             }
         ) { contentPadding ->
         Column(
