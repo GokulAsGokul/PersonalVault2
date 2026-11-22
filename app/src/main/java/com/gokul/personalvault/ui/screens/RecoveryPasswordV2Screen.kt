@@ -1,6 +1,8 @@
 package com.gokul.personalvault.ui.screens
 
 import com.gokul.personalvault.ui.components.VaultSnackbarOverlay
+import com.gokul.personalvault.ui.components.VaultSnackbarController
+import com.gokul.personalvault.ui.components.VaultSnackbarType
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -49,6 +51,7 @@ fun RecoveryPasswordV2Screen(
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
+    var fieldError by remember { mutableStateOf<String?>(null) }
 
     val recoveryValid = isStrongPassword(recoveryPassword)
     val recoveryMatches = recoveryPassword == confirmRecoveryPassword
@@ -64,9 +67,9 @@ fun RecoveryPasswordV2Screen(
         newMasterPassword = ""
         confirmMasterPassword = ""
     }
-    fun showError(value: String) {
+    fun showFieldError(value: String) {
         isError = true
-        message = value
+        fieldError = value
     }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -95,6 +98,7 @@ fun RecoveryPasswordV2Screen(
                             clearRestoreFields()
                             message = ""
                             isError = false
+                            fieldError = null
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -116,7 +120,7 @@ fun RecoveryPasswordV2Screen(
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = recoveryPassword,
-                        onValueChange = { recoveryPassword = it; message = "" },
+                        onValueChange = { recoveryPassword = it; message = ""; fieldError = null },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Recovery password") },
                         singleLine = true,
@@ -127,7 +131,7 @@ fun RecoveryPasswordV2Screen(
                         Spacer(Modifier.height(10.dp))
                         OutlinedTextField(
                             value = confirmRecoveryPassword,
-                            onValueChange = { confirmRecoveryPassword = it; message = "" },
+                            onValueChange = { confirmRecoveryPassword = it; message = ""; fieldError = null },
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("Confirm recovery password") },
                             singleLine = true,
@@ -143,7 +147,7 @@ fun RecoveryPasswordV2Screen(
                         Spacer(Modifier.height(10.dp))
                         OutlinedTextField(
                             value = newMasterPassword,
-                            onValueChange = { newMasterPassword = it; message = "" },
+                            onValueChange = { newMasterPassword = it; message = ""; fieldError = null },
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("New master password") },
                             singleLine = true,
@@ -152,7 +156,7 @@ fun RecoveryPasswordV2Screen(
                         Spacer(Modifier.height(10.dp))
                         OutlinedTextField(
                             value = confirmMasterPassword,
-                            onValueChange = { confirmMasterPassword = it; message = "" },
+                            onValueChange = { confirmMasterPassword = it; message = ""; fieldError = null },
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("Confirm new master password") },
                             singleLine = true,
@@ -166,16 +170,29 @@ fun RecoveryPasswordV2Screen(
                     }
                     Spacer(Modifier.height(14.dp))
 
+                    fieldError?.let { validation ->
+                        Text(
+                            validation,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                     Button(
                         onClick = {
                             message = ""
                             isError = false
+                            fieldError = null
                             when {
-                                !recoveryValid -> showError("Recovery password must meet all requirements.")
-                                selectedMode == "create" && !recoveryMatches -> showError("Recovery passwords do not match.")
-                                selectedMode == "create" && !hasUnlockedVault -> showError("Unlock your vault before creating a recovery backup.")
-                                selectedMode == "restore" && !masterValid -> showError("New master password must meet all requirements.")
-                                selectedMode == "restore" && !masterMatches -> showError("New master passwords do not match.")
+                                !recoveryValid -> showFieldError("Recovery password must meet all requirements.")
+                                selectedMode == "create" && !recoveryMatches -> showFieldError("Recovery passwords do not match.")
+                                selectedMode == "create" && !hasUnlockedVault -> {
+                                    VaultSnackbarController.show(
+                                        "Unlock your vault before creating a recovery backup.",
+                                        VaultSnackbarType.INFO
+                                    )
+                                }
+                                selectedMode == "restore" && !masterValid -> showFieldError("New master password must meet all requirements.")
+                                selectedMode == "restore" && !masterMatches -> showFieldError("New master passwords do not match.")
                                 else -> {
                                     isLoading = true
                                     if (selectedMode == "create") {
