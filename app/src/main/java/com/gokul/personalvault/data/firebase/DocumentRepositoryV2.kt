@@ -486,7 +486,12 @@ class DocumentRepositoryV2(
             .call(mapOf("vaultId" to vaultId, "documentId" to documentId)).await()
     }
 
-    suspend fun downloadToCache(cacheDir: File, vaultId: String, document: DocumentRecordV2): File {
+    suspend fun downloadToCache(
+        cacheDir: File,
+        vaultId: String,
+        document: DocumentRecordV2,
+        onProgress: (transferredBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
+    ): File {
         require(!document.isDeleted) { "Restore this document before opening or sharing it." }
         require(document.storagePath.startsWith("vaultsV2/$vaultId/documents/")) {
             "Invalid document storage path."
@@ -497,7 +502,12 @@ class DocumentRepositoryV2(
             .take(10)
         val targetDirectory = File(cacheDir, "documents").apply { mkdirs() }
         val localFile = File(targetDirectory, document.id + if (extension.isBlank()) "" else ".$extension")
-        storage.reference.child(document.storagePath).getFile(localFile).await()
+        val downloadTask = storage.reference.child(document.storagePath).getFile(localFile)
+        downloadTask.addOnProgressListener { snapshot ->
+            onProgress(snapshot.bytesTransferred, snapshot.totalByteCount)
+        }
+        downloadTask.await()
+        onProgress(localFile.length(), localFile.length())
         return localFile
     }
 
