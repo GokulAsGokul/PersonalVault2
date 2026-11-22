@@ -89,7 +89,9 @@ class DocumentRepositoryV2(
         parentFolderId: String?,
         scope: String
     ): String {
-        val cleanName = name.trim()
+        val cleanName = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ") { word ->
+            word.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase(Locale.ROOT) }
+        }
         require(cleanName.isNotEmpty() && cleanName.length <= 30) {
             "Folder name must be between 1 and 30 characters."
         }
@@ -142,7 +144,9 @@ class DocumentRepositoryV2(
     }
 
     suspend fun renameFolder(vaultId: String, folder: com.gokul.personalvault.data.model.DocumentFolderV2, name: String) {
-        val cleanName = name.trim()
+        val cleanName = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ") { word ->
+            word.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase(Locale.ROOT) }
+        }
         require(cleanName.isNotEmpty() && cleanName.length <= 30) {
             "Folder name must be between 1 and 30 characters."
         }
