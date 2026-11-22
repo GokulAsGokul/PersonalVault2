@@ -1,8 +1,6 @@
 package com.gokul.personalvault.ui.components
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -35,9 +33,10 @@ fun VaultSnackbarHost(
 ) {
     val haptics = LocalHapticFeedback.current
     val currentMessage = hostState.currentSnackbarData?.visuals?.message
+    val currentType = currentMessage?.let(::classifyVaultSnackbar)
 
-    LaunchedEffect(currentMessage, type) {
-        if (currentMessage != null && type == VaultSnackbarType.ERROR) {
+    LaunchedEffect(currentMessage, currentType) {
+        if (currentMessage != null && currentType == VaultSnackbarType.ERROR) {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         }
     }
@@ -46,7 +45,8 @@ fun VaultSnackbarHost(
         hostState = hostState,
         modifier = modifier
     ) { data ->
-        val background = when (type) {
+        val messageType = classifyVaultSnackbar(data.visuals.message)
+        val background = when (messageType) {
             VaultSnackbarType.SUCCESS -> VaultSuccessGreen
             VaultSnackbarType.ERROR -> VaultErrorRed
             VaultSnackbarType.INFO -> VaultInfoBlue
@@ -111,10 +111,12 @@ fun VaultSnackbarOverlay(
                 modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 containerColor = background,
                 contentColor = Color.White,
-                actionColor = Color.White,
-                dismissActionContentColor = Color.White
-            ) {
-                androidx.compose.material3.Text(message, color = Color.White)
+                actionContentColor = Color.White,
+                dismissActionContentColor = Color.White,
+                content = {
+                    androidx.compose.material3.Text(message, color = Color.White)
+                }
+            )
             }
         }
     }
