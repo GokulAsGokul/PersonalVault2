@@ -154,7 +154,7 @@ fun VaultDashboardNavigationV2(
                     vaultId = vaultId,
                     memberUid = memberUid
                 )
-                selected == VaultV2Destination.DOCUMENTS -> DocumentsManagerV2Screen(
+                selected == VaultV2Destination.DOCUMENTS -> DocumentsManagerV2ScreenNew(
                     vaultId = vaultId,
                     memberUid = memberUid
                 )
