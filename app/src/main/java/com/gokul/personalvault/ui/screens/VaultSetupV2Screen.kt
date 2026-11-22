@@ -1,5 +1,6 @@
 package com.gokul.personalvault.ui.screens
 
+import com.gokul.personalvault.ui.components.VaultSnackbarOverlay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -111,18 +112,7 @@ fun VaultSetupV2Screen(
                         }
                     }
 
-                    if (resultMessage.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = resultMessage,
-                            color = if (isError) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            },
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
+                    VaultSnackbarOverlay(message = resultMessage, onDismiss = { resultMessage = "" })
 
                 }
             }
