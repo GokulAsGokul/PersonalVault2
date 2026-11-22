@@ -151,7 +151,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var documents by remember { mutableStateOf<List<DocumentRecordV2>>(emptyList()) }
-    var documentsLoaded by remember { mutableStateOf(false) }
+    var sharedDocumentsLoaded by remember { mutableStateOf(false) }
+    var personalDocumentsLoaded by remember { mutableStateOf(false) }
+    val documentsLoaded = sharedDocumentsLoaded && personalDocumentsLoaded
     var folders by remember { mutableStateOf<List<DocumentFolderV2>>(emptyList()) }
     var currentFolderId by remember { mutableStateOf<String?>(null) }
     var showCreateFolder by remember { mutableStateOf(false) }
@@ -252,9 +254,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         doc.data?.let { sharedDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
                     }
                     publishDocuments()
-                    documentsLoaded = true
+                    sharedDocumentsLoaded = true
                 } else if (error != null) {
-                    documentsLoaded = true
+                    sharedDocumentsLoaded = true
                     message = "Shared documents: ${error.localizedMessage ?: "Unable to load documents."}"
                 }
             }
@@ -266,9 +268,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         doc.data?.let { personalDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
                     }
                     publishDocuments()
-                    documentsLoaded = true
+                    personalDocumentsLoaded = true
                 } else if (error != null) {
-                    documentsLoaded = true
+                    personalDocumentsLoaded = true
                     message = "Personal documents: ${error.localizedMessage ?: "Unable to load documents."}"
                 }
             }
