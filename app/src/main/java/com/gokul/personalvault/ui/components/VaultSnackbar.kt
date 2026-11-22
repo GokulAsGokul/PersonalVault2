@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
 
 private val VaultSuccessGreen = Color(0xFF218838)
 private val VaultErrorRed = Color(0xFFC62828)
@@ -84,6 +85,7 @@ fun VaultSnackbarOverlay(
 ) {
     val type = classifyVaultSnackbar(message)
     val haptics = LocalHapticFeedback.current
+    val bottomOffset = with(LocalDensity.current) { 72.dp.roundToPx() }
     LaunchedEffect(message) {
         if (message.isNotBlank()) {
             if (type == VaultSnackbarType.ERROR) {
@@ -101,7 +103,7 @@ fun VaultSnackbarOverlay(
         }
         Popup(
             alignment = Alignment.BottomCenter,
-            offset = IntOffset(0, -180),
+            offset = IntOffset(0, -bottomOffset),
             onDismissRequest = onDismiss,
             properties = PopupProperties(focusable = false)
         ) {
