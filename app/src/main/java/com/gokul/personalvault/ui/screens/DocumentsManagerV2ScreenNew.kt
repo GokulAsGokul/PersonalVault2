@@ -911,10 +911,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 val recent = active.filter { visibility == "ALL" || it.scope == visibility }
                     .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(3)
                 item(key = "document_summary") {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DocumentSummaryTileV2New("Documents", active.size.toString(), Icons.Outlined.Description, palette, Modifier.weight(1f))
-                        DocumentSummaryTileV2New("Storage", formatDocumentBytesNew(bytes), Icons.Outlined.Storage, palette, Modifier.weight(1f))
-                        DocumentSummaryTileV2New("Shared", active.count { it.scope == "SHARED" }.toString(), Icons.Outlined.Groups, palette, Modifier.weight(1f))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DocumentSummaryTileV2New("Documents", active.size.toString(), Icons.Outlined.Description, palette, Modifier.weight(1f))
+                            DocumentSummaryTileV2New("Storage", formatDocumentBytesNew(bytes), Icons.Outlined.Storage, palette, Modifier.weight(1f))
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DocumentSummaryTileV2New(
+                                "Personal", active.count { it.scope == "PERSONAL" }.toString(),
+                                Icons.Outlined.Person, palette, Modifier.weight(1f), isShared = false
+                            )
+                            DocumentSummaryTileV2New(
+                                "Shared", active.count { it.scope == "SHARED" }.toString(),
+                                Icons.Outlined.Groups, palette, Modifier.weight(1f), isShared = true
+                            )
+                        }
                     }
                 }
                 item(key = "recent_header") {
@@ -2425,55 +2436,91 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val doc = selectedDocument
         if (doc != null) {
             AlertDialog(
-            modifier = Modifier.fillMaxSize(),
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-
-                shape = RoundedCornerShape(24.dp),
-
+                modifier = Modifier.fillMaxSize(),
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+                shape = RoundedCornerShape(26.dp),
                 containerColor = MaterialTheme.colorScheme.surface,
-
                 tonalElevation = 8.dp,
                 onDismissRequest = { showDocumentDetails = false },
-                title = { Text("File Details") },
+                title = {
+                    Text(
+                        "File Details",
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, start = 4.dp),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Normal
+                    )
+                },
                 text = {
                     Column(
-                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        Modifier.fillMaxWidth().fillMaxHeight(0.94f),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
                         Column(
-                            Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            DocumentTypeIconNew(doc.contentType, Modifier.size(64.dp))
-                            Text(doc.title.ifBlank { doc.originalFileName }, fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleLarge, maxLines = 2,
-                                overflow = TextOverflow.Ellipsis)
-                            Text(doc.originalFileName, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall, maxLines = 1,
-                                overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.height(12.dp))
+                            DocumentTypeIconNew(doc.contentType, Modifier.size(72.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                doc.title.ifBlank { doc.originalFileName },
+                                modifier = Modifier.fillMaxWidth(),
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                doc.originalFileName,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(Modifier.height(12.dp))
                             ScopeLabelV2New(doc.scope, palette)
+                            Spacer(Modifier.height(18.dp))
+                            HorizontalDivider(color = palette.line)
+                            Spacer(Modifier.height(8.dp))
+                            DocumentDetailRowV2New(
+                                "Type",
+                                doc.contentType.substringAfter('/').uppercase().ifBlank { "File" },
+                                Icons.Outlined.Description
+                            )
+                            DocumentDetailRowV2New("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
+                            DocumentDetailRowV2New(
+                                "Location",
+                                "My Documents / ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
+                                Icons.Outlined.FolderOpen
+                            )
+                            DocumentDetailRowV2New(
+                                "Added",
+                                doc.uploadedAt?.toDate()?.let {
+                                    SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                                } ?: "—",
+                                Icons.Outlined.CalendarToday
+                            )
+                            DocumentDetailRowV2New(
+                                "Modified",
+                                doc.updatedAt?.toDate()?.let {
+                                    SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                                } ?: "—",
+                                Icons.Outlined.History
+                            )
                         }
-                        HorizontalDivider()
-                        DocumentDetailRowV2New("Type", doc.contentType.substringAfter('/').uppercase().ifBlank { "File" }, Icons.Outlined.Description)
-                        DocumentDetailRowV2New("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
-                        DocumentDetailRowV2New("Location",
-                            "My Documents / ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
-                            Icons.Outlined.FolderOpen)
-                        DocumentDetailRowV2New("Added", doc.uploadedAt?.toDate()?.let {
-                            SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                        } ?: "—", Icons.Outlined.CalendarToday)
-                        DocumentDetailRowV2New("Modified", doc.updatedAt?.toDate()?.let {
-                            SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                        } ?: "—", Icons.Outlined.History)
-                        DocumentDetailRowV2New("Visibility",
-                            if (doc.scope == "SHARED") "Shared with household members" else "Personal (Only you)",
-                            Icons.Outlined.Groups)
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 8.dp, end = 8.dp),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showDocumentDetails = false }) {
+                                Text("Close", color = palette.accent)
+                            }
+                        }
                     }
                 },
-                confirmButton = {
-                    TextButton(onClick = { showDocumentDetails = false }) { Text("Close") }
-                }
+                confirmButton = {}
             )
         }
     }
@@ -2761,15 +2808,29 @@ private fun DocumentSummaryTileV2New(
     value: String,
     icon: ImageVector,
     palette: DocPaletteV2New,
-    modifier: Modifier
+    modifier: Modifier,
+    isShared: Boolean? = null
 ) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val tileBackground = when (isShared) {
+        true -> if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
+        false -> if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+        null -> palette.container
+    }
+    val tileAccent = when (isShared) {
+        true -> if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
+        false -> if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+        null -> palette.accent
+    }
     Card(modifier = modifier, shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = palette.container)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
+        colors = CardDefaults.cardColors(containerColor = tileBackground)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(icon, contentDescription = null, tint = palette.accent, modifier = Modifier.size(21.dp))
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = palette.muted, maxLines = 1)
+            Icon(icon, contentDescription = null, tint = tileAccent, modifier = Modifier.size(21.dp))
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                color = if (isShared != null) tileAccent else MaterialTheme.colorScheme.onSurface)
+            Text(label, style = MaterialTheme.typography.labelSmall,
+                color = if (isShared != null) tileAccent else palette.muted, maxLines = 1)
         }
     }
 }
@@ -2777,22 +2838,54 @@ private fun DocumentSummaryTileV2New(
 @Composable
 private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
     val shared = scope == "SHARED"
-    Surface(shape = RoundedCornerShape(10.dp), color = if (shared) palette.container else palette.surface2) {
-        Text(if (shared) "Shared" else "Personal",
-            Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold,
-            color = if (shared) palette.accent else palette.muted, maxLines = 1)
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val background = if (shared) {
+        if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
+    } else {
+        if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+    }
+    val foreground = if (shared) {
+        if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
+    } else {
+        if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+    }
+    Surface(shape = RoundedCornerShape(10.dp), color = background) {
+        Row(
+            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                if (shared) Icons.Outlined.Groups else Icons.Outlined.Person,
+                contentDescription = null,
+                tint = foreground,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(if (shared) "Shared" else "Personal",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold, color = foreground, maxLines = 1)
+        }
     }
 }
 
 @Composable
 private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVector) {
     ListItem(
-        headlineContent = { Text(label, style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant) },
-        supportingContent = { Text(value, style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface) },
-        leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+        modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = {
+            Text(label, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        },
+        supportingContent = {
+            Text(value, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface)
+        },
+        leadingContent = {
+            Icon(icon, contentDescription = null,
+                tint = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+                    Color(0xFFD2A8FF) else Color(0xFF7136B8))
+        }
     )
 }
 
