@@ -165,6 +165,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var moveDocumentTargetId by remember { mutableStateOf<String?>(null) }
     var moveDocumentTargetChosen by remember { mutableStateOf(false) }
     var showDeleteFolderConfirm by remember { mutableStateOf(false) }
+    var deleteFolderError by remember { mutableStateOf<String?>(null) }
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var search by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("all") }
@@ -1748,6 +1749,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
                         modifier = Modifier.clickable {
                             showFolderActions = false
+                            deleteFolderError = null
                             showDeleteFolderConfirm = true
                         }
                     )
@@ -1888,9 +1890,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             containerColor = MaterialTheme.colorScheme.surface,
 
             tonalElevation = 8.dp,
-            onDismissRequest = { showDeleteFolderConfirm = false },
+            onDismissRequest = { showDeleteFolderConfirm = false; deleteFolderError = null },
             title = { Text("Delete Empty Folder?") },
-            text = { Text("Only an empty folder can be deleted. Documents and subfolders must be moved first.") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Only an empty folder can be deleted. Documents and subfolders must be moved first.")
+                    deleteFolderError?.let { errorText ->
+                        Text(
+                            errorText,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(enabled = !busyDocument, onClick = {
                     val folder = selectedFolder ?: return@TextButton
@@ -1902,12 +1915,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
                             message = "Folder deleted."
                         } catch (error: Exception) {
-                            message = error.localizedMessage ?: error.message ?: "Folder could not be deleted."
+                            deleteFolderError = error.localizedMessage ?: error.message ?: "Folder could not be deleted."
                         } finally { busyDocument = false }
                     }
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { showDeleteFolderConfirm = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showDeleteFolderConfirm = false; deleteFolderError = null }) { Text("Cancel") } }
         )
     }
 
