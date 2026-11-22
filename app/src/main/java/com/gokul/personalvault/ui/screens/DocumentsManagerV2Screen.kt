@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Work
@@ -182,6 +183,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var uploadCategory by remember { mutableStateOf("other") }
     var uploadScope by remember { mutableStateOf("PERSONAL") }
     var uploadCategoryMenu by remember { mutableStateOf(false) }
+    var uploadFolderId by remember { mutableStateOf<String?>(null) }
+    var uploadFolderMenu by remember { mutableStateOf(false) }
     var replacementTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var pendingReplacement by remember { mutableStateOf<PendingDocumentReplacementV2?>(null) }
     var replacingDocument by remember { mutableStateOf(false) }
@@ -306,8 +309,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             }
             pendingUploads.clear()
             pendingUploads.addAll(selectedFiles)
-            uploadCategory = if (category == "all") "other" else category
-            uploadScope = if (visibility == "SHARED") "SHARED" else "PERSONAL"
+            val parentFolder = folders.firstOrNull { it.id == currentFolderId }
+            uploadCategory = parentFolder?.categoryId ?: if (category == "all") "other" else category
+            uploadScope = parentFolder?.scope ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
+            uploadFolderId = parentFolder?.id
             showAddDocuments = true
         } else {
             message = "No files selected."
@@ -370,6 +375,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                     ?: if (category == "all") "other" else category
                                 uploadScope = parentFolder?.scope
                                     ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
+                                uploadFolderId = parentFolder?.id
                                 showAddDocuments = true
                             } else {
                                 scannedFile.delete()
@@ -485,6 +491,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
         val parentFolder = folders.firstOrNull { it.id == currentFolderId }
         uploadCategory = parentFolder?.categoryId ?: if (category == "all") "other" else category
         uploadScope = parentFolder?.scope ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
+        uploadFolderId = parentFolder?.id
         showPhotoPreview = false
         showAddDocuments = true
     }
@@ -1211,13 +1218,13 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
                                 selected = uploadScope == "PERSONAL",
-                                onClick = { uploadScope = "PERSONAL" },
+                                onClick = { uploadScope = "PERSONAL"; uploadFolderId = null },
                                 label = { Text("Personal") },
                                 enabled = !uploading
                             )
                             FilterChip(
                                 selected = uploadScope == "SHARED",
-                                onClick = { uploadScope = "SHARED" },
+                                onClick = { uploadScope = "SHARED"; uploadFolderId = null },
                                 label = { Text("Shared") },
                                 enabled = !uploading
                             )
@@ -1247,11 +1254,48 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                 allCategories.forEach { (id, name) ->
                                     DropdownMenuItem(
                                         text = { Text(name) },
-                                        onClick = { uploadCategory = id; uploadCategoryMenu = false }
+                                        onClick = { uploadCategory = id; uploadFolderId = null; uploadCategoryMenu = false }
                                     )
                                 }
                             }
                         }
+                    }
+                    Text("Destination Folder", fontWeight = FontWeight.SemiBold)
+                    if (uploadParentFolder != null) {
+                        OutlinedButton(
+                            onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(uploadParentFolder.name, modifier = Modifier.weight(1f))
+                            Text("Current folder")
+                        }
+                    } else {
+                        val eligibleUploadFolders = folders.filter {
+                            it.categoryId == uploadCategory && it.scope == uploadScope &&
+                                (uploadScope == "SHARED" || it.ownerUid == memberUid)
+                        }.sortedBy { it.name.lowercase(Locale.ROOT) }
+                        Box {
+                            OutlinedButton(
+                                onClick = { uploadFolderMenu = true }, enabled = !uploading,
+                                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(uploadFolderId?.let { id -> eligibleUploadFolders.firstOrNull { it.id == id }?.name } ?: "Category root", modifier = Modifier.weight(1f))
+                                Text("⌄")
+                            }
+                            DropdownMenu(expanded = uploadFolderMenu, onDismissRequest = { uploadFolderMenu = false }) {
+                                DropdownMenuItem(text = { Text("Category root") }, onClick = {
+                                    uploadFolderId = null; uploadFolderMenu = false
+                                })
+                                eligibleUploadFolders.forEach { folder ->
+                                    DropdownMenuItem(text = { Text(folder.name) }, onClick = {
+                                        uploadFolderId = folder.id; uploadFolderMenu = false
+                                    })
+                                }
+                            }
+                        }
+                        Text("Choose where these files should be organised.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Divider()
                     pendingUploads.forEachIndexed { index, pending ->
@@ -1340,7 +1384,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                         )
                                     }
                                     if (index < currentUploadIndex) {
-                                        Icon(Icons.Outlined.Restore, contentDescription = "Completed",
+                                        Icon(Icons.Filled.CheckCircle, contentDescription = "Completed",
                                             tint = Color(0xFF31C56B))
                                     } else if (index == currentUploadIndex) {
                                         CircularProgressIndicator(progress = { itemProgress },
@@ -1361,8 +1405,11 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             Column(Modifier.fillMaxWidth().padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Uploading…", fontWeight = FontWeight.Bold)
-                                Text("${currentUploadIndex.coerceAtLeast(0) + 1} of ${pendingUploads.size} files uploaded",
-                                    style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    if (currentUploadIndex >= 0) "Uploading file ${currentUploadIndex + 1} of ${pendingUploads.size}"
+                                    else "Preparing upload…",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(),
                                     color = documentAccent)
                                 Text("Please keep the app open until upload is complete.",
@@ -1394,7 +1441,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                         repository.upload(
                                             vaultId, memberUid, pending.uri, context.contentResolver,
                                             pending.title.trim(), uploadCategory, pending.notes.trim(), uploadScope,
-                                            currentFolderId.takeIf { uploadCategory == category }
+                                            uploadFolderId
                                         ) { value ->
                                             currentFileProgress = value
                                             progress = (completed + value) / total.toFloat()
