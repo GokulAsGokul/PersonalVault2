@@ -1,5 +1,6 @@
 package com.gokul.personalvault.ui.screens
 
+import com.gokul.personalvault.ui.components.VaultSnackbarOverlay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -190,11 +191,7 @@ fun SharedDeviceApprovalPanelV2(
             }
 
             if (busy) CircularProgressIndicator()
-            if (message.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(message, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary)
-            }
+            VaultSnackbarOverlay(message = message, onDismiss = { message = "" })
         }
     }
 }
