@@ -151,6 +151,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var documents by remember { mutableStateOf<List<DocumentRecordV2>>(emptyList()) }
+    var documentsLoaded by remember { mutableStateOf(false) }
     var folders by remember { mutableStateOf<List<DocumentFolderV2>>(emptyList()) }
     var currentFolderId by remember { mutableStateOf<String?>(null) }
     var showCreateFolder by remember { mutableStateOf(false) }
@@ -200,6 +201,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var editCategory by remember { mutableStateOf("other") }
     var editScope by remember { mutableStateOf("PERSONAL") }
     var busyDocument by remember { mutableStateOf(false) }
+    var isDownloadingFile by remember { mutableStateOf(false) }
+    var downloadingFileName by remember { mutableStateOf("") }
+    var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
+    var downloadTotalBytes by remember { mutableLongStateOf(0L) }
     val pendingUploads = remember { mutableStateListOf<PendingDocumentUploadV2New>() }
     val uploadFormScrollState = rememberScrollState()
     var showAddDocuments by remember { mutableStateOf(false) }
@@ -247,7 +252,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         doc.data?.let { sharedDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
                     }
                     publishDocuments()
-                } else if (error != null) message = "Shared documents: ${error.localizedMessage ?: "Unable to load documents."}"
+                    documentsLoaded = true
+                } else if (error != null) {
+                    documentsLoaded = true
+                    message = "Shared documents: ${error.localizedMessage ?: "Unable to load documents."}"
+                }
             }
         val personalListener: ListenerRegistration = repository.personalDocumentsQuery(vaultId, memberUid)
             .addSnapshotListener { snapshot, error ->
@@ -257,7 +266,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         doc.data?.let { personalDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
                     }
                     publishDocuments()
-                } else if (error != null) message = "Personal documents: ${error.localizedMessage ?: "Unable to load documents."}"
+                    documentsLoaded = true
+                } else if (error != null) {
+                    documentsLoaded = true
+                    message = "Personal documents: ${error.localizedMessage ?: "Unable to load documents."}"
+                }
             }
         val categoriesListener = repository.customCategoryCollection(vaultId)
             .addSnapshotListener { snapshot, error ->
@@ -606,8 +619,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
         scope.launch {
             busyDocument = true
+            isDownloadingFile = true
+            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadTransferredBytes = 0L
+            downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
-                val file = repository.downloadToCache(context.cacheDir, vaultId, doc)
+                val file = repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
+                    downloadTransferredBytes = transferred.coerceAtLeast(0L)
+                    if (total > 0L) downloadTotalBytes = total
+                }
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                 val mimeType = doc.contentType.takeIf {
                     it.isNotBlank() && it != "application/octet-stream"
@@ -624,6 +644,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 message = error.localizedMessage ?: error.message ?: "Unable to open document."
             } finally {
                 busyDocument = false
+                isDownloadingFile = false
             }
         }
     }
@@ -865,9 +886,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
 
             if (isHome) {
-                // ── Home: Recent + Categories ──
+                // ── Home: summary, recent documents and categories ──
                 val recent = active.filter { visibility == "ALL" || it.scope == visibility }
                     .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(3)
+                item(key = "document_summary") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DocumentSummaryTileV2New("Documents", active.size.toString(), Icons.Outlined.Description, palette, Modifier.weight(1f))
+                        DocumentSummaryTileV2New("Folders", folders.size.toString(), Icons.Outlined.FolderOpen, palette, Modifier.weight(1f))
+                        DocumentSummaryTileV2New("Shared", active.count { it.scope == "SHARED" }.toString(), Icons.Outlined.Groups, palette, Modifier.weight(1f))
+                    }
+                }
                 item(key = "recent_header") {
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Recent", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -895,7 +923,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         fontWeight = FontWeight.Bold
                     )
                 }
-                items(allCategories.chunked(2)) { categoryRow ->
+                items(allCategories.chunked(3)) { categoryRow ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         categoryRow.forEach { (id, name) ->
                             val count = active.count {
@@ -917,7 +945,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             )
                         }
-                        repeat(2 - categoryRow.size) { Spacer(Modifier.weight(1f)) }
+                        repeat(3 - categoryRow.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
                 item(key = "recycle_row") {
@@ -2290,6 +2318,33 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
     }
 
+    if (isDownloadingFile) {
+        val total = downloadTotalBytes
+        val progressValue = if (total > 0L) {
+            (downloadTransferredBytes.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+        } else 0f
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Downloading document", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(downloadingFileName, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    LinearProgressIndicator(progress = { progressValue }, modifier = Modifier.fillMaxWidth(),
+                        color = documentAccent)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(formatDocumentBytesNew(downloadTransferredBytes), style = MaterialTheme.typography.bodySmall)
+                        Text(if (total > 0L) "of ${formatDocumentBytesNew(total)}" else "Calculating total…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(if (total > 0L) "${(progressValue * 100).toInt()}% downloaded" else "Downloading…",
+                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
     permanentDeleteTarget?.let { doc ->
         AlertDialog(
 
@@ -2344,24 +2399,39 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 onDismissRequest = { showDocumentDetails = false },
                 title = { Text("File Details") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(doc.originalFileName, fontWeight = FontWeight.Bold)
+                    Column(
+                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DocumentTypeIconNew(doc.contentType, Modifier.size(64.dp))
+                            Text(doc.title.ifBlank { doc.originalFileName }, fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge, maxLines = 2,
+                                overflow = TextOverflow.Ellipsis)
+                            Text(doc.originalFileName, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis)
+                            ScopeLabelV2New(doc.scope, palette)
+                        }
                         HorizontalDivider()
-                        ListItem(headlineContent = { Text("Location") },
-                            supportingContent = { Text("Documents / ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}") },
-                            leadingContent = { Icon(Icons.Outlined.FolderOpen, null) })
-                        ListItem(headlineContent = { Text("Access") },
-                            supportingContent = { Text(if (doc.scope == "SHARED") "Shared Vault" else "Personal Vault") },
-                            leadingContent = { Icon(Icons.Outlined.Groups, null) })
-                        ListItem(headlineContent = { Text("Added") },
-                            supportingContent = { Text(doc.uploadedAt?.toDate()?.toString() ?: "—") },
-                            leadingContent = { Icon(Icons.Outlined.CalendarToday, null) })
-                        ListItem(headlineContent = { Text("Modified") },
-                            supportingContent = { Text(doc.updatedAt?.toDate()?.toString() ?: "—") },
-                            leadingContent = { Icon(Icons.Outlined.History, null) })
-                        ListItem(headlineContent = { Text("Size") },
-                            supportingContent = { Text(formatDocumentBytesNew(doc.sizeBytes)) },
-                            leadingContent = { Icon(Icons.Outlined.Storage, null) })
+                        DocumentDetailRowV2New("Type", doc.contentType.substringAfter('/').uppercase().ifBlank { "File" }, Icons.Outlined.Description)
+                        DocumentDetailRowV2New("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
+                        DocumentDetailRowV2New("Location",
+                            "My Documents / ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
+                            Icons.Outlined.FolderOpen)
+                        DocumentDetailRowV2New("Added", doc.uploadedAt?.toDate()?.let {
+                            SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                        } ?: "—", Icons.Outlined.CalendarToday)
+                        DocumentDetailRowV2New("Modified", doc.updatedAt?.toDate()?.let {
+                            SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                        } ?: "—", Icons.Outlined.History)
+                        DocumentDetailRowV2New("Visibility",
+                            if (doc.scope == "SHARED") "Shared with household members" else "Personal (Only you)",
+                            Icons.Outlined.Groups)
                     }
                 },
                 confirmButton = {
@@ -2649,26 +2719,49 @@ private fun Modifier.dashedBorderV2New(color: Color, radius: androidx.compose.ui
 // ───────────────────────── Redesign: components ─────────────────────────
 
 @Composable
-private fun ScopePillV2New(document: DocumentRecordV2, mine: Boolean, palette: DocPaletteV2New) {
-    val shared = document.scope == "SHARED"
-    val label = when {
-        !shared -> "Personal"
-        mine -> "Shared"
-        else -> "From partner"
+private fun DocumentSummaryTileV2New(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    palette: DocPaletteV2New,
+    modifier: Modifier
+) {
+    Card(modifier = modifier, shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.container)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, contentDescription = null, tint = palette.accent, modifier = Modifier.size(21.dp))
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = palette.muted, maxLines = 1)
+        }
     }
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = if (shared) palette.container else palette.surface2
-    ) {
-        Text(
-            label,
+}
+
+@Composable
+private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
+    val shared = scope == "SHARED"
+    Surface(shape = RoundedCornerShape(10.dp), color = if (shared) palette.container else palette.surface2) {
+        Text(if (shared) "Shared" else "Personal",
             Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = if (shared) palette.accent else palette.muted,
-            maxLines = 1
-        )
+            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold,
+            color = if (shared) palette.accent else palette.muted, maxLines = 1)
     }
+}
+
+@Composable
+private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVector) {
+    ListItem(
+        headlineContent = { Text(label, style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        supportingContent = { Text(value, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface) },
+        leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+    )
+}
+
+@Composable
+private fun ScopePillV2New(document: DocumentRecordV2, mine: Boolean, palette: DocPaletteV2New) {
+    ScopeLabelV2New(document.scope, palette)
 }
 
 @Composable
@@ -2842,11 +2935,7 @@ private fun FolderCardV2New(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                Text(
-                    folder.scope.lowercase().replaceFirstChar { it.uppercase() },
-                    color = palette.muted,
-                    style = MaterialTheme.typography.labelSmall
-                )
+                ScopeLabelV2New(folder.scope, palette)
             }
             if (isOwner) {
                 IconButton(onClick = onMore, modifier = Modifier.size(40.dp)) {
