@@ -332,6 +332,7 @@ fun PasswordManagerV2Screen(
                         message = "Password saved securely to your vault."
 
                     } catch (error: Exception) {
+                        showAddDialog = false
                         message = error.localizedMessage
                             ?: "Unable to save password."
                     } finally {
@@ -382,6 +383,7 @@ fun PasswordManagerV2Screen(
                         reloadPasswords()
                         message = "Password updated securely."
                     } catch (error: Exception) {
+                        recordToEdit = null
                         message = error.localizedMessage ?: "Unable to update password."
                     } finally { saving = false }
                 }
@@ -407,6 +409,7 @@ fun PasswordManagerV2Screen(
                             reloadPasswords()
                             message = "Password deleted."
                         } catch (error: Exception) {
+                            recordToDelete = null
                             message = error.localizedMessage ?: "Unable to delete password."
                         } finally { saving = false }
                     }
