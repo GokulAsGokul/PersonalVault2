@@ -150,6 +150,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var currentFolderId by remember { mutableStateOf<String?>(null) }
     var showCreateFolder by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
+    var newFolderCategory by remember { mutableStateOf("other") }
+    var folderCategoryMenuExpanded by remember { mutableStateOf(false) }
     var newFolderScope by remember { mutableStateOf("PERSONAL") }
     var selectedFolder by remember { mutableStateOf<DocumentFolderV2?>(null) }
     var showFolderActions by remember { mutableStateOf(false) }
@@ -686,6 +688,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     fun startCreateFolder() {
         newFolderName = ""
+        newFolderCategory = if (category == "all") "other" else category
         newFolderScope = currentFolderId?.let { id ->
             folders.firstOrNull { it.id == id }?.scope
         } ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
@@ -1123,13 +1126,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     leadingContent = { Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.clickable {
                         showAddOptions = false
-                        if (category == "all") {
-                            message = "Choose a category before creating a folder."
-                        } else {
-                            newFolderName = ""
-                            newFolderScope = if (visibility == "SHARED") "SHARED" else "PERSONAL"
-                            showCreateFolder = true
-                        }
+                        startCreateFolder()
                     }
                 )
                 ListItem(
@@ -1815,7 +1812,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     it.categoryId == folder.categoryId && it.scope == folder.scope &&
                     (folder.scope == "SHARED" || it.ownerUid == folder.ownerUid) &&
                     it.id != folder.parentFolderId
-            }.sortedBy { it.name.lowercase(Locale.ROOT) }
+            }
+        val orderedEligibleFolders = buildList {
+            val visited = mutableSetOf<String>()
+            fun appendChildren(parentId: String?) {
+                eligibleFolders.filter { it.parentFolderId == parentId }
+                    .sortedBy { it.name.lowercase(Locale.ROOT) }
+                    .forEach { folder ->
+                        if (visited.add(folder.id)) {
+                            add(folder)
+                            appendChildren(folder.id)
+                        }
+                    }
+            }
+            appendChildren(null)
+        }
             AlertDialog(
 
                 shape = RoundedCornerShape(24.dp),
@@ -1936,6 +1947,23 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     val parentScope = currentFolderId?.let { id ->
                         folders.firstOrNull { it.id == id }?.scope
                     }
+                    if (category == "all" && currentFolderId == null) {
+                        Text("Category", style = MaterialTheme.typography.labelMedium)
+                        Box {
+                            OutlinedButton(onClick = { folderCategoryMenuExpanded = true }) {
+                                Text(allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other")
+                                Icon(Icons.Outlined.ArrowDropDown, null)
+                            }
+                            DropdownMenu(expanded = folderCategoryMenuExpanded, onDismissRequest = { folderCategoryMenuExpanded = false }) {
+                                allCategories.forEach { (id, label) ->
+                                    DropdownMenuItem(text = { Text(label) }, onClick = {
+                                        newFolderCategory = id
+                                        folderCategoryMenuExpanded = false
+                                    })
+                                }
+                            }
+                        }
+                    }
                     Text("Visibility", style = MaterialTheme.typography.labelMedium)
                     if (parentScope != null) {
                         Text(
@@ -1967,7 +1995,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             busyDocument = true
                             try {
                                 repository.createFolder(
-                                    vaultId, memberUid, newFolderName, category, currentFolderId, newFolderScope
+                                    vaultId, memberUid, newFolderName,
+                                    if (category == "all") newFolderCategory else category,
+                                    currentFolderId, newFolderScope
                                 )
                                 showCreateFolder = false
                                 message = "Folder created."
@@ -2029,7 +2059,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        eligibleFolders.forEach { folder ->
+                        orderedEligibleFolders.forEach { folder ->
                             val depth = generateSequence(folder.parentFolderId) { parentId ->
                                 eligibleFolders.firstOrNull { it.id == parentId }?.parentFolderId
                             }.take(8).count()
