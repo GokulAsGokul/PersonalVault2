@@ -28,6 +28,10 @@ import com.gokul.personalvault.data.firebase.RecoveryBackupRepositoryV2
 import com.gokul.personalvault.data.local.VaultKeyLocalStoreV2
 import com.gokul.personalvault.data.local.VaultKeySessionV2
 import com.google.firebase.auth.FirebaseAuth
+import com.gokul.personalvault.ui.components.VaultSnackbarController
+import com.gokul.personalvault.ui.components.VaultSnackbarHost
+import com.gokul.personalvault.ui.components.VaultSnackbarType
+import com.gokul.personalvault.ui.components.triggerVaultErrorVibration
 
 enum class VaultV2Destination { HOME, PASSWORDS, DOCUMENTS, PERSONAL_INFO, HOUSEHOLD, SETTINGS }
 
@@ -47,8 +51,25 @@ fun VaultDashboardNavigationV2(
     var vaultUnlocked by remember { mutableStateOf(isVaultUnlocked) }
     LaunchedEffect(isVaultUnlocked) { vaultUnlocked = isVaultUnlocked }
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val activeNotice = VaultSnackbarController.notice
+
+    LaunchedEffect(activeNotice?.id) {
+        val notice = activeNotice ?: return@LaunchedEffect
+        if (notice.type == VaultSnackbarType.ERROR) {
+            triggerVaultErrorVibration(context)
+        }
+        snackbarHostState.showSnackbar(notice.message)
+        VaultSnackbarController.clear(notice.id)
+    }
 
     Scaffold(
+        snackbarHost = {
+            VaultSnackbarHost(
+                hostState = snackbarHostState,
+                type = activeNotice?.type ?: VaultSnackbarType.INFO
+            )
+        },
         containerColor = Color(0xFFF4F6FB),
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
