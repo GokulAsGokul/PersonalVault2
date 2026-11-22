@@ -925,7 +925,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
                 if (recent.isEmpty()) {
                     item(key = "recent_empty") {
-                        EmptyStateV2New(palette, "No documents yet", "Tap Add to upload, scan or photograph your first file.")
+                        EmptyStateV2New(
+                            palette,
+                            "No documents yet",
+                            "Upload documents, scan a paper or capture a photo to get started.",
+                            actionLabel = "Add Documents",
+                            onAction = { showAddOptions = true }
+                        )
                     }
                 } else {
                     items(recent, key = { "recent-${it.id}" }) { doc ->
@@ -1120,8 +1126,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     item(key = "empty") {
                         EmptyStateV2New(
                             palette,
-                            if (recycleBin) "Recycle Bin is empty" else "No documents found",
-                            if (recycleBin) "Deleted files will appear here." else "Upload a file to get started."
+                            if (recycleBin) "Recycle Bin is empty" else if (search.isNotBlank()) "No matching documents" else "No documents found",
+                            if (recycleBin) "Deleted files will appear here."
+                            else if (search.isNotBlank()) "Try another name or clear your search."
+                            else "Upload a file to get started.",
+                            actionLabel = when {
+                                recycleBin -> null
+                                search.isNotBlank() -> "Clear Search"
+                                else -> "Add Documents"
+                            },
+                            onAction = {
+                                if (search.isNotBlank()) search = "" else showAddOptions = true
+                            }
                         )
                     }
                 } else if (grid) {
@@ -2987,7 +3003,13 @@ private fun NewFolderCardV2New(palette: DocPaletteV2New, modifier: Modifier, onC
 }
 
 @Composable
-private fun EmptyStateV2New(palette: DocPaletteV2New, title: String, body: String) {
+private fun EmptyStateV2New(
+    palette: DocPaletteV2New,
+    title: String,
+    body: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
     Card(
         Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -3004,7 +3026,19 @@ private fun EmptyStateV2New(palette: DocPaletteV2New, title: String, body: Strin
                 }
             }
             Text(title, fontWeight = FontWeight.SemiBold)
-            Text(body, color = palette.muted, style = MaterialTheme.typography.bodySmall)
+            Text(body, color = palette.muted, style = MaterialTheme.typography.bodySmall,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            if (actionLabel != null && onAction != null) {
+                Button(
+                    onClick = onAction,
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.accent, contentColor = palette.onAccent),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(actionLabel)
+                }
+            }
         }
     }
 }
