@@ -1,5 +1,6 @@
 package com.gokul.personalvault.ui.screens
 
+import com.gokul.personalvault.ui.components.VaultSnackbarOverlay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -94,10 +95,7 @@ fun MasterPasswordV2Screen(
                         Text("Use at least 12 characters, including uppercase, lowercase, a number and a special character.",
                             style = MaterialTheme.typography.bodySmall)
                     }
-                    if (message.isNotBlank()) {
-                        Spacer(Modifier.height(12.dp))
-                        Text(message, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-                    }
+                    VaultSnackbarOverlay(message = message, onDismiss = { message = "" })
                     Spacer(Modifier.height(18.dp))
                     Button(
                         modifier = Modifier.fillMaxWidth(), enabled = !loading,
