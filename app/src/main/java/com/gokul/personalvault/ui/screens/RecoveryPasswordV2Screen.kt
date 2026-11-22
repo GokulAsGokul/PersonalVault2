@@ -1,5 +1,6 @@
 package com.gokul.personalvault.ui.screens
 
+import com.gokul.personalvault.ui.components.VaultSnackbarOverlay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -221,10 +222,7 @@ fun RecoveryPasswordV2Screen(
                         else Text(if (selectedMode == "create") "Create secure backup" else "Restore and unlock vault")
                     }
 
-                    if (message.isNotBlank()) {
-                        Spacer(Modifier.height(12.dp))
-                        Text(message, color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-                    }
+                    VaultSnackbarOverlay(message = message, onDismiss = { message = "" })
                 }
             }
 
