@@ -5,15 +5,11 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarDefaults
-import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -69,11 +65,11 @@ fun classifyVaultSnackbar(message: String): VaultSnackbarType {
     return when {
         listOf("unable", "failed", "failure", "error", "could not", "cannot", "can't",
             "not allowed", "not available", "denied", "invalid", "must ", "please select",
-            "please enter", "too large", "exceed", "cancelled", "canceled", "only an empty",
+            "please enter", "enter ", "select ", "choose ", "required", "do not match", "does not match", "too large", "exceed", "cancelled", "canceled", "only an empty",
             "no files", "duplicate", "already exists", "does not", "did not")
             .any(value::contains) -> VaultSnackbarType.ERROR
         listOf("success", "saved", "created", "updated", "deleted", "restored",
-            "uploaded", "moved", "copied", "ready", "approved", "unlocked",
+            "uploaded", "moved", "copied", "ready", "approved", "unlocked", "revoked",
             "started", "queued", "replaced", "verified")
             .any(value::contains) -> VaultSnackbarType.SUCCESS
         else -> VaultSnackbarType.INFO
@@ -105,7 +101,7 @@ fun VaultSnackbarOverlay(
         }
         Popup(
             alignment = Alignment.BottomCenter,
-            offset = IntOffset(0, -48),
+            offset = IntOffset(0, -180),
             onDismissRequest = onDismiss,
             properties = PopupProperties(focusable = false)
         ) {
