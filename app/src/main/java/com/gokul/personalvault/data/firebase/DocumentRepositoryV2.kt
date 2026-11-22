@@ -150,11 +150,14 @@ class DocumentRepositoryV2(
         require(cleanName.isNotEmpty() && cleanName.length <= 30) {
             "Folder name must be between 1 and 30 characters."
         }
-        val siblings = folderCollection(vaultId)
+        var siblingsQuery = folderCollection(vaultId)
             .whereEqualTo("categoryId", folder.categoryId)
             .whereEqualTo("parentFolderId", folder.parentFolderId)
             .whereEqualTo("scope", folder.scope)
-            .get().await()
+        if (folder.scope == "PERSONAL") {
+            siblingsQuery = siblingsQuery.whereEqualTo("ownerUid", folder.ownerUid)
+        }
+        val siblings = siblingsQuery.get().await()
         val nameLower = cleanName.lowercase(Locale.ROOT)
         require(siblings.documents.none {
             it.id != folder.id && it.getString("nameLower") == nameLower
