@@ -226,8 +226,16 @@ fun RecoveryPasswordV2Screen(
                                                     isError = false
                                                     clearRecoveryFields()
                                                 },
-                                                onFailure = {
-                                                    showError(it.localizedMessage ?: "Could not create recovery backup.")
+                                                onFailure = { error ->
+                                                    val failure = error.localizedMessage ?: "Could not create recovery backup."
+                                                    if (failure.contains("unlock your vault", ignoreCase = true)) {
+                                                        VaultSnackbarController.show(
+                                                            "Unlock your vault before creating a recovery backup.",
+                                                            VaultSnackbarType.INFO
+                                                        )
+                                                    } else {
+                                                        showError(failure)
+                                                    }
                                                     clearRecoveryFields()
                                                 }
                                             )
