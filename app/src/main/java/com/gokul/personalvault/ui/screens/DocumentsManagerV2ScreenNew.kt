@@ -97,6 +97,8 @@ import com.gokul.personalvault.VaultExternalActivityState
 import com.gokul.personalvault.data.firebase.DocumentRepositoryV2
 import com.gokul.personalvault.ui.components.VaultSnackbarHost
 import com.gokul.personalvault.ui.components.classifyVaultSnackbar
+import com.gokul.personalvault.ui.components.VaultSnackbarController
+import com.gokul.personalvault.ui.components.VaultSnackbarType
 import com.gokul.personalvault.data.model.BuiltInDocumentCategoriesV2
 import com.gokul.personalvault.data.model.DocumentRecordV2
 import com.gokul.personalvault.data.model.DocumentFolderV2
@@ -224,7 +226,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     // progress banner at the top of the list shows the live message instead.
     LaunchedEffect(message, uploading) {
         if (message.isNotBlank() && !uploading) {
-            snackbarHostState.showSnackbar(message)
+            VaultSnackbarController.show(message, classifyVaultSnackbar(message))
             message = ""
         }
     }
@@ -720,7 +722,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { VaultSnackbarHost(snackbarHostState, classifyVaultSnackbar(message)) },
         floatingActionButton = {
             if (!recycleBin) ExtendedFloatingActionButton(
                 onClick = { showAddOptions = true },
@@ -1789,6 +1790,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             showRenameFolder = false
                             message = "Folder renamed."
                         } catch (error: Exception) {
+                            showRenameFolder = false
                             message = error.localizedMessage ?: error.message ?: "Unable to rename folder."
                         } finally { busyDocument = false }
                     }
@@ -1917,7 +1919,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
                             message = "Folder deleted."
                         } catch (error: Exception) {
-                            deleteFolderError = error.localizedMessage ?: error.message ?: "Folder could not be deleted."
+                            val failure = error.localizedMessage ?: error.message ?: "Folder could not be deleted."
+                            showDeleteFolderConfirm = false
+                            deleteFolderError = null
+                            VaultSnackbarController.show(failure, VaultSnackbarType.ERROR)
                         } finally { busyDocument = false }
                     }
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
