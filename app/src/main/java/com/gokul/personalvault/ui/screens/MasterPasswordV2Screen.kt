@@ -4,7 +4,6 @@ import com.gokul.personalvault.ui.components.VaultSnackbarHost
 import com.gokul.personalvault.ui.components.classifyVaultSnackbar
 import com.gokul.personalvault.ui.components.triggerVaultErrorVibration
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -144,7 +143,7 @@ fun MasterPasswordV2Screen(
                                         onSuccess = { key -> onUnlocked(key) },
                                         onFailure = { e ->
                                             error = true
-                                            message = e.localizedMessage ?: "Unable to unlock the vault. Check your master password."
+                                            message = "Unable to unlock the vault. ${e.localizedMessage ?: "Check your master password."}"
                                         }
                                     )
                                 }
