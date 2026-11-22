@@ -177,6 +177,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var editScope by remember { mutableStateOf("PERSONAL") }
     var busyDocument by remember { mutableStateOf(false) }
     val pendingUploads = remember { mutableStateListOf<PendingDocumentUploadV2>() }
+    val uploadFormScrollState = rememberScrollState()
     var showAddDocuments by remember { mutableStateOf(false) }
     var showAddOptions by remember { mutableStateOf(false) }
     var showDocumentDetails by remember { mutableStateOf(false) }
@@ -194,6 +195,10 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
     var pendingScanFile by remember { mutableStateOf<File?>(null) }
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoPreview by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showAddDocuments) {
+        if (showAddDocuments) uploadFormScrollState.scrollTo(0)
+    }
 
     DisposableEffect(vaultId) {
         val sharedDocs = mutableMapOf<String, DocumentRecordV2>()
@@ -1191,7 +1196,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
             title = { Text("Add Documents") },
             text = {
                 Column(
-                    Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                    Modifier.fillMaxWidth().heightIn(max = 680.dp).verticalScroll(uploadFormScrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT files selected",
