@@ -1,6 +1,8 @@
 package com.gokul.personalvault.ui.screens
 
-import com.gokul.personalvault.ui.components.VaultSnackbarOverlay
+import com.gokul.personalvault.ui.components.VaultSnackbarHost
+import com.gokul.personalvault.ui.components.classifyVaultSnackbar
+import com.gokul.personalvault.ui.components.triggerVaultErrorVibration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -14,13 +16,17 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gokul.personalvault.data.firebase.VaultRepositoryV2
 
@@ -34,17 +40,34 @@ import com.gokul.personalvault.data.firebase.VaultRepositoryV2
 fun VaultSetupV2Screen(
     onBack: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     var isLoading by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
+
+    LaunchedEffect(resultMessage) {
+        if (resultMessage.isNotBlank()) {
+            if (isError) triggerVaultErrorVibration(context)
+            snackbarHostState.showSnackbar(resultMessage)
+            resultMessage = ""
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = {
+                VaultSnackbarHost(snackbarHostState, classifyVaultSnackbar(resultMessage))
+            }
+        ) { contentPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(contentPadding)
                 .padding(24.dp),
             verticalArrangement = Arrangement.Center
         ) {
@@ -112,8 +135,6 @@ fun VaultSetupV2Screen(
                         }
                     }
 
-                    VaultSnackbarOverlay(message = resultMessage, onDismiss = { resultMessage = "" })
-
                 }
             }
 
@@ -126,6 +147,7 @@ fun VaultSetupV2Screen(
                     Text("Back")
                 }
             }
+        }
         }
     }
 }
