@@ -110,11 +110,14 @@ class DocumentRepositoryV2(
             }
         }
 
-        val siblings = folderCollection(vaultId)
+        var siblingsQuery = folderCollection(vaultId)
             .whereEqualTo("categoryId", categoryId)
             .whereEqualTo("parentFolderId", parentFolderId)
             .whereEqualTo("scope", scope)
-            .get().await()
+        if (scope == "PERSONAL") {
+            siblingsQuery = siblingsQuery.whereEqualTo("ownerUid", ownerUid)
+        }
+        val siblings = siblingsQuery.get().await()
         val nameLower = cleanName.lowercase(Locale.ROOT)
         require(siblings.documents.none {
             it.getString("nameLower") == nameLower
