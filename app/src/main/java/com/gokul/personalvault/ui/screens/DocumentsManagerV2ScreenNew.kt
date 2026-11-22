@@ -2007,6 +2007,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 showCreateFolder = false
                                 message = "Folder created."
                             } catch (error: Exception) {
+                                showCreateFolder = false
                                 message = error.localizedMessage ?: error.message ?: "Unable to create folder."
                             } finally {
                                 busyDocument = false
