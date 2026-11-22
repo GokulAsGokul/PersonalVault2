@@ -124,7 +124,13 @@ fun RecoveryPasswordV2Screen(
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Recovery password") },
                         singleLine = true,
-                        visualTransformation = if (showPasswords) VisualTransformation.None else PasswordVisualTransformation()
+                        visualTransformation = if (showPasswords) VisualTransformation.None else PasswordVisualTransformation(),
+                        isError = fieldError?.startsWith("Recovery password must") == true,
+                        supportingText = {
+                            if (fieldError?.startsWith("Recovery password must") == true) {
+                                Text(fieldError!!, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
                     )
 
                     if (selectedMode == "create") {
@@ -135,7 +141,13 @@ fun RecoveryPasswordV2Screen(
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("Confirm recovery password") },
                             singleLine = true,
-                            visualTransformation = PasswordVisualTransformation()
+                            visualTransformation = PasswordVisualTransformation(),
+                            isError = fieldError == "Recovery passwords do not match.",
+                            supportingText = {
+                                if (fieldError == "Recovery passwords do not match.") {
+                                    Text(fieldError!!, color = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         )
                         PasswordRequirements()
                     } else {
@@ -151,7 +163,13 @@ fun RecoveryPasswordV2Screen(
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("New master password") },
                             singleLine = true,
-                            visualTransformation = if (showPasswords) VisualTransformation.None else PasswordVisualTransformation()
+                            visualTransformation = if (showPasswords) VisualTransformation.None else PasswordVisualTransformation(),
+                            isError = fieldError?.startsWith("New master password must") == true,
+                            supportingText = {
+                                if (fieldError?.startsWith("New master password must") == true) {
+                                    Text(fieldError!!, color = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         )
                         Spacer(Modifier.height(10.dp))
                         OutlinedTextField(
@@ -160,7 +178,13 @@ fun RecoveryPasswordV2Screen(
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("Confirm new master password") },
                             singleLine = true,
-                            visualTransformation = PasswordVisualTransformation()
+                            visualTransformation = PasswordVisualTransformation(),
+                            isError = fieldError == "New master passwords do not match.",
+                            supportingText = {
+                                if (fieldError == "New master passwords do not match.") {
+                                    Text(fieldError!!, color = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         )
                         PasswordRequirements()
                     }
@@ -170,13 +194,6 @@ fun RecoveryPasswordV2Screen(
                     }
                     Spacer(Modifier.height(14.dp))
 
-                    fieldError?.let { validation ->
-                        Text(
-                            validation,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
                     Button(
                         onClick = {
                             message = ""
