@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import com.gokul.personalvault.data.firebase.PasswordRepositoryFirestoreV2
 import com.gokul.personalvault.ui.components.VaultSnackbarHost
 import com.gokul.personalvault.ui.components.classifyVaultSnackbar
+import com.gokul.personalvault.ui.components.VaultSnackbarController
 import com.gokul.personalvault.data.model.PasswordRecordV2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -134,10 +135,9 @@ fun PasswordManagerV2Screen(
     var message by remember {
         mutableStateOf("")
     }
-    val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(message) {
         if (message.isNotBlank()) {
-            snackbarHostState.showSnackbar(message)
+            VaultSnackbarController.show(message, classifyVaultSnackbar(message))
             message = ""
         }
     }
@@ -194,7 +194,6 @@ fun PasswordManagerV2Screen(
         }
 
     Scaffold(
-        snackbarHost = { VaultSnackbarHost(snackbarHostState, classifyVaultSnackbar(message)) },
         containerColor = PvBackground,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
