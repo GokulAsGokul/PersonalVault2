@@ -72,6 +72,11 @@ fun RecoveryPasswordV2Screen(
         fieldError = value
     }
 
+    fun showError(value: String) {
+        isError = true
+        message = value
+    }
+
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
