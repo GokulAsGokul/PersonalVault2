@@ -1,7 +1,10 @@
 package com.gokul.personalvault.ui.screens
 
-import com.gokul.personalvault.ui.components.VaultSnackbarOverlay
+import com.gokul.personalvault.ui.components.VaultSnackbarHost
+import com.gokul.personalvault.ui.components.classifyVaultSnackbar
+import com.gokul.personalvault.ui.components.triggerVaultErrorVibration
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +20,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +49,7 @@ fun MasterPasswordV2Screen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     val isSetup = remember(vaultId, memberUid) {
         !VaultKeyLocalStoreV2.hasMasterPassword(context, memberUid, vaultId)
     }
@@ -55,13 +61,29 @@ fun MasterPasswordV2Screen(
     var error by remember { mutableStateOf(false) }
     var fieldError by remember { mutableStateOf<String?>(null) }
 
+    LaunchedEffect(message) {
+        if (message.isNotBlank()) {
+            if (classifyVaultSnackbar(message) == com.gokul.personalvault.ui.components.VaultSnackbarType.ERROR) {
+                triggerVaultErrorVibration(context)
+            }
+            snackbarHostState.showSnackbar(message)
+            message = ""
+        }
+    }
+
     val strongEnough = password.length >= 12 && password.any(Char::isUpperCase) &&
             password.any(Char::isLowerCase) && password.any(Char::isDigit) &&
             password.any { !it.isLetterOrDigit() }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = {
+                VaultSnackbarHost(snackbarHostState, classifyVaultSnackbar(message))
+            }
+        ) { contentPadding ->
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+            Modifier.fillMaxSize().padding(contentPadding).verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.Center
         ) {
             Text(if (isSetup) "Create master password" else "Unlock your vault",
@@ -98,7 +120,6 @@ fun MasterPasswordV2Screen(
                         Text("Use at least 12 characters, including uppercase, lowercase, a number and a special character.",
                             style = MaterialTheme.typography.bodySmall)
                     }
-                    VaultSnackbarOverlay(message = message, onDismiss = { message = "" })
                     Spacer(Modifier.height(18.dp))
                     Button(
                         modifier = Modifier.fillMaxWidth(), enabled = !loading,
@@ -135,6 +156,7 @@ fun MasterPasswordV2Screen(
                     TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth(), enabled = !loading) { Text("Back to dashboard") }
                 }
             }
+        }
         }
     }
 }
