@@ -1938,7 +1938,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Box {
                             OutlinedButton(onClick = { folderCategoryMenuExpanded = true }) {
                                 Text(allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other")
-                                Icon(Icons.Outlined.ArrowDropDown, null)
                             }
                             DropdownMenu(expanded = folderCategoryMenuExpanded, onDismissRequest = { folderCategoryMenuExpanded = false }) {
                                 allCategories.forEach { (id, label) ->
