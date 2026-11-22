@@ -1,93 +1,148 @@
 # Personal Vault 2.0
 
-An Android-based personal and household vault built with Kotlin, Jetpack Compose, Material 3 and Firebase.
+A Kotlin Android application for securely managing personal and household passwords and documents.
 
-> **Project status:** Active development. This README describes the implementation present in the reviewed source branch; it is not a guarantee that every feature has passed end-to-end testing or is deployed in Firebase.
+> **Release baseline:** Production branch snapshot reviewed on 22 November 2026. This document describes source code present in the repository. It does not certify that Firebase resources have been deployed, that all workflows have passed end-to-end testing, or that the application has completed a formal security assessment.
 
-## Current project baseline
+## Current production baseline
 
-- **Repository:** [GokulAsGokul/PersonalVault2](https://github.com/GokulAsGokul/PersonalVault2)
-- **Branch reviewed:** `feature/approved-shared-device-access`
-- **Baseline reviewed:** `db70c8c77de3725c4e7f5dafbdc77f45faa3a281`
-- **Status report:** [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
-
-## Technology stack
-
-- Kotlin, Android and Jetpack Compose
-- Material 3
-- Firebase Authentication
-- Cloud Firestore
-- Firebase Cloud Functions (callable functions in `asia-south1`)
-- AES-256-GCM, Argon2id and RSA-OAEP-256 for the implemented key/encryption workflows
-
-## Implemented features
-
-### Authentication and vault foundation
-- Email/password authentication UI and email-verification checks.
-- Separate Firebase user identities.
-- V2 personal vault creation and active-vault resolution.
-- Master-password setup and unlock.
-- Encrypted local vault-key envelope and in-memory key session.
-
-### Password Manager
-- Personal and Shared password scopes.
-- Add and list encrypted password records.
-- Personal records encrypted with the member's vault key.
-- Shared records encrypted with the household key.
-- Search and category filtering.
-- Password details, show/hide and copy actions.
-
-**Not yet present in the reviewed Password Manager:** edit, delete, password history and password generator.
-
-### Household and shared-device access
-- One-time household join codes with expiry.
-- Membership request, owner approval and rejection.
-- Maximum two household members enforced by backend logic.
-- Per-device registration and owner approval.
-- RSA-wrapped household-key envelopes and shared-key unlock workflow.
-
-Membership approval and device approval are distinct. After a member device is approved, the owner must still provision the household-key envelope to that device.
-
-### Recovery
-- Encrypted recovery backup creation and verification.
-- Active backup pointer.
-- Recovery restore and local import under a new master password.
-
-## Current UI/module status
-
-| Module | Status in reviewed source |
+| Item | Value |
 |---|---|
-| Home/dashboard | Implemented |
-| Password Manager | Add, list, search, filter and view |
-| Household | Membership and device workflows |
-| Settings / Recovery | Backup and restore |
-| Documents | Placeholder; management not implemented |
-| Personal Information | Placeholder |
-| Finance | No working V2 module identified |
-| Secure Notes | No V2 implementation identified |
+| Repository | [GokulAsGokul/PersonalVault2](https://github.com/GokulAsGokul/PersonalVault2) |
+| Branch | `production` |
+| Baseline commit | `c69e9511bd535d1f6d15e25c4d2cca7245de760c` |
+| Android application ID | `com.gokul.personalvault` |
+| Version name / code | `0.1.0` / `1` |
+| Minimum / target SDK | 26 / 36 |
+| Compile SDK | 36 |
+| JVM target | 17 |
+| UI | Jetpack Compose, Material 3 |
+| Backend | Firebase Authentication, Cloud Firestore, Firebase Storage, Cloud Functions |
 
-## Planned / pending work
+## Current implemented functionality
 
-1. Stabilize Password Manager permissions and add edit/delete.
-2. Documents Manager: upload/download, folders, subfolders and preview.
-3. Secure Notes: CRUD and attachments.
-4. Finance: accounts, income, expenses, transfers, India/Oman currency handling and lending/borrowing.
-5. Credit cards: statements, partial payments and due-date reminders.
-6. Reports and Excel/PDF exports.
-7. App PIN/biometric lock, menu-level permissions, device revocation and key rotation.
-8. Offline synchronization and comprehensive security, integration and UI regression testing.
+### 1. Authentication and vault access
+- Email/password registration and sign-in through Firebase Authentication.
+- Email-verification checks before protected vault operations.
+- Separate Firebase user identities.
+- Personal V2 vault creation and active-vault resolution.
+- Master-password setup and unlock.
+- Encrypted local vault-key envelope and in-memory key session handling.
+- Vault key session is cleared on sign-out.
 
-## Important Firebase verification note
+### 2. Password Manager
+- Create, view, edit and delete password records.
+- Personal and Shared password scopes.
+- AES-256-GCM encrypted password payloads.
+- Personal records use the member vault key; Shared records use the household key.
+- Search and category filtering.
+- Sort controls.
+- Password details with show/hide and copy actions.
+- Custom categories.
+- Password strength indicator.
+- Optional expiry date and scheduled reminders at 7, 3 and 1 days before expiry (subject to notification permission and Android scheduling conditions).
 
-The reviewed repository's `firestore.rules` includes vault, recovery, device and shared-key-envelope rules, but does not include a dedicated rule for the `vaultsV2/{vaultId}/passwords/{passwordId}` collection. The password repository uses the lowercase collection name `passwords`. Firestore paths are case-sensitive and unmatched paths are denied by default.
+### 3. Household membership and shared-device access
+- One-time household join codes with 15-minute expiry and single-use handling.
+- Join request submission from a separate authenticated account.
+- Owner-side membership request listing, approval and rejection.
+- Backend maximum of two household members.
+- Device registration using device public keys.
+- Owner approval of member devices.
+- RSA-OAEP-256 wrapped household-key envelopes for approved devices.
 
-Before changing password functionality, compare the deployed Firestore rules and actual Firestore paths with the repository. Do not weaken approved-device checks or delete existing encrypted data as a workaround.
+**Important workflow distinction:** membership approval and device approval are separate. The owner must provision the household-key envelope after approving a member device.
 
-## Documentation
+### 4. Recovery
+- Create and verify an encrypted recovery backup.
+- Maintain an active recovery backup pointer.
+- Restore the vault key with the recovery password.
+- Import the restored key under a new local master password.
 
-- [Current project status and detailed feature inventory](docs/PROJECT-STATUS.md)
-- [Stage 1 starter guide](README-FIRST.md) — historical onboarding notes for the original visual starter; it does not describe the current V2 implementation.
+### 5. Documents Manager
+- Upload one or multiple files using the Android document picker.
+- Batch limit: 10 files and 200 MB; per-file limit: 50 MB.
+- File summary with file names, sizes, remove controls, notes, Personal/Shared access, category and destination folder.
+- Per-file upload progress and batch progress.
+- Built-in and custom categories.
+- Create, rename, move and delete empty folders; nested folders/subfolders.
+- Move documents between folders.
+- Search, sorting and file-type filtering.
+- Recent files and category counts.
+- Open/download and share documents using Android content intents.
+- View document details, edit metadata and replace file content.
+- Recycle Bin with restore and permanent deletion.
+- Scheduled server-side purge of expired recycled documents (30-day lifecycle in the function implementation).
+- Scan Document using Google ML Kit Document Scanner.
+- Take Photo using Android camera capture and in-app preview.
 
-## Review scope
+### 6. App appearance and navigation
+- Home, Passwords, Documents and Settings navigation.
+- Material 3 UI with Light/Dark theme support.
 
-This README and the linked status report are based on source code in the reviewed branch and commit. They do not certify deployed Cloud Functions, live Firestore rules/data, Storage configuration or end-to-end behaviour on both devices. Verify the Firebase environment and run regression tests before treating a feature as release-ready.
+## Firebase backend functions in source
+
+The current Functions source defines callable operations for:
+- Household join-code creation, redemption and cancellation.
+- Membership request listing, approval and rejection.
+- Active V2 vault resolution.
+- Shared-device registration, listing and approval.
+- Document category create, rename and delete.
+- Document soft-delete, restore and permanent deletion.
+- Empty-folder deletion.
+- Scheduled expired-document purge.
+
+Function source presence does not prove deployment. Confirm deployed functions and their region in the intended Firebase project before release.
+
+## Not implemented in the current production source
+
+The following broader product ideas are not included as completed features in this baseline:
+- Finance Manager, bank accounts, income/expense tracking, transfers, India/Oman currency handling, lending/borrowing and credit-card management.
+- Secure Notes module.
+- Personal Information module.
+- Excel/PDF data export.
+- Password generator and password history.
+- Completed app-level PIN/biometric lock flow.
+- Completed device revocation and household-key rotation lifecycle.
+- Verified offline-first synchronization and conflict resolution.
+
+Do not present these items as available app features until implemented and tested.
+
+## Build and verification
+
+### Local Android build
+
+```powershell
+.\gradlew.bat clean
+.\gradlew.bat test
+.\gradlew.bat assembleDebug
+```
+
+### Firebase Functions checks
+
+```powershell
+cd functions
+npm ci
+npm run lint
+npm run build
+```
+
+The repository contains an Android CI workflow at `.github/workflows/android-ci.yml`. It is configured for manual dispatch (`workflow_dispatch`); no successful CI run is asserted by this README. The workflow includes Android unit/build checks, Functions lint/build, and emulator instrumentation execution in a separate job.
+
+### Verification boundary at this baseline
+- The upload flow on the feature branch was reported working by the project owner; the production branch points to that same commit.
+- A separate clean build/test execution from the production branch and a complete production regression run remain release gates.
+- Source files for Firestore rules, Storage rules, Functions and indexes are present. Their deployment state and live Firebase configuration were not independently verified.
+- No formal penetration test, independent security audit or complete two-device acceptance report is claimed.
+
+## Repository documentation
+- [Production release status](docs/PRODUCTION-RELEASE.md)
+- [File inventory and current feature matrix](PersonalVault2-Current-Inventory.xlsx) — generate/export this workbook from the release documentation package if it is not present in the repository.
+- [Historical project status](docs/PROJECT-STATUS.md) — earlier review; superseded for current branch inventory by the production release document.
+- [README-FIRST.md](README-FIRST.md) — historical Stage 1 starter guide, not the current app specification.
+
+## Release discipline
+- Treat `production` as the stable baseline.
+- Develop new work on feature branches.
+- Merge only after review, clean Android build/tests, Firebase checks and regression validation.
+- Tag a release only after the production release gates are complete.
