@@ -95,6 +95,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.gokul.personalvault.VaultExternalActivityState
 import com.gokul.personalvault.data.firebase.DocumentRepositoryV2
+import com.gokul.personalvault.ui.components.VaultSnackbarHost
+import com.gokul.personalvault.ui.components.classifyVaultSnackbar
 import com.gokul.personalvault.data.model.BuiltInDocumentCategoriesV2
 import com.gokul.personalvault.data.model.DocumentRecordV2
 import com.gokul.personalvault.data.model.DocumentFolderV2
@@ -718,7 +720,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { VaultSnackbarHost(snackbarHostState, classifyVaultSnackbar(message)) },
         floatingActionButton = {
             if (!recycleBin) ExtendedFloatingActionButton(
                 onClick = { showAddOptions = true },
