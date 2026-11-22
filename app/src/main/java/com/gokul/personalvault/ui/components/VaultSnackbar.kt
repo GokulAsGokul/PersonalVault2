@@ -9,6 +9,16 @@ import androidx.compose.material3.SnackbarDefaults
 import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.delay
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -67,5 +77,47 @@ fun classifyVaultSnackbar(message: String): VaultSnackbarType {
             "started", "queued", "replaced", "verified")
             .any(value::contains) -> VaultSnackbarType.SUCCESS
         else -> VaultSnackbarType.INFO
+    }
+}
+
+@Composable
+fun VaultSnackbarOverlay(
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val type = classifyVaultSnackbar(message)
+    val haptics = LocalHapticFeedback.current
+    LaunchedEffect(message) {
+        if (message.isNotBlank()) {
+            if (type == VaultSnackbarType.ERROR) {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
+            delay(4_000)
+            onDismiss()
+        }
+    }
+    if (message.isNotBlank()) {
+        val background = when (type) {
+            VaultSnackbarType.SUCCESS -> VaultSuccessGreen
+            VaultSnackbarType.ERROR -> VaultErrorRed
+            VaultSnackbarType.INFO -> VaultInfoBlue
+        }
+        Popup(
+            alignment = Alignment.BottomCenter,
+            offset = IntOffset(0, -48),
+            onDismissRequest = onDismiss,
+            properties = PopupProperties(focusable = false)
+        ) {
+            Snackbar(
+                modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                containerColor = background,
+                contentColor = Color.White,
+                actionColor = Color.White,
+                dismissActionContentColor = Color.White
+            ) {
+                androidx.compose.material3.Text(message, color = Color.White)
+            }
+        }
     }
 }
