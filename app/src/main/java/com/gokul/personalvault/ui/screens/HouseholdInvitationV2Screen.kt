@@ -1,6 +1,7 @@
 
 package com.gokul.personalvault.ui.screens
 
+import com.gokul.personalvault.ui.components.VaultSnackbarOverlay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -448,17 +449,7 @@ fun HouseholdInvitationV2Screen(
                 CircularProgressIndicator()
             }
 
-            if (message.isNotBlank()) {
-                Text(
-                    text = message,
-                    color = if (isError) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+            VaultSnackbarOverlay(message = message, onDismiss = { message = "" })
 
             Spacer(Modifier.height(8.dp))
 
