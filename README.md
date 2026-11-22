@@ -137,7 +137,7 @@ The repository contains an Android CI workflow at `.github/workflows/android-ci.
 
 ## Repository documentation
 - [Production release status](docs/PRODUCTION-RELEASE.md)
-- [File inventory and current feature matrix](PersonalVault2-Current-Inventory.xlsx) — generate/export this workbook from the release documentation package if it is not present in the repository.
+- File inventory and current feature matrix: provided as the `PersonalVault2-Current-Inventory.xlsx` release handover workbook (downloadable artifact; not committed as a binary repository file).
 - [Historical project status](docs/PROJECT-STATUS.md) — earlier review; superseded for current branch inventory by the production release document.
 - [README-FIRST.md](README-FIRST.md) — historical Stage 1 starter guide, not the current app specification.
 
