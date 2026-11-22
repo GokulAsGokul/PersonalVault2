@@ -113,9 +113,9 @@ Do not present these items as available app features until implemented and teste
 ### Local Android build
 
 ```powershell
-.\gradlew.bat clean
-.\gradlew.bat test
-.\gradlew.bat assembleDebug
+.\\gradlew.bat clean
+.\\gradlew.bat test
+.\\gradlew.bat assembleDebug
 ```
 
 ### Firebase Functions checks
@@ -138,8 +138,6 @@ The repository contains an Android CI workflow at `.github/workflows/android-ci.
 ## Repository documentation
 - [Production release status](docs/PRODUCTION-RELEASE.md)
 - File inventory and current feature matrix: provided as the `PersonalVault2-Current-Inventory.xlsx` release handover workbook (downloadable artifact; not committed as a binary repository file).
-- [Historical project status](docs/PROJECT-STATUS.md) — earlier review; superseded for current branch inventory by the production release document.
-- [README-FIRST.md](README-FIRST.md) — historical Stage 1 starter guide, not the current app specification.
 
 ## Release discipline
 - Treat `production` as the stable baseline.
