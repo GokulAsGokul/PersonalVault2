@@ -99,6 +99,7 @@ import com.gokul.personalvault.ui.components.VaultSnackbarHost
 import com.gokul.personalvault.ui.components.classifyVaultSnackbar
 import com.gokul.personalvault.ui.components.VaultSnackbarController
 import com.gokul.personalvault.ui.components.VaultSnackbarType
+import com.gokul.personalvault.ui.components.triggerVaultErrorVibration
 import com.gokul.personalvault.data.model.BuiltInDocumentCategoriesV2
 import com.gokul.personalvault.data.model.DocumentRecordV2
 import com.gokul.personalvault.data.model.DocumentFolderV2
@@ -154,6 +155,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var currentFolderId by remember { mutableStateOf<String?>(null) }
     var showCreateFolder by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
+    var createFolderError by remember { mutableStateOf<String?>(null) }
     var newFolderCategory by remember { mutableStateOf("other") }
     var folderCategoryMenuExpanded by remember { mutableStateOf(false) }
     var newFolderScope by remember { mutableStateOf("PERSONAL") }
@@ -693,6 +695,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     fun startCreateFolder() {
         newFolderName = ""
+        createFolderError = null
         newFolderCategory = if (category == "all") "other" else category
         newFolderScope = currentFolderId?.let { id ->
             folders.firstOrNull { it.id == id }?.scope
@@ -1945,7 +1948,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = newFolderName,
-                        onValueChange = { newFolderName = it.take(30) },
+                        onValueChange = { newFolderName = it.take(30); createFolderError = null },
                         label = { Text("Folder name") },
                         supportingText = { Text(newFolderName.length.toString() + "/30") },
                         singleLine = true
@@ -1982,6 +1985,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             FilterChip(newFolderScope == "SHARED", { newFolderScope = "SHARED" }, label = { Text("Shared") })
                         }
                     }
+                    createFolderError?.let { errorText ->
+                        Snackbar(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerColor = Color(0xFFC62828),
+                            contentColor = Color.White
+                        ) { Text(errorText) }
+                    }
                     Text(
                         if (currentFolderId == null) "Folder will be created inside " +
                             (allCategories.firstOrNull { it.first == (if (category == "all") newFolderCategory else category) }?.second ?: "this category") + "."
@@ -2005,10 +2015,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     currentFolderId, newFolderScope
                                 )
                                 showCreateFolder = false
+                                createFolderError = null
                                 message = "Folder created."
                             } catch (error: Exception) {
-                                showCreateFolder = false
-                                message = error.localizedMessage ?: error.message ?: "Unable to create folder."
+                                val failure = error.localizedMessage ?: error.message ?: "Unable to create folder."
+                                createFolderError = failure
+                                triggerVaultErrorVibration(context)
                             } finally {
                                 busyDocument = false
                             }
