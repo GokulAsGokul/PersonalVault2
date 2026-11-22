@@ -885,14 +885,33 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             }
 
-            if (isHome) {
+            if (!documentsLoaded) {
+                item(key = "documents_initial_loading") {
+                    Card(
+                        Modifier.fillMaxWidth().padding(top = 36.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = palette.surface)
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(color = documentAccent)
+                            Text("Loading documents…", fontWeight = FontWeight.SemiBold)
+                            Text("Your personal and shared files will appear here.",
+                                color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            } else if (isHome) {
                 // ── Home: summary, recent documents and categories ──
                 val recent = active.filter { visibility == "ALL" || it.scope == visibility }
                     .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(3)
                 item(key = "document_summary") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         DocumentSummaryTileV2New("Documents", active.size.toString(), Icons.Outlined.Description, palette, Modifier.weight(1f))
-                        DocumentSummaryTileV2New("Folders", folders.size.toString(), Icons.Outlined.FolderOpen, palette, Modifier.weight(1f))
+                        DocumentSummaryTileV2New("Storage", formatDocumentBytesNew(bytes), Icons.Outlined.Storage, palette, Modifier.weight(1f))
                         DocumentSummaryTileV2New("Shared", active.count { it.scope == "SHARED" }.toString(), Icons.Outlined.Groups, palette, Modifier.weight(1f))
                     }
                 }
