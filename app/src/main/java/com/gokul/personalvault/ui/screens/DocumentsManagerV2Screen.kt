@@ -1206,6 +1206,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall
                     )
+                    if (!uploading) {
                     Text("Save to", fontWeight = FontWeight.SemiBold)
                     val uploadParentFolder = folders.firstOrNull { it.id == currentFolderId }
                     if (uploadParentFolder != null) {
@@ -1297,6 +1298,8 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    }
+                    if (!uploading) {
                     Divider()
                     pendingUploads.forEachIndexed { index, pending ->
                         Card(
@@ -1353,6 +1356,7 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                             )
                         }
                         if (index != pendingUploads.lastIndex) Divider()
+                    }
                     }
                     if (uploading) {
                         Text("Uploading Files", style = MaterialTheme.typography.titleMedium,
