@@ -1147,12 +1147,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         showAllDocuments -> "All files"
         else -> "Documents"
     }
-    val headerSubtitle = when {
-        recycleBin -> "Deleted files are kept for 30 days"
-        category != "all" ->
-            "${folders.size} folders, ${active.count { it.categoryId == category }} files"
-        else -> "${active.size} files, ${formatDocumentBytesNew(bytes)}"
-    }
+    val headerSubtitle = if (recycleBin) "Deleted files are kept for 30 days" else null
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
     val mutedColor = palette.muted
@@ -1163,7 +1158,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             var menuExpanded by remember { mutableStateOf(false) }
             VaultCompactHeader(
                 title = headerTitle,
-                subtitle = if (isHome) null else headerSubtitle,
+                subtitle = headerSubtitle,
                 onBack = if (canGoBack) ({ goBack() }) else null,
                 titleIcon = if (headerTitle == "Documents") Icons.Outlined.Description else null,
                 actions = {
@@ -1277,7 +1272,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 )
             }
 
-            if (advancedSearchExpanded) {
+            if (advancedSearchExpanded && !isHome) {
                 item(key = "advanced_search_options") {
                     Card(
                         Modifier.fillMaxWidth(),
@@ -3642,7 +3637,7 @@ private fun DocumentGridCardV2New(
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                document.title.ifBlank { document.originalFileName }.take(50),
+                document.title.ifBlank { document.originalFileName },
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
