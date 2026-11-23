@@ -2123,6 +2123,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             DocumentUploadForegroundService.updateProgress((progress * 100).toInt())
                                         }
                                         completed++
+                                        progress = completed.toFloat() / total.toFloat()
+                                        DocumentUploadForegroundService.updateProgress((progress * 100).toInt())
                                         pendingUploads.remove(pending)
                                     } catch (error: CancellationException) {
                                         throw error
