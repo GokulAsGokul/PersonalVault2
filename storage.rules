@@ -32,6 +32,10 @@ service firebase.storage {
       return request.resource.metadata.vaultId == vaultId
         && request.resource.metadata.ownerUid == ownerUid
         && request.resource.metadata.documentId == documentId
+        && request.resource.metadata.fileExtension in [
+          'pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx',
+          'xls', 'xlsx', 'ppt', 'pptx', 'txt'
+        ]
         && (
           request.resource.metadata.scope == 'PERSONAL'
           || request.resource.metadata.scope == 'SHARED'
