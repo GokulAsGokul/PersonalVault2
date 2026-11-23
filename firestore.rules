@@ -284,7 +284,7 @@ service cloud.firestore {
             'schemaVersion', 'ownerUid', 'scope', 'title', 'titleLower',
             'categoryId', 'folderId', 'description', 'originalFileName', 'contentType',
             'sizeBytes', 'storagePath', 'uploadedAt', 'updatedAt',
-            'isDeleted', 'deletedAt', 'purgeAt'
+            'isDeleted', 'deletedAt', 'purgeAt', 'favouriteUids'
           ])
           && request.resource.data.schemaVersion == 1
           && request.resource.data.ownerUid is string
@@ -341,22 +341,36 @@ service cloud.firestore {
 
         // Only the original owner can edit, soft-delete, restore, or update
         // metadata. Clients cannot change ownership or original upload time.
-        allow update: if isVaultMember(vaultId)
-          && resource.data.ownerUid == request.auth.uid
-          && request.resource.data.ownerUid == resource.data.ownerUid
-          && request.resource.data.uploadedAt == resource.data.uploadedAt
-          && request.resource.data.storagePath == resource.data.storagePath
-          && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly([
-              'scope', 'title', 'titleLower', 'categoryId', 'folderId', 'description',
-              'originalFileName', 'contentType', 'sizeBytes', 'updatedAt'
-            ])
-          && validDocumentRecord()
-          && validDocumentFolder()
-          && request.resource.data.isDeleted == resource.data.isDeleted
-          && request.resource.data.deletedAt == resource.data.deletedAt
-          && request.resource.data.purgeAt == resource.data.purgeAt
-          && request.resource.data.updatedAt == request.time;
+        // Any approved member may change only their own favourite marker.
+        // This keeps favourites private to each household member.
+        function isOwnFavouriteOnlyUpdate() {
+          return isVaultMember(vaultId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['favouriteUids'])
+            && request.resource.data.favouriteUids is list
+            && request.resource.data.favouriteUids.size() <= 2
+            && request.resource.data.favouriteUids.removeAll([request.auth.uid])
+              == resource.data.get('favouriteUids', []).removeAll([request.auth.uid]);
+        }
+
+        allow update: if isOwnFavouriteOnlyUpdate()
+          || (
+            isVaultMember(vaultId)
+            && resource.data.ownerUid == request.auth.uid
+            && request.resource.data.ownerUid == resource.data.ownerUid
+            && request.resource.data.uploadedAt == resource.data.uploadedAt
+            && request.resource.data.storagePath == resource.data.storagePath
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly([
+                'scope', 'title', 'titleLower', 'categoryId', 'folderId', 'description',
+                'originalFileName', 'contentType', 'sizeBytes', 'updatedAt'
+              ])
+            && validDocumentRecord()
+            && validDocumentFolder()
+            && request.resource.data.isDeleted == resource.data.isDeleted
+            && request.resource.data.deletedAt == resource.data.deletedAt
+            && request.resource.data.purgeAt == resource.data.purgeAt
+            && request.resource.data.updatedAt == request.time
+          );
 
         // Physical file deletion is restricted to trusted Admin SDK code.
         allow delete: if false;
