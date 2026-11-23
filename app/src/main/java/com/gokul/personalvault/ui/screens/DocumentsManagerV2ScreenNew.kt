@@ -167,6 +167,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var personalLastDocument by remember { mutableStateOf<DocumentSnapshot?>(null) }
     var sharedHasMore by remember { mutableStateOf(false) }
     var personalHasMore by remember { mutableStateOf(false) }
+    var sharedHasLoadedMore by remember { mutableStateOf(false) }
+    var personalHasLoadedMore by remember { mutableStateOf(false) }
     var loadingMoreDocuments by remember { mutableStateOf(false) }
     val documentsLoaded = sharedDocumentsLoaded && personalDocumentsLoaded
     var folders by remember { mutableStateOf<List<DocumentFolderV2>>(emptyList()) }
@@ -284,6 +286,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         personalLastDocument = null
         sharedHasMore = false
         personalHasMore = false
+        sharedHasLoadedMore = false
+        personalHasLoadedMore = false
         fun publishDocuments() {
             documents = (sharedPageDocuments.values + personalPageDocuments.values).distinctBy { it.id }
         }
@@ -300,8 +304,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                     sharedPageDocuments = updated
-                    sharedLastDocument = snapshot.documents.lastOrNull()
-                    sharedHasMore = snapshot.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
+                    if (!sharedHasLoadedMore) {
+                        sharedLastDocument = snapshot.documents.lastOrNull()
+                        sharedHasMore = snapshot.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
+                    }
                     publishDocuments()
                     sharedDocumentsLoaded = true
                 } else if (error != null) {
@@ -322,8 +328,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                     personalPageDocuments = updated
-                    personalLastDocument = snapshot.documents.lastOrNull()
-                    personalHasMore = snapshot.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
+                    if (!personalHasLoadedMore) {
+                        personalLastDocument = snapshot.documents.lastOrNull()
+                        personalHasMore = snapshot.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
+                    }
                     publishDocuments()
                     personalDocumentsLoaded = true
                 } else if (error != null) {
@@ -751,6 +759,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                     sharedPageDocuments = updated
                     sharedLastDocument = page.documents.lastOrNull() ?: sharedLastDocument
+                    sharedHasLoadedMore = true
                     sharedHasMore = page.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
                 }
                 if (personalHasMore) {
@@ -761,6 +770,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                     personalPageDocuments = updated
                     personalLastDocument = page.documents.lastOrNull() ?: personalLastDocument
+                    personalHasLoadedMore = true
                     personalHasMore = page.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
                 }
                 documents = (sharedPageDocuments.values + personalPageDocuments.values)
