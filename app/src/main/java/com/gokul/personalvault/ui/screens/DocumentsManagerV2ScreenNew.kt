@@ -80,9 +80,7 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material.icons.outlined.Favorite
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.Deselect
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -717,8 +715,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             downloadTransferredBytes = 0L
             downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
-                val file = if (previewFileDocumentId == doc.id) previewFile
-                    else repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
+                val file = previewFile?.takeIf { previewFileDocumentId == doc.id }
+                    ?: repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
                     downloadTransferredBytes = transferred.coerceAtLeast(0L)
                     if (total > 0L) downloadTotalBytes = total
                 }
