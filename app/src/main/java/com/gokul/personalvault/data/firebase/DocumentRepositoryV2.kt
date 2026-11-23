@@ -546,9 +546,6 @@ class DocumentRepositoryV2(
             .lowercase(Locale.ROOT)
             .filter { it.isLetterOrDigit() }
             .take(10)
-        require(document.id.isNotBlank() && document.ownerUid.isNotBlank()) {
-            "Invalid document identity."
-        }
         require(extension in SUPPORTED_EXTENSIONS) { "Unsupported document file type." }
         val targetDirectory = File(cacheDir, "documents").apply { mkdirs() }
         val suffix = if (extension.isBlank()) "" else ".$extension"
