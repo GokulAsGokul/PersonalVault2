@@ -2,10 +2,13 @@
 package com.gokul.personalvault
 
 import android.os.Bundle
+import android.os.Build
+import android.view.Window
 import androidx.core.view.WindowCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -62,6 +68,29 @@ object VaultExternalActivityState {
     @Volatile var documentViewerActive: Boolean = false
 }
 
+@Composable
+private fun VaultSystemBars(window: Window) {
+    val darkTheme = isSystemInDarkTheme()
+    val systemBarColor = MaterialTheme.colorScheme.background
+    val view = LocalView.current
+
+    SideEffect {
+        // Keep both Android system bars in sync with the active Personal Vault theme.
+        window.statusBarColor = systemBarColor.toArgb()
+        window.navigationBarColor = systemBarColor.toArgb()
+
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = !darkTheme
+            isAppearanceLightNavigationBars = !darkTheme
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         if (isFinishing) {
@@ -73,12 +102,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Keep status-bar icons visible against the light vault background.
-        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
-        window.statusBarColor = android.graphics.Color.rgb(244, 246, 251)
-
         setContent {
             VaultTheme {
+                VaultSystemBars(window)
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
