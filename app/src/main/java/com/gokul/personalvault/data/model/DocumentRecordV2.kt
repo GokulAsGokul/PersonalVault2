@@ -20,7 +20,7 @@ data class DocumentRecordV2(
     val isDeleted: Boolean = false,
     val deletedAt: Timestamp? = null,
     val purgeAt: Timestamp? = null,
-    val favouriteUids: List<String> = emptyList()
+    val favouriteUids: Map<String, Boolean> = emptyMap()
 ) {
     fun toFirestoreMap(): Map<String, Any?> = mapOf(
         "schemaVersion" to 1,
@@ -63,7 +63,9 @@ data class DocumentRecordV2(
                 isDeleted = data["isDeleted"] as? Boolean ?: false,
                 deletedAt = data["deletedAt"] as? Timestamp,
                 purgeAt = data["purgeAt"] as? Timestamp,
-                favouriteUids = (data["favouriteUids"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+                favouriteUids = (data["favouriteUids"] as? Map<*, *>)?.entries
+                    ?.mapNotNull { (key, value) -> (key as? String)?.let { it to (value as? Boolean ?: false) } }
+                    ?.toMap() ?: emptyMap()
             )
     }
 }
