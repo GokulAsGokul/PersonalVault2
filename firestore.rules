@@ -351,6 +351,7 @@ service cloud.firestore {
           return isVaultMember(vaultId)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['favouriteUids'])
             && request.resource.data.get('favouriteUids', {}) is map
+            && request.resource.data.get('favouriteUids', {}).keys().hasOnly(members)
             && request.resource.data.get('favouriteUids', {}).get(request.auth.uid, false) is bool
             && request.resource.data.get('favouriteUids', {}).get(otherUid, false)
               == resource.data.get('favouriteUids', {}).get(otherUid, false);
