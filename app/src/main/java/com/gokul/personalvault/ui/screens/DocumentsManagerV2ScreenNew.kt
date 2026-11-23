@@ -598,13 +598,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         .filter { it.folderId == currentFolderId }
         .filter {
             val q = search.trim().lowercase(Locale.ROOT)
-            q.isEmpty() ||
+            q.isEmpty() || if (searchFileNameOnly) {
+                it.originalFileName.lowercase(Locale.ROOT).contains(q)
+            } else {
                 it.title.lowercase(Locale.ROOT).contains(q) ||
-                it.originalFileName.lowercase(Locale.ROOT).contains(q) ||
-                (!searchFileNameOnly && (
+                    it.originalFileName.lowercase(Locale.ROOT).contains(q) ||
                     it.description.lowercase(Locale.ROOT).contains(q) ||
-                    it.categoryId.lowercase(Locale.ROOT).contains(q)
-                ))
+                    it.categoryId.replace('_', ' ').lowercase(Locale.ROOT).contains(q)
+            }
         }
         .filter { !showFavouritesOnly || it.favouriteUids[memberUid] == true }
         .filter {
