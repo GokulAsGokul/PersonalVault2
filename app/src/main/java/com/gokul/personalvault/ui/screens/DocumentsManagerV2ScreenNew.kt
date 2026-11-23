@@ -205,6 +205,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var showDeleteFolderConfirm by remember { mutableStateOf(false) }
     var deleteFolderError by remember { mutableStateOf<String?>(null) }
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
+    var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var advancedSearchExpanded by remember { mutableStateOf(false) }
     var searchFileNameOnly by remember { mutableStateOf(false) }
@@ -368,9 +369,38 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     DisposableEffect(vaultId, category, documentToMove?.categoryId) {
         val folderCategory = if (category == "all") documentToMove?.categoryId else category
         if (folderCategory == null) {
-            folders = emptyList()
-            currentFolderId = null
-            onDispose { }
+            val sharedFolders = mutableMapOf<String, DocumentFolderV2>()
+            val personalFolders = mutableMapOf<String, DocumentFolderV2>()
+            fun publishFolders() {
+                folders = (sharedFolders.values + personalFolders.values).distinctBy { it.id }
+            }
+            val sharedFolderListener = repository.folderCollection(vaultId)
+                .whereEqualTo("scope", "SHARED")
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null && snapshot != null) {
+                        sharedFolders.clear()
+                        snapshot.documents.forEach { doc ->
+                            doc.data?.let { sharedFolders[doc.id] = DocumentFolderV2.fromSnapshot(doc.id, it) }
+                        }
+                        publishFolders()
+                    } else if (error != null) message = "Shared folders: ${error.localizedMessage ?: "Unable to load folders."}"
+                }
+            val personalFolderListener = repository.folderCollection(vaultId)
+                .whereEqualTo("scope", "PERSONAL")
+                .whereEqualTo("ownerUid", memberUid)
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null && snapshot != null) {
+                        personalFolders.clear()
+                        snapshot.documents.forEach { doc ->
+                            doc.data?.let { personalFolders[doc.id] = DocumentFolderV2.fromSnapshot(doc.id, it) }
+                        }
+                        publishFolders()
+                    } else if (error != null) message = "Personal folders: ${error.localizedMessage ?: "Unable to load folders."}"
+                }
+            onDispose {
+                sharedFolderListener.remove()
+                personalFolderListener.remove()
+            }
         } else {
             val sharedFolders = mutableMapOf<String, DocumentFolderV2>()
             val personalFolders = mutableMapOf<String, DocumentFolderV2>()
@@ -1458,6 +1488,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
+                if (recycleBin && deleted.any { it.ownerUid == memberUid }) {
+                    item(key = "empty_recycle_bin") {
+                        OutlinedButton(
+                            onClick = { showEmptyRecycleBinConfirm = true },
+                            enabled = !busyDocument,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Empty Recycle Bin")
+                        }
+                    }
+                }
                 if (selectionMode) {
                     item(key = "bulk_actions") {
                         Card(
@@ -1486,18 +1530,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         Spacer(Modifier.width(6.dp))
                                         Text("Favourite")
                                     }
-                                    Button(
-                                        onClick = { runBulkDelete() },
-                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument && !recycleBin,
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                    ) {
-                                        Icon(Icons.Outlined.Delete, null)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Delete")
+                                    if (!recycleBin && visible.any { it.id in selectedDocumentIds && it.ownerUid == memberUid }) {
+                                        Button(
+                                            onClick = { runBulkDelete() },
+                                            enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                        ) {
+                                            Icon(Icons.Outlined.Delete, null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Delete")
+                                        }
                                     }
                                 }
-                                if (recycleBin) {
+                                if (recycleBin && visible.any { it.id in selectedDocumentIds && it.ownerUid == memberUid }) {
                                     Button(
                                         onClick = { runBulkRestore() },
                                         enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
@@ -2713,19 +2759,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         enabled = !busyDocument && !doc.isDeleted,
                         onClick = { downloadDocument(doc) }
                     )
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Edit, null, tint = documentAccent) },
-                        label = "Edit",
-                        enabled = !busyDocument && !doc.isDeleted && doc.ownerUid == memberUid,
-                        onClick = {
-                            editTitle = doc.title
-                            editDescription = doc.description
-                            editCategory = doc.categoryId
-                            editScope = doc.scope
-                            editingDocument = doc
-                            selectedDocument = null
-                        }
-                    )
+                    if (doc.ownerUid == memberUid && !doc.isDeleted) {
+                        DocumentActionIconNew(
+                            icon = { Icon(Icons.Outlined.Edit, null, tint = documentAccent) },
+                            label = "Edit",
+                            enabled = !busyDocument,
+                            onClick = {
+                                editTitle = doc.title
+                                editDescription = doc.description
+                                editCategory = doc.categoryId
+                                editScope = doc.scope
+                                editingDocument = doc
+                                selectedDocument = null
+                            }
+                        )
+                    }
                     DocumentActionIconNew(
                         icon = { Icon(Icons.Outlined.Share, null, tint = documentAccent) },
                         label = "Share",
@@ -2785,23 +2833,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         )
                     }
-                    ListItem(
-                        headlineContent = { Text("Move to Recycle Bin", color = MaterialTheme.colorScheme.error) },
-                        supportingContent = { Text("Keep it recoverable for 30 days") },
-                        leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                        modifier = Modifier.clickable(enabled = !busyDocument && doc.ownerUid == memberUid) {
-                            scope.launch {
-                                busyDocument = true
-                                try {
-                                    repository.moveToRecycleBin(vaultId, doc)
-                                    selectedDocument = null
-                                    message = "Moved to Recycle Bin. Retained for 30 days."
-                                } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Delete failed."
-                                } finally { busyDocument = false }
+                    if (doc.ownerUid == memberUid) {
+                        ListItem(
+                            headlineContent = { Text("Move to Recycle Bin", color = MaterialTheme.colorScheme.error) },
+                            supportingContent = { Text("Keep it recoverable for 30 days") },
+                            leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                            modifier = Modifier.clickable(enabled = !busyDocument) {
+                                scope.launch {
+                                    busyDocument = true
+                                    try {
+                                        repository.moveToRecycleBin(vaultId, doc)
+                                        selectedDocument = null
+                                        message = "Moved to Recycle Bin. Retained for 30 days."
+                                    } catch (error: Exception) {
+                                        message = error.localizedMessage ?: error.message ?: "Delete failed."
+                                    } finally { busyDocument = false }
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 } else if (doc.ownerUid == memberUid) {
                     ListItem(
                         headlineContent = { Text("Restore Document") },
@@ -2899,6 +2949,46 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             confirmButton = {}
+        )
+    }
+
+    if (showEmptyRecycleBinConfirm) {
+        AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp,
+            onDismissRequest = { if (!busyDocument) showEmptyRecycleBinConfirm = false },
+            title = { Text("Empty Recycle Bin?") },
+            text = {
+                Text("All deleted documents owned by you will be permanently removed, including their stored files. This cannot be undone.")
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busyDocument,
+                    onClick = {
+                        scope.launch {
+                            busyDocument = true
+                            try {
+                                val count = repository.emptyRecycleBin(vaultId)
+                                showEmptyRecycleBinConfirm = false
+                                selectedDocument = null
+                                selectedDocumentIds.clear()
+                                selectionMode = false
+                                message = if (count == 0) "Recycle Bin is already empty." else "$count document(s) permanently deleted."
+                            } catch (error: Exception) {
+                                message = error.localizedMessage ?: error.message ?: "Unable to empty Recycle Bin."
+                            } finally {
+                                busyDocument = false
+                            }
+                        }
+                    }
+                ) { Text("Empty Bin", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = !busyDocument, onClick = { showEmptyRecycleBinConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 
@@ -3199,6 +3289,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 message = "Document details updated."
                             }
                             editingDocument = null
+                        } catch (error: CancellationException) {
+                            message = "Replacement cancelled because the app was closed."
+                            throw error
                         } catch (error: Exception) {
                             editingDocument = null
                             replacementTarget = null
