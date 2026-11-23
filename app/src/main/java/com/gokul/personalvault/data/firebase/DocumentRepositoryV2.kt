@@ -473,8 +473,9 @@ class DocumentRepositoryV2(
 
     suspend fun setFavourite(vaultId: String, documentId: String, memberUid: String, favourite: Boolean) {
         require(memberUid.isNotBlank()) { "A signed-in household member is required." }
-        val fieldValue = if (favourite) FieldValue.arrayUnion(memberUid) else FieldValue.arrayRemove(memberUid)
-        documentCollection(vaultId).document(documentId).update("favouriteUids", fieldValue).await()
+        documentCollection(vaultId).document(documentId)
+            .update(com.google.firebase.firestore.FieldPath.of("favouriteUids", memberUid), favourite)
+            .await()
     }
 
     suspend fun moveToRecycleBin(vaultId: String, document: DocumentRecordV2) {
