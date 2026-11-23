@@ -279,7 +279,9 @@ class DocumentRepositoryV2(
         val size = readSizeBytes(resolver, uri)
         require(size in 1..MAX_FILE_BYTES) { "Each file must be between 1 byte and 50 MB." }
         val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
-        require(extension.isNotBlank()) { "This file has no extension. Rename it with a supported extension or use a recognised file type." }
+        require(extension in SUPPORTED_EXTENSIONS) {
+            "Unsupported file type. Supported formats: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX, PPT, PPTX and TXT."
+        }
 
         val titleLower = cleanTitle.lowercase(Locale.ROOT)
         val duplicate = documentCollection(vaultId)
@@ -302,6 +304,7 @@ class DocumentRepositoryV2(
             .setCustomMetadata("ownerUid", ownerUid)
             .setCustomMetadata("documentId", documentId)
             .setCustomMetadata("scope", scope)
+            .setCustomMetadata("fileExtension", extension)
             .build()
 
         val uploadTask = storageRef.putFile(uri, customMetadata)
@@ -397,7 +400,9 @@ class DocumentRepositoryV2(
         val size = readSizeBytes(resolver, uri)
         require(size in 1..MAX_FILE_BYTES) { "The replacement file must be between 1 byte and 50 MB." }
         val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
-        require(extension.isNotBlank()) { "The replacement file must have a file extension." }
+        require(extension in SUPPORTED_EXTENSIONS) {
+            "Unsupported replacement file type. Supported formats: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX, PPT, PPTX and TXT."
+        }
 
         // Derive the document title from the selected filename, excluding its extension.
         val replacementTitle = fileName.substringBeforeLast('.')
@@ -423,6 +428,7 @@ class DocumentRepositoryV2(
             .setCustomMetadata("ownerUid", document.ownerUid)
             .setCustomMetadata("documentId", document.id)
             .setCustomMetadata("scope", document.scope)
+            .setCustomMetadata("fileExtension", extension)
             .build()
 
         val storageRef = storage.reference.child(document.storagePath)
@@ -500,8 +506,12 @@ class DocumentRepositoryV2(
         onProgress: (transferredBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
     ): File {
         require(!document.isDeleted) { "Restore this document before opening or sharing it." }
-        require(document.storagePath.startsWith("vaultsV2/$vaultId/documents/")) {
+        val expectedPath = "vaultsV2/$vaultId/documents/" + document.ownerUid + "/" + document.id
+        require(document.storagePath == expectedPath) {
             "Invalid document storage path."
+        }
+        require(document.ownerUid.isNotBlank() && document.id.isNotBlank()) {
+            "Invalid document identity."
         }
         val extension = document.originalFileName.substringAfterLast('.', "")
             .lowercase(Locale.ROOT)
