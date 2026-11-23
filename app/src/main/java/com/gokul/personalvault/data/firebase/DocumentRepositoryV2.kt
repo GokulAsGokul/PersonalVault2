@@ -12,10 +12,34 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
+import com.google.firebase.storage.UploadTask
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import java.util.Locale
 import java.io.File
 import java.util.UUID
+
+private suspend fun UploadTask.awaitCancellable() {
+    suspendCancellableCoroutine<Unit> { continuation ->
+        addOnSuccessListener {
+            if (continuation.isActive) continuation.resume(Unit)
+        }
+        addOnFailureListener { error ->
+            if (continuation.isActive) continuation.resumeWithException(error)
+        }
+        addOnCanceledListener {
+            if (continuation.isActive) {
+                continuation.cancel(CancellationException("The document upload was cancelled."))
+            }
+        }
+        continuation.invokeOnCancellation {
+            cancel()
+        }
+    }
+}
 
 class DocumentRepositoryV2(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
@@ -341,7 +365,7 @@ class DocumentRepositoryV2(
             val total = snapshot.totalByteCount
             if (total > 0L) onProgress(snapshot.bytesTransferred.toFloat() / total.toFloat())
         }
-        uploadTask.await()
+        uploadTask.awaitCancellable()
 
         val now = FieldValue.serverTimestamp()
         val record = hashMapOf<String, Any?>(
@@ -467,7 +491,7 @@ class DocumentRepositoryV2(
             val total = snapshot.totalByteCount
             if (total > 0L) onProgress(snapshot.bytesTransferred.toFloat() / total.toFloat())
         }
-        uploadTask.await()
+        uploadTask.awaitCancellable()
 
         try {
             documentCollection(vaultId).document(document.id).update(
