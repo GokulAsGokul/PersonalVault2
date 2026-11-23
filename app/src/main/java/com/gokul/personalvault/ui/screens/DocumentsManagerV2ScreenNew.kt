@@ -255,11 +255,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var showAddDocuments by remember { mutableStateOf(false) }
     var showAddOptions by remember { mutableStateOf(false) }
     var showDocumentDetails by remember { mutableStateOf(false) }
-    var uploadCategory by remember { mutableStateOf("other") }
-    var uploadScope by remember { mutableStateOf("PERSONAL") }
-    var uploadCategoryMenu by remember { mutableStateOf(false) }
-    var uploadFolderId by remember { mutableStateOf<String?>(null) }
-    var uploadFolderMenu by remember { mutableStateOf(false) }
     var replacementTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var pendingReplacement by remember { mutableStateOf<PendingDocumentReplacementV2New?>(null) }
     var replacingDocument by remember { mutableStateOf(false) }
@@ -1683,10 +1678,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     leadingContent = { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.clickable {
                         showAddOptions = false
-                        val parentFolder = folders.firstOrNull { it.id == currentFolderId }
-                        uploadCategory = if (category == "all") "other" else category
-                        uploadScope = parentFolder?.scope
-                            ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
                         VaultExternalActivityState.documentPickerActive = true
                         picker.launch(arrayOf("*/*"))
                     }
