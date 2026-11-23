@@ -1312,8 +1312,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             pair.forEach { doc ->
                                 DocumentGridCardV2New(
                                     doc, recycleBin, memberUid, Modifier.weight(1f),
-                                    onClick = { if (recycleBin) selectedDocument = doc else openDocument(doc) },
-                                    onMore = { selectedDocument = doc }
+                                    onClick = {
+                                        if (selectionMode) toggleSelection(doc)
+                                        else if (recycleBin) selectedDocument = doc else openDocument(doc)
+                                    },
+                                    onMore = { selectedDocument = doc },
+                                    selectionMode = selectionMode,
+                                    selected = doc.id in selectedDocumentIds
                                 )
                             }
                             repeat(2 - pair.size) { Spacer(Modifier.weight(1f)) }
@@ -1323,8 +1328,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     items(visible, key = { it.id }) { doc ->
                         DocumentRowV2New(
                             doc, recycleBin, memberUid,
-                            onClick = { if (recycleBin) selectedDocument = doc else openDocument(doc) },
-                            onMore = { selectedDocument = doc }
+                            onClick = {
+                                if (selectionMode) toggleSelection(doc)
+                                else if (recycleBin) selectedDocument = doc else openDocument(doc)
+                            },
+                            onMore = { selectedDocument = doc },
+                            selectionMode = selectionMode,
+                            selected = doc.id in selectedDocumentIds
                         )
                     }
                 }
@@ -3055,7 +3065,9 @@ private fun DocumentRowV2New(
     isRecycleBin: Boolean,
     currentMemberUid: String,
     onClick: () -> Unit,
-    onMore: () -> Unit
+    onMore: () -> Unit,
+    selectionMode: Boolean = false,
+    selected: Boolean = false
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val palette = documentPaletteV2New(dark)
@@ -3069,6 +3081,9 @@ private fun DocumentRowV2New(
             Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onClick() })
+            }
             DocumentTypeIconNew(document.contentType, Modifier.size(46.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -3109,7 +3124,9 @@ private fun DocumentGridCardV2New(
     currentMemberUid: String,
     modifier: Modifier,
     onClick: () -> Unit,
-    onMore: () -> Unit
+    onMore: () -> Unit,
+    selectionMode: Boolean = false,
+    selected: Boolean = false
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val palette = documentPaletteV2New(dark)
@@ -3121,6 +3138,9 @@ private fun DocumentGridCardV2New(
     ) {
         Column(Modifier.fillMaxWidth().padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selectionMode) {
+                    Checkbox(checked = selected, onCheckedChange = { onClick() })
+                }
                 DocumentTypeIconNew(document.contentType, Modifier.size(44.dp))
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onMore) {
