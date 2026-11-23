@@ -209,7 +209,7 @@ fun VaultDashboardNavigationV2(
                             title = "Personal Information",
                             description = "This V2 section will be connected in a later implementation stage.",
                             icon = Icons.Outlined.Person
-                        ) { selected = VaultV2Destination.HOME }
+                        )
                     }
                 }
             }
@@ -290,8 +290,7 @@ private fun V2DashboardTile(title: String, subtitle: String, icon: ImageVector, 
 private fun V2ModulePlaceholder(
     title: String,
     description: String,
-    icon: ImageVector,
-    onBack: () -> Unit
+    icon: ImageVector
 ) {
     Column(
         Modifier.fillMaxSize().background(Color(0xFFF4F6FB)).padding(24.dp),
@@ -305,6 +304,5 @@ private fun V2ModulePlaceholder(
         Spacer(Modifier.height(8.dp))
         Text(description, color = Color(0xFF64748B), style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(20.dp))
-        TextButton(onClick = onBack) { Text("Back to Dashboard") }
     }
 }
