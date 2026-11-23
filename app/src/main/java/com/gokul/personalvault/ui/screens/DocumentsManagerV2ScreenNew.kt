@@ -107,6 +107,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.gokul.personalvault.VaultExternalActivityState
 import com.gokul.personalvault.DocumentUploadForegroundService
+import com.gokul.personalvault.DocumentUploadUiState
 import com.gokul.personalvault.data.firebase.DocumentRepositoryV2
 import com.gokul.personalvault.ui.components.VaultSnackbarHost
 import com.gokul.personalvault.ui.components.classifyVaultSnackbar
