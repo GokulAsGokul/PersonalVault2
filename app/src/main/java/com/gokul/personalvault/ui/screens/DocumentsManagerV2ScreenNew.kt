@@ -797,7 +797,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
         }
 
-    val bytes = active.sumOf { it.sizeBytes }
     val allCategories = BuiltInDocumentCategoriesV2.all.map { it.id to it.name } + customCategories
 
     fun editDocument(doc: DocumentRecordV2) {
