@@ -111,6 +111,12 @@ class DocumentUploadForegroundService : Service() {
             activeService?.updateProgress(progress, false)
         }
 
+        fun cancelAndStop(context: Context) {
+            cancelAction?.invoke()
+            cancelAction = null
+            context.stopService(Intent(context, DocumentUploadForegroundService::class.java))
+        }
+
         fun stop(context: Context) {
             cancelAction = null
             context.stopService(Intent(context, DocumentUploadForegroundService::class.java))
