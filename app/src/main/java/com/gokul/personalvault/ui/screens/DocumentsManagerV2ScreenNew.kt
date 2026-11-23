@@ -126,6 +126,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
+import com.google.firebase.functions.FirebaseFunctionsException
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.io.File
@@ -264,6 +267,66 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var pendingScanFile by remember { mutableStateOf<File?>(null) }
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoPreview by remember { mutableStateOf(false) }
+
+    // The foreground service owns the actual Firebase upload. This collector only
+    // mirrors its progress into the screen when the Documents screen is visible.
+    LaunchedEffect(vaultId, memberUid) {
+        DocumentUploadForegroundService.uploadState.collect { uploadState ->
+            when (uploadState) {
+                is DocumentUploadUiState.Idle -> Unit
+                is DocumentUploadUiState.Running -> {
+                    uploading = true
+                    progress = uploadState.overallProgress
+                    currentFileProgress = uploadState.fileProgress
+                    currentUploadIndex = uploadState.fileIndex - 1
+                    message = "Uploading ${uploadState.fileIndex} of ${uploadState.totalFiles}: ${uploadState.fileName}"
+                }
+                is DocumentUploadUiState.Completed -> {
+                    uploading = false
+                    progress = 1f
+                    pendingUploads.clear()
+                    pendingUploads.addAll(uploadState.failures.map { failure ->
+                        PendingDocumentUploadV2New(
+                            uri = Uri.parse(failure.uri),
+                            fileName = failure.fileName,
+                            sizeBytes = failure.sizeBytes,
+                            title = failure.title,
+                            notes = failure.notes,
+                            categoryId = failure.categoryId,
+                            scope = failure.scope,
+                            folderId = failure.folderId,
+                            errorMessage = failure.errorMessage,
+                            retryBlocked = failure.retryBlocked
+                        )
+                    })
+                    if (uploadState.failures.isEmpty()) {
+                        message = "${uploadState.uploadedCount} file(s) uploaded successfully."
+                        showAddDocuments = false
+                        pendingPhotoFile?.delete()
+                        pendingPhotoFile = null
+                        pendingPhotoUri = null
+                        capturedPhotoUri = null
+                        pendingScanFile?.delete()
+                        pendingScanFile = null
+                    } else {
+                        val blockedCount = uploadState.failures.count { it.retryBlocked }
+                        val retryCount = uploadState.failures.size - blockedCount
+                        message = buildString {
+                            append("${uploadState.uploadedCount} file(s) uploaded. ")
+                            if (retryCount > 0) append("$retryCount file(s) can be retried. ")
+                            if (blockedCount > 0) append("$blockedCount file(s) need cleanup before retry; do not upload them again yet.")
+                        }
+                    }
+                    DocumentUploadForegroundService.acknowledgeResult()
+                }
+                is DocumentUploadUiState.Cancelled -> {
+                    uploading = false
+                    message = "Upload cancelled because the app was closed."
+                    DocumentUploadForegroundService.acknowledgeResult()
+                }
+            }
+        }
+    }
 
     LaunchedEffect(vaultId) {
         withContext(Dispatchers.IO) {
@@ -493,8 +556,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             pendingScanFile?.delete()
             pendingScanFile = null
             showAddDocuments = true
-        } else {
-            message = "No files selected."
         }
     }
 
@@ -590,7 +651,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             pendingPhotoUri = null
             capturedPhotoUri = null
             showPhotoPreview = false
-            message = if (success) "The camera did not save a photo. Please try again." else "Photo capture cancelled."
+            // Returning from the camera without taking a photo is a normal cancellation.
+            if (success) message = "The camera did not save a photo. Please try again."
         }
     }
 
@@ -2097,78 +2159,32 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     enabled = !uploading && pendingUploads.any { !it.retryBlocked } &&
                         pendingUploads.filter { !it.retryBlocked }.all { it.title.isNotBlank() },
                     onClick = {
-                        DocumentUploadForegroundService.start(context, "Uploading documents")
-                        scope.launch {
-                            val uploadJob = currentCoroutineContext()[Job]
-                            DocumentUploadForegroundService.setCancelAction { uploadJob?.cancel() }
-                            uploading = true
-                            progress = 0f
-                            currentFileProgress = 0f
-                            var completed = 0
-                            val retryableItems = pendingUploads.filter { !it.retryBlocked }
-                            val total = retryableItems.size
-                            try {
-                                retryableItems.forEachIndexed { index, pending ->
-                                    message = "Uploading ${index + 1} of $total: ${pending.fileName}"
-                                    currentFileProgress = 0f
-                                    currentUploadIndex = index
-                                    try {
-                                        repository.upload(
-                                            vaultId, memberUid, pending.uri, context.contentResolver,
-                                            pending.title.trim(), pending.categoryId, pending.notes.trim(), pending.scope,
-                                            pending.folderId
-                                        ) { value ->
-                                            currentFileProgress = value
-                                            progress = (completed + value) / total.toFloat()
-                                            DocumentUploadForegroundService.updateProgress((progress * 100).toInt())
-                                        }
-                                        completed++
-                                        progress = completed.toFloat() / total.toFloat()
-                                        DocumentUploadForegroundService.updateProgress((progress * 100).toInt())
-                                        pendingUploads.remove(pending)
-                                    } catch (error: CancellationException) {
-                                        throw error
-                                    } catch (error: Exception) {
-                                        val errorText = error.localizedMessage ?: error.message ?: "Upload failed"
-                                        val requiresCleanup = error.message?.contains("Do not retry yet", ignoreCase = true) == true
-                                        val itemIndex = pendingUploads.indexOfFirst { it.uri == pending.uri }
-                                        if (itemIndex >= 0) {
-                                            pendingUploads[itemIndex] = pending.copy(
-                                                errorMessage = errorText,
-                                                retryBlocked = requiresCleanup
-                                            )
-                                        }
-                                    }
-                                }
-                                progress = 1f
-                                if (pendingUploads.isEmpty()) {
-                                    message = "$completed file(s) uploaded."
-                                    showAddDocuments = false
-                                    pendingPhotoFile?.delete()
-                                    pendingPhotoFile = null
-                                    pendingPhotoUri = null
-                                    capturedPhotoUri = null
-                                    pendingScanFile?.delete()
-                                    pendingScanFile = null
-                                } else {
-                                    val blockedCount = pendingUploads.count { it.retryBlocked }
-                                    val retryCount = pendingUploads.size - blockedCount
-                                    message = buildString {
-                                        append("$completed file(s) uploaded. ")
-                                        if (retryCount > 0) append("$retryCount file(s) can be retried. ")
-                                        if (blockedCount > 0) append("$blockedCount file(s) need cleanup before retry; do not upload them again yet.")
-                                    }
-                                }
-                            } catch (error: CancellationException) {
-                                message = "Upload cancelled because the app was closed."
-                            } catch (error: Exception) {
-                                message = "Upload failed: ${error.localizedMessage ?: error.message ?: "Unknown error"}"
-                            } finally {
-                                uploading = false
-                                DocumentUploadForegroundService.setCancelAction(null)
-                                DocumentUploadForegroundService.stop(context)
+                        val retryableItems = pendingUploads.filter { !it.retryBlocked }
+                        val payload = JSONArray().apply {
+                            retryableItems.forEach { pending ->
+                                put(
+                                    JSONObject()
+                                        .put("uri", pending.uri.toString())
+                                        .put("fileName", pending.fileName)
+                                        .put("sizeBytes", pending.sizeBytes)
+                                        .put("title", pending.title.trim())
+                                        .put("notes", pending.notes.trim())
+                                        .put("categoryId", pending.categoryId)
+                                        .put("scope", pending.scope)
+                                        .put("folderId", pending.folderId)
+                                )
                             }
                         }
+                        uploading = true
+                        progress = 0f
+                        currentFileProgress = 0f
+                        currentUploadIndex = 0
+                        DocumentUploadForegroundService.startUploads(
+                            context = context,
+                            vaultId = vaultId,
+                            ownerUid = memberUid,
+                            uploads = payload
+                        )
                     }
                 ) { Text(if (uploading) "Uploading…" else "Upload") }
             },
@@ -2970,6 +2986,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 selectedDocumentIds.clear()
                                 selectionMode = false
                                 message = if (count == 0) "Recycle Bin is already empty." else "$count document(s) permanently deleted."
+                            } catch (error: FirebaseFunctionsException) {
+                                message = if (error.code == FirebaseFunctionsException.Code.NOT_FOUND) {
+                                    "The Empty Recycle Bin Firebase function is not deployed to the active project. Run: firebase deploy --only functions --project personalvault2-development"
+                                } else {
+                                    error.localizedMessage ?: "Unable to empty Recycle Bin."
+                                }
                             } catch (error: Exception) {
                                 message = error.localizedMessage ?: error.message ?: "Unable to empty Recycle Bin."
                             } finally {
