@@ -2455,6 +2455,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 if (!doc.isDeleted) {
+                    ListItem(
+                        headlineContent = { Text(if (memberUid in doc.favouriteUids) "Remove from Favourites" else "Add to Favourites") },
+                        supportingContent = { Text("Only your account's Favourite list is changed") },
+                        leadingContent = {
+                            Icon(
+                                Icons.Outlined.Favorite,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        modifier = Modifier.clickable(enabled = !busyDocument) {
+                            toggleFavourite(doc)
+                            selectedDocument = null
+                        }
+                    )
                     if (doc.ownerUid == memberUid) {
                         ListItem(
                             headlineContent = { Text("Change Access") },
