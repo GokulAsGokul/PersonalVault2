@@ -31,6 +31,11 @@ class DocumentRepositoryV2(
 
     data class UploadResult(val documentId: String, val storagePath: String)
 
+    fun isSupportedFileName(fileName: String): Boolean {
+        val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        return extension in SUPPORTED_EXTENSIONS
+    }
+
     fun readDisplayName(resolver: ContentResolver, uri: Uri): String {
         resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             ?.use { cursor ->
