@@ -112,6 +112,7 @@ import com.gokul.personalvault.data.model.DocumentRecordV2
 import com.gokul.personalvault.data.model.DocumentFolderV2
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.DocumentSnapshot
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -160,6 +161,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var documents by remember { mutableStateOf<List<DocumentRecordV2>>(emptyList()) }
     var sharedDocumentsLoaded by remember { mutableStateOf(false) }
     var personalDocumentsLoaded by remember { mutableStateOf(false) }
+    var sharedPageDocuments by remember { mutableStateOf<Map<String, DocumentRecordV2>>(emptyMap()) }
+    var personalPageDocuments by remember { mutableStateOf<Map<String, DocumentRecordV2>>(emptyMap()) }
+    var sharedLastDocument by remember { mutableStateOf<DocumentSnapshot?>(null) }
+    var personalLastDocument by remember { mutableStateOf<DocumentSnapshot?>(null) }
+    var sharedHasMore by remember { mutableStateOf(false) }
+    var personalHasMore by remember { mutableStateOf(false) }
+    var loadingMoreDocuments by remember { mutableStateOf(false) }
     val documentsLoaded = sharedDocumentsLoaded && personalDocumentsLoaded
     var folders by remember { mutableStateOf<List<DocumentFolderV2>>(emptyList()) }
     var currentFolderId by remember { mutableStateOf<String?>(null) }
@@ -268,18 +276,32 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     DisposableEffect(vaultId) {
-        val sharedDocs = mutableMapOf<String, DocumentRecordV2>()
-        val personalDocs = mutableMapOf<String, DocumentRecordV2>()
+        var sharedFirstPageIds = mutableSetOf<String>()
+        var personalFirstPageIds = mutableSetOf<String>()
+        sharedPageDocuments = emptyMap()
+        personalPageDocuments = emptyMap()
+        sharedLastDocument = null
+        personalLastDocument = null
+        sharedHasMore = false
+        personalHasMore = false
         fun publishDocuments() {
-            documents = (sharedDocs.values + personalDocs.values).distinctBy { it.id }
+            documents = (sharedPageDocuments.values + personalPageDocuments.values).distinctBy { it.id }
         }
-        val sharedListener: ListenerRegistration = repository.sharedDocumentsQuery(vaultId)
+        val sharedListener: ListenerRegistration = repository.sharedDocumentsPageQuery(vaultId)
             .addSnapshotListener { snapshot, error ->
                 if (error == null && snapshot != null) {
-                    sharedDocs.clear()
+                    val updated = sharedPageDocuments.toMutableMap()
+                    sharedFirstPageIds.forEach(updated::remove)
+                    sharedFirstPageIds.clear()
                     snapshot.documents.forEach { doc ->
-                        doc.data?.let { sharedDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
+                        doc.data?.let {
+                            updated[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it)
+                            sharedFirstPageIds.add(doc.id)
+                        }
                     }
+                    sharedPageDocuments = updated
+                    sharedLastDocument = snapshot.documents.lastOrNull()
+                    sharedHasMore = snapshot.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
                     publishDocuments()
                     sharedDocumentsLoaded = true
                 } else if (error != null) {
@@ -287,13 +309,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     message = "Shared documents: ${error.localizedMessage ?: "Unable to load documents."}"
                 }
             }
-        val personalListener: ListenerRegistration = repository.personalDocumentsQuery(vaultId, memberUid)
+        val personalListener: ListenerRegistration = repository.personalDocumentsPageQuery(vaultId, memberUid)
             .addSnapshotListener { snapshot, error ->
                 if (error == null && snapshot != null) {
-                    personalDocs.clear()
+                    val updated = personalPageDocuments.toMutableMap()
+                    personalFirstPageIds.forEach(updated::remove)
+                    personalFirstPageIds.clear()
                     snapshot.documents.forEach { doc ->
-                        doc.data?.let { personalDocs[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
+                        doc.data?.let {
+                            updated[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it)
+                            personalFirstPageIds.add(doc.id)
+                        }
                     }
+                    personalPageDocuments = updated
+                    personalLastDocument = snapshot.documents.lastOrNull()
+                    personalHasMore = snapshot.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
                     publishDocuments()
                     personalDocumentsLoaded = true
                 } else if (error != null) {
