@@ -24,6 +24,7 @@ class DocumentRepositoryV2(
 ) {
     companion object {
         const val MAX_FILE_BYTES = 50L * 1024L * 1024L
+        const val DOCUMENT_PAGE_SIZE = 50L
         private const val VAULTS = "vaultsV2"
         private const val DOCUMENTS = "documents"
         private val SUPPORTED_EXTENSIONS = setOf(
@@ -63,10 +64,6 @@ class DocumentRepositoryV2(
 
     fun documentCollection(vaultId: String) =
         firestore.collection(VAULTS).document(vaultId).collection(DOCUMENTS)
-
-    companion object {
-        const val DOCUMENT_PAGE_SIZE = 50L
-    }
 
     fun sharedDocumentsQuery(vaultId: String) =
         documentCollection(vaultId).whereEqualTo("scope", "SHARED")
