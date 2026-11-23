@@ -349,6 +349,7 @@ service cloud.firestore {
             ? (members[0] == request.auth.uid ? members[1] : members[0])
             : '';
           return isVaultMember(vaultId)
+            && (resource.data.ownerUid == request.auth.uid || resource.data.scope == 'SHARED')
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['favouriteUids'])
             && request.resource.data.get('favouriteUids', {}) is map
             && request.resource.data.get('favouriteUids', {}).keys().hasOnly(members)
