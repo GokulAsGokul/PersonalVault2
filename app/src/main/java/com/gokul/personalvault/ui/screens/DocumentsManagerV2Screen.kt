@@ -2023,7 +2023,11 @@ fun DocumentsManagerV2Screen(vaultId: String, memberUid: String) {
                                             mimeType = doc.contentType
                                         )
                                     }
-                                    message = "Downloaded to Downloads/Personal Vault."
+                                    message = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                        "Downloaded to Downloads/Personal Vault."
+                                    } else {
+                                        "Downloaded to the app's Downloads folder."
+                                    }
                                     selectedDocument = null
                                 } catch (error: Exception) {
                                     message = error.localizedMessage ?: error.message ?: "Download failed."
@@ -2602,10 +2606,9 @@ private fun saveDocumentToDownloads(
             throw error
         }
     } else {
-        val downloadsDirectory = File(
-            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-            "Personal Vault"
-        )
+        val externalDownloads = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: context.filesDir
+        val downloadsDirectory = File(externalDownloads, "Personal Vault")
         if (!downloadsDirectory.exists() && !downloadsDirectory.mkdirs()) {
             throw IllegalStateException("Unable to create the app Downloads folder.")
         }
