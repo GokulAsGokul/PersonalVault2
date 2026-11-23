@@ -754,6 +754,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     val active = documents.filter { !it.isDeleted }
+    val scopedActive = active.filter { visibility == "ALL" || it.scope == visibility }
+    val scopedBytes = scopedActive.sumOf { it.sizeBytes }
     val deleted = documents.filter { it.isDeleted }
     val source = if (recycleBin) deleted else active
     val visible = source
@@ -1161,9 +1163,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             var menuExpanded by remember { mutableStateOf(false) }
             VaultCompactHeader(
                 title = headerTitle,
-                subtitle = headerSubtitle,
+                subtitle = if (isHome) null else headerSubtitle,
                 onBack = if (canGoBack) ({ goBack() }) else null,
+                titleIcon = if (headerTitle == "Documents") Icons.Outlined.Description else null,
                 actions = {
+                    if (isHome) {
+                        IconButton(onClick = {
+                            showAllDocuments = true
+                            search = ""
+                        }) {
+                            Icon(Icons.Outlined.Search, contentDescription = "Search documents")
+                        }
+                    }
                     Box {
                         IconButton(onClick = { menuExpanded = true }) {
                             Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
@@ -1216,7 +1227,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 112.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // ── Upload progress banner (replaces the old inline progress) ──
@@ -1235,8 +1246,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             }
 
-            // ── Search ──
-            item(key = "search") {
+            // Search is available in All Files and deeper views, not on the Documents dashboard.
+            if (!isHome) item(key = "search") {
                 TextField(
                     value = search,
                     onValueChange = { search = it },
@@ -1337,21 +1348,54 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 val recent = active.filter { visibility == "ALL" || it.scope == visibility }
                     .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(3)
                 item(key = "document_summary") {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DocumentSummaryTileV2New("Documents", active.size.toString(), Icons.Outlined.Description, palette, Modifier.weight(1f))
-                            DocumentSummaryTileV2New("Storage", formatDocumentBytesNew(bytes), Icons.Outlined.Storage, palette, Modifier.weight(1f))
+                            DocumentSummaryTileV2New("Documents", scopedActive.size.toString(), Icons.Outlined.Description, palette, Modifier.weight(1f))
+                            DocumentSummaryTileV2New("Storage", formatDocumentBytesNew(scopedBytes), Icons.Outlined.Storage, palette, Modifier.weight(1f))
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             DocumentSummaryTileV2New(
-                                "Personal", active.count { it.scope == "PERSONAL" }.toString(),
+                                "Personal", scopedActive.count { it.scope == "PERSONAL" }.toString(),
                                 Icons.Outlined.Person, palette, Modifier.weight(1f), isShared = false
                             )
                             DocumentSummaryTileV2New(
-                                "Shared", active.count { it.scope == "SHARED" }.toString(),
+                                "Shared", scopedActive.count { it.scope == "SHARED" }.toString(),
                                 Icons.Outlined.Groups, palette, Modifier.weight(1f), isShared = true
                             )
                         }
+                    }
+                }
+                item(key = "cat_header") {
+                    Text(
+                        "Categories",
+                        Modifier.padding(top = 12.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                items(allCategories.chunked(2)) { categoryRow ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        categoryRow.forEach { (id, name) ->
+                            val count = active.count {
+                                it.categoryId == id && (visibility == "ALL" || it.scope == visibility)
+                            }
+                            val (tileBg, tileFg) = categoryStyleV2New(id, isDarkUi)
+                            CategoryCardV2New(
+                                name = name,
+                                icon = categoryIconV2New(id),
+                                count = count,
+                                tileBg = tileBg,
+                                tileFg = tileFg,
+                                palette = palette,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    category = id
+                                    currentFolderId = null
+                                    showAllDocuments = false
+                                }
+                            )
+                        }
+                        if (categoryRow.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
                 item(key = "recent_header") {
@@ -1377,39 +1421,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             onClick = { openDocument(doc) },
                             onMore = { selectedDocument = doc }
                         )
-                    }
-                }
-                item(key = "cat_header") {
-                    Text(
-                        "Categories",
-                        Modifier.padding(top = 12.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                items(allCategories.chunked(3)) { categoryRow ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        categoryRow.forEach { (id, name) ->
-                            val count = active.count {
-                                it.categoryId == id && (visibility == "ALL" || it.scope == visibility)
-                            }
-                            val (tileBg, tileFg) = categoryStyleV2New(id, isDarkUi)
-                            CategoryCardV2New(
-                                name = name,
-                                icon = categoryIconV2New(id),
-                                count = count,
-                                tileBg = tileBg,
-                                tileFg = tileFg,
-                                palette = palette,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    category = id
-                                    currentFolderId = null
-                                    showAllDocuments = false
-                                }
-                            )
-                        }
-                        repeat(3 - categoryRow.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
                 item(key = "recycle_row") {
@@ -3458,15 +3469,21 @@ private fun DocumentSummaryTileV2New(
         false -> if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
         null -> palette.accent
     }
-    Card(modifier = modifier, shape = RoundedCornerShape(16.dp),
+    Card(modifier = modifier.heightIn(min = 68.dp), shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = tileBackground)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(icon, contentDescription = null, tint = tileAccent, modifier = Modifier.size(21.dp))
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
-                color = if (isShared != null) tileAccent else MaterialTheme.colorScheme.onSurface)
-            Text(label, style = MaterialTheme.typography.labelSmall,
-                color = if (isShared != null) tileAccent else palette.muted, maxLines = 1)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = tileAccent, modifier = Modifier.size(22.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(label, style = MaterialTheme.typography.labelSmall,
+                    color = if (isShared != null) tileAccent else palette.muted, maxLines = 1)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                    color = if (isShared != null) tileAccent else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
@@ -3557,12 +3574,12 @@ private fun DocumentRowV2New(
             }
             DocumentTypeIconNew(document.contentType, Modifier.size(46.dp))
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
-                    document.title.ifBlank { document.originalFileName }.take(50),
+                    document.title.ifBlank { document.originalFileName },
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyLarge
                 )
@@ -3573,18 +3590,18 @@ private fun DocumentRowV2New(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (isRecycleBin) {
-                    Text("Deleted", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (!isRecycleBin) ScopePillV2New(document, mine, palette)
+                    if (document.favouriteUids[currentMemberUid] == true && !isRecycleBin) {
+                        Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
+                            tint = Color(0xFFB45BCE), modifier = Modifier.size(15.dp))
+                    }
+                    if (isRecycleBin) {
+                        Text("Deleted", color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall)
+                    }
                 }
-            }
-            if (!isRecycleBin) {
-                if (document.favouriteUids[currentMemberUid] == true) {
-                    Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
-                        tint = Color(0xFFB45BCE), modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                }
-                Spacer(Modifier.width(6.dp))
-                ScopePillV2New(document, mine, palette)
             }
             IconButton(onClick = onMore) {
                 Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
@@ -3675,17 +3692,17 @@ private fun CategoryCardV2New(
             Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(Modifier.size(40.dp), shape = RoundedCornerShape(12.dp), color = tileBg) {
+            Surface(Modifier.size(36.dp), shape = RoundedCornerShape(11.dp), color = tileBg) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = tileFg, modifier = Modifier.size(21.dp))
+                    Icon(icon, contentDescription = null, tint = tileFg, modifier = Modifier.size(20.dp))
                 }
             }
-            Spacer(Modifier.width(10.dp))
-            Column {
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     name,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
