@@ -911,6 +911,51 @@ export const permanentlyDeleteV2Document = onCall(async (request) => {
 });
 
 
+/** Permanently empty the signed-in member's Recycle Bin in this vault. */
+export const emptyRecycleBinV2Documents = onCall(async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const vault = await db.collection(OWNER_VAULTS).doc(vaultId).get();
+  const members = assertValidOwnerVault(vault, vaultId);
+  if (!members.includes(uid)) {
+    throw new HttpsError("permission-denied", "You are not a household member.");
+  }
+
+  const documentsRef = db.collection(OWNER_VAULTS).doc(vaultId).collection("documents");
+  const bucket = getStorage().bucket();
+  let deletedCount = 0;
+
+  while (true) {
+    const page = await documentsRef
+      .where("ownerUid", "==", uid)
+      .where("isDeleted", "==", true)
+      .limit(400)
+      .get();
+    if (page.empty) break;
+
+    const storageFiles = page.docs.map((document) => {
+      const expectedPath = `vaultsV2/${vaultId}/documents/${uid}/${document.id}`;
+      if (document.get("storagePath") !== expectedPath) {
+        throw new HttpsError(
+          "failed-precondition",
+          `The storage path for "${document.get("title") ?? document.id}" is invalid. No files in this batch were deleted.`
+        );
+      }
+      return bucket.file(expectedPath);
+    });
+
+    await Promise.all(storageFiles.map((file) => file.delete({ignoreNotFound: true})));
+    const batch = db.batch();
+    page.docs.forEach((document) => batch.delete(document.ref));
+    await batch.commit();
+    deletedCount += page.size;
+    if (page.size < 400) break;
+  }
+
+  return {status: "emptied", deletedCount};
+});
+
 /** Delete a folder only when it has no documents and no child folders. */
 export const deleteEmptyV2DocumentFolder = onCall(async (request) => {
   const {uid} = requireIdentity(request);
