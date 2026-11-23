@@ -2,7 +2,10 @@ package com.gokul.personalvault.ui.screens
 
 import android.app.DownloadManager
 import android.app.Activity
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
 import android.content.Context
 import android.content.Intent
 import android.content.ClipData
@@ -219,6 +222,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var downloadingFileName by remember { mutableStateOf("") }
     var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
     var downloadTotalBytes by remember { mutableLongStateOf(0L) }
+    var showDocumentPreview by remember { mutableStateOf(false) }
+    var previewBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var previewFile by remember { mutableStateOf<File?>(null) }
+    var previewTitle by remember { mutableStateOf("") }
+    var previewPageIndex by remember { mutableIntStateOf(0) }
+    var previewPageCount by remember { mutableIntStateOf(1) }
     val pendingUploads = remember { mutableStateListOf<PendingDocumentUploadV2New>() }
     val uploadFormScrollState = rememberScrollState()
     var showAddDocuments by remember { mutableStateOf(false) }
@@ -665,6 +674,63 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } finally {
                 busyDocument = false
                 isDownloadingFile = false
+            }
+        }
+    }
+
+    suspend fun renderPreviewPage(file: File, doc: DocumentRecordV2, pageIndex: Int): Pair<androidx.compose.ui.graphics.ImageBitmap, Int> =
+        withContext(Dispatchers.IO) {
+            if (doc.contentType.startsWith("image/")) {
+                val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+                    ?: throw IllegalStateException("This image cannot be previewed.")
+                bitmap.asImageBitmap() to 1
+            } else if (doc.contentType.contains("pdf", ignoreCase = true) ||
+                doc.originalFileName.endsWith(".pdf", ignoreCase = true)
+            ) {
+                val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                PdfRenderer(descriptor).use { renderer ->
+                    require(renderer.pageCount > 0) { "This PDF has no pages." }
+                    val index = pageIndex.coerceIn(0, renderer.pageCount - 1)
+                    renderer.openPage(index).use { page ->
+                        val scale = (1400f / page.width).coerceAtMost(2f)
+                        val bitmap = Bitmap.createBitmap(
+                            (page.width * scale).toInt().coerceAtLeast(1),
+                            (page.height * scale).toInt().coerceAtLeast(1),
+                            Bitmap.Config.ARGB_8888
+                        )
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        bitmap.asImageBitmap() to renderer.pageCount
+                    }
+                }
+            } else {
+                throw IllegalArgumentException("Preview is available for PDF and image files. Use Open for this file type.")
+            }
+        }
+
+    fun previewDocument(doc: DocumentRecordV2, pageIndex: Int = 0) {
+        scope.launch {
+            busyDocument = true
+            isDownloadingFile = true
+            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadTransferredBytes = 0L
+            downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
+            try {
+                val file = previewFile ?: repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
+                    downloadTransferredBytes = transferred.coerceAtLeast(0L)
+                    if (total > 0L) downloadTotalBytes = total
+                }
+                val (bitmap, count) = renderPreviewPage(file, doc, pageIndex)
+                previewFile = file
+                previewBitmap = bitmap
+                previewPageCount = count
+                previewPageIndex = pageIndex.coerceIn(0, count - 1)
+                previewTitle = doc.title.ifBlank { doc.originalFileName }
+                showDocumentPreview = true
+            } catch (error: Exception) {
+                message = error.localizedMessage ?: error.message ?: "Unable to preview this document."
+            } finally {
+                isDownloadingFile = false
+                busyDocument = false
             }
         }
     }
@@ -2410,6 +2476,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     DocumentActionIconNew(
+                        icon = { Icon(Icons.Outlined.Visibility, null, tint = documentAccent) },
+                        label = "Preview",
+                        enabled = !busyDocument && !doc.isDeleted &&
+                            (doc.contentType.startsWith("image/") || doc.contentType.contains("pdf", true) ||
+                                doc.originalFileName.endsWith(".pdf", true)),
+                        onClick = { previewDocument(doc) }
+                    )
+                    DocumentActionIconNew(
                         icon = { Icon(Icons.Outlined.Download, null, tint = documentAccent) },
                         label = "Download",
                         enabled = !busyDocument && !doc.isDeleted,
@@ -2544,6 +2618,44 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             }
         }
+    }
+
+    if (showDocumentPreview && previewBitmap != null) {
+        AlertDialog(
+            modifier = Modifier.fillMaxSize(),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+            onDismissRequest = { showDocumentPreview = false },
+            title = {
+                Text(previewTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            },
+            text = {
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Image(
+                        bitmap = previewBitmap!!,
+                        contentDescription = "Document preview",
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentScale = ContentScale.Fit
+                    )
+                    if (previewPageCount > 1) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween) {
+                            TextButton(
+                                enabled = previewPageIndex > 0,
+                                onClick = { selectedDocument?.let { previewDocument(it, previewPageIndex - 1) } }
+                            ) { Text("Previous") }
+                            Text("Page ${previewPageIndex + 1} of $previewPageCount")
+                            TextButton(
+                                enabled = previewPageIndex < previewPageCount - 1,
+                                onClick = { selectedDocument?.let { previewDocument(it, previewPageIndex + 1) } }
+                            ) { Text("Next") }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDocumentPreview = false }) { Text("Close") }
+            }
+        )
     }
 
     if (isDownloadingFile) {
