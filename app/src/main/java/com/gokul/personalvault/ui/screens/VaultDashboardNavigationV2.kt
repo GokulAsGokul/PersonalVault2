@@ -27,6 +27,8 @@ import com.gokul.personalvault.data.firebase.RecoveryBackupRepositoryV2
 import com.gokul.personalvault.data.local.VaultKeyLocalStoreV2
 import com.gokul.personalvault.data.local.VaultKeySessionV2
 import com.google.firebase.auth.FirebaseAuth
+import com.gokul.personalvault.ui.components.VaultDashboardHeader
+import com.gokul.personalvault.ui.components.VaultCompactHeader
 import com.gokul.personalvault.ui.components.VaultSnackbarController
 import com.gokul.personalvault.ui.components.VaultSnackbarHost
 import com.gokul.personalvault.ui.components.VaultSnackbarType
@@ -113,13 +115,27 @@ fun VaultDashboardNavigationV2(
                     onOpen = { selected = it },
                     onSignOut = onSignOut
                 )
-                selected == VaultV2Destination.HOUSEHOLD -> HouseholdInvitationV2Screen(
-                    onBack = { selected = VaultV2Destination.HOME },
-                    vaultId = vaultId,
-                    memberUid = memberUid
-                )
-                selected == VaultV2Destination.SETTINGS -> RecoveryPasswordV2Screen(
-                    hasUnlockedVault = vaultUnlocked,
+                selected == VaultV2Destination.HOUSEHOLD -> Column(Modifier.fillMaxSize()) {
+                    VaultCompactHeader(
+                        title = "Household",
+                        onBack = { selected = VaultV2Destination.HOME }
+                    )
+                    Box(Modifier.weight(1f)) {
+                        HouseholdInvitationV2Screen(
+                            onBack = { selected = VaultV2Destination.HOME },
+                            vaultId = vaultId,
+                            memberUid = memberUid
+                        )
+                    }
+                }
+                selected == VaultV2Destination.SETTINGS -> Column(Modifier.fillMaxSize()) {
+                    VaultCompactHeader(
+                        title = "Settings",
+                        onBack = { selected = VaultV2Destination.HOME }
+                    )
+                    Box(Modifier.weight(1f)) {
+                        RecoveryPasswordV2Screen(
+                            hasUnlockedVault = vaultUnlocked,
                     onCreateBackup = { recoveryPassword, complete ->
                         val key = VaultKeySessionV2.copyKey(vaultId, memberUid)
                         if (key == null) {
@@ -170,8 +186,10 @@ fun VaultDashboardNavigationV2(
                             )
                         }
                     },
-                    onBack = { selected = VaultV2Destination.HOME }
-                )
+                            onBack = { selected = VaultV2Destination.HOME }
+                        )
+                    }
+                }
                 protected && !vaultUnlocked -> Box(Modifier.fillMaxSize())
                 selected == VaultV2Destination.PASSWORDS -> PasswordManagerV2Screen(
                     vaultId = vaultId,
@@ -203,23 +221,13 @@ private fun DashboardOverviewV2(
     onOpen: (VaultV2Destination) -> Unit,
     onSignOut: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().background(Color(0xFFF4F6FB)).padding(20.dp)) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("PERSONAL VAULT 2.0", color = Color(0xFF64748B),
-                    style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(5.dp))
-                Text("Welcome back!", color = Color(0xFF14213D),
-                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(email, color = Color(0xFF64748B), style = MaterialTheme.typography.bodySmall)
-            }
-            TextButton(onClick = onSignOut) { Text("Sign out") }
-        }
-        Spacer(Modifier.height(22.dp))
+    Column(Modifier.fillMaxSize().background(Color(0xFFF4F6FB))) {
+        VaultDashboardHeader(onSignOut = onSignOut)
+        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Text("Welcome back!", color = Color(0xFF14213D),
+                style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(email, color = Color(0xFF64748B), style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(22.dp))
         Card(
             Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(22.dp),
@@ -252,6 +260,7 @@ private fun DashboardOverviewV2(
             item { V2DashboardTile("Personal Info", "Important details", Icons.Outlined.Person) { onOpen(VaultV2Destination.PERSONAL_INFO) } }
             item { V2DashboardTile("Household", "Invite and manage access", Icons.Outlined.People) { onOpen(VaultV2Destination.HOUSEHOLD) } }
             item { V2DashboardTile("Settings", "Security and recovery", Icons.Outlined.Settings) { onOpen(VaultV2Destination.SETTINGS) } }
+        }
         }
     }
 }
