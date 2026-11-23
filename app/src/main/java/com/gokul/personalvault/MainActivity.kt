@@ -63,6 +63,13 @@ object VaultExternalActivityState {
 }
 
 class MainActivity : ComponentActivity() {
+    override fun onDestroy() {
+        if (isFinishing) {
+            DocumentUploadForegroundService.cancelAndStop(this)
+        }
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -180,7 +187,7 @@ LaunchedEffect(currentUid) {
                         !VaultExternalActivityState.documentPickerActive &&
                         !VaultExternalActivityState.documentViewerActive
                     ) {
-                        // Keep the vault unlocked while the system document picker is temporarily open.
+                        // Keep the vault unlocked while an external document picker or viewer is temporarily open.
                         VaultKeySessionV2.clear()
                         VaultCrypto.clearSession()
                         HouseholdCrypto.clearSession()
