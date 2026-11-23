@@ -471,6 +471,12 @@ class DocumentRepositoryV2(
             .call(mapOf("vaultId" to vaultId, "categoryId" to categoryId)).await()
     }
 
+    suspend fun setFavourite(vaultId: String, documentId: String, memberUid: String, favourite: Boolean) {
+        require(memberUid.isNotBlank()) { "A signed-in household member is required." }
+        val fieldValue = if (favourite) FieldValue.arrayUnion(memberUid) else FieldValue.arrayRemove(memberUid)
+        documentCollection(vaultId).document(documentId).update("favouriteUids", fieldValue).await()
+    }
+
     suspend fun moveToRecycleBin(vaultId: String, document: DocumentRecordV2) {
         functions.getHttpsCallable("softDeleteV2Document")
             .call(mapOf("vaultId" to vaultId, "documentId" to document.id)).await()
