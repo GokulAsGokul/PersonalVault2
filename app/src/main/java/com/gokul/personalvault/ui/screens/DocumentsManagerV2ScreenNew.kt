@@ -371,6 +371,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     title = fileName.substringBeforeLast('.', fileName).take(50)
                 )
             }
+            val unsupported = selectedFiles.filterNot { repository.isSupportedFileName(it.fileName) }
+            if (unsupported.isNotEmpty()) {
+                message = "Unsupported file type: " + unsupported.joinToString { it.fileName } +
+                    ". Supported formats: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX, PPT, PPTX and TXT."
+                return@rememberLauncherForActivityResult
+            }
             val oversized = selectedFiles.filter { it.sizeBytes > MAX_DOCUMENT_FILE_BYTES_NEW }
             if (oversized.isNotEmpty()) {
                 message = "Each file must be 50 MB or smaller. Too large: " +
