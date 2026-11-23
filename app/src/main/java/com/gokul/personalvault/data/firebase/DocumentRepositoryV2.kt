@@ -528,6 +528,13 @@ class DocumentRepositoryV2(
             .call(mapOf("vaultId" to vaultId, "documentId" to documentId)).await()
     }
 
+    suspend fun emptyRecycleBin(vaultId: String): Int {
+        val result = functions.getHttpsCallable("emptyRecycleBinV2Documents")
+            .call(mapOf("vaultId" to vaultId)).await()
+        val data = result.data as? Map<*, *>
+        return (data?.get("deletedCount") as? Number)?.toInt() ?: 0
+    }
+
     suspend fun downloadToCache(
         cacheDir: File,
         vaultId: String,
