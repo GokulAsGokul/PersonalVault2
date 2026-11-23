@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -28,7 +27,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,9 +97,6 @@ fun VaultDashboardHeader(
                 ) {
                     DropdownMenuItem(
                         text = { Text("Sign out") },
-                        leadingIcon = {
-                            Icon(Icons.Outlined.MoreVert, contentDescription = null)
-                        },
                         onClick = {
                             profileMenuExpanded = false
                             onSignOut()
