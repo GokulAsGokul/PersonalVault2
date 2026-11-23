@@ -73,6 +73,10 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.Deselect
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -177,6 +181,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var deleteFolderError by remember { mutableStateOf<String?>(null) }
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var search by remember { mutableStateOf("") }
+    var advancedSearchExpanded by remember { mutableStateOf(false) }
+    var searchFileNameOnly by remember { mutableStateOf(false) }
+    var showFavouritesOnly by remember { mutableStateOf(false) }
+    var selectionMode by remember { mutableStateOf(false) }
+    val selectedDocumentIds = remember { mutableStateListOf<String>() }
     var category by remember { mutableStateOf("all") }
     var visibility by remember { mutableStateOf("ALL") }
     var fileType by remember { mutableStateOf("ALL") }
@@ -577,9 +586,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         .filter { it.folderId == currentFolderId }
         .filter {
             val q = search.trim().lowercase(Locale.ROOT)
-            q.isEmpty() || it.title.lowercase(Locale.ROOT).contains(q) ||
-                it.description.lowercase(Locale.ROOT).contains(q)
+            q.isEmpty() ||
+                it.title.lowercase(Locale.ROOT).contains(q) ||
+                it.originalFileName.lowercase(Locale.ROOT).contains(q) ||
+                (!searchFileNameOnly && (
+                    it.description.lowercase(Locale.ROOT).contains(q) ||
+                    it.categoryId.lowercase(Locale.ROOT).contains(q)
+                ))
         }
+        .filter { !showFavouritesOnly || memberUid in it.favouriteUids }
         .filter {
             when (fileType) {
                 "PDF" -> it.contentType.contains("pdf", true)
