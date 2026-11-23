@@ -277,7 +277,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
     }
 
-    DisposableEffect(vaultId) {
+    DisposableEffect(vaultId, memberUid) {
+        documents = emptyList()
+        sharedDocumentsLoaded = false
+        personalDocumentsLoaded = false
+        loadingMoreDocuments = false
         var sharedFirstPageIds = mutableSetOf<String>()
         var personalFirstPageIds = mutableSetOf<String>()
         sharedPageDocuments = emptyMap()
@@ -758,6 +762,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         doc.data?.let { updated[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
                     }
                     sharedPageDocuments = updated
+                    documents = (updated.values + personalPageDocuments.values).distinctBy { it.id }
                     sharedLastDocument = page.documents.lastOrNull() ?: sharedLastDocument
                     sharedHasLoadedMore = true
                     sharedHasMore = page.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
@@ -769,6 +774,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         doc.data?.let { updated[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
                     }
                     personalPageDocuments = updated
+                    documents = (sharedPageDocuments.values + updated.values).distinctBy { it.id }
                     personalLastDocument = page.documents.lastOrNull() ?: personalLastDocument
                     personalHasLoadedMore = true
                     personalHasMore = page.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
