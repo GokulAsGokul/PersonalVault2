@@ -51,6 +51,7 @@ sealed class DocumentUploadUiState {
         val uploadedCount: Int,
         val failures: List<DocumentUploadFailure>
     ) : DocumentUploadUiState()
+    data class Failed(val message: String) : DocumentUploadUiState()
     object Cancelled : DocumentUploadUiState()
 }
 
@@ -90,11 +91,9 @@ class DocumentUploadForegroundService : Service() {
                 } catch (_: CancellationException) {
                     mutableUploadState.value = DocumentUploadUiState.Cancelled
                 } catch (error: Exception) {
-                    mutableUploadState.value = DocumentUploadUiState.Completed(
-                        uploadedCount = 0,
-                        failures = emptyList()
-                    )
-                    updateNotification(0, false, "Upload failed: ${error.localizedMessage ?: "Please retry"}")
+                    val errorText = error.localizedMessage ?: error.message ?: "Please retry."
+                    mutableUploadState.value = DocumentUploadUiState.Failed(errorText)
+                    updateNotification(0, false, "Upload failed: $errorText")
                 } finally {
                     stopForegroundCompat()
                     stopSelf(startId)
