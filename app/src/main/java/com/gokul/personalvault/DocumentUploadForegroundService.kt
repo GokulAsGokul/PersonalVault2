@@ -76,14 +76,15 @@ class DocumentUploadForegroundService : Service() {
             ?.takeIf { it.isNotBlank() } ?: "Uploading documents"
         startAsForeground(buildNotification(0, true))
 
-        val uploadsJson = intent?.getStringExtra(EXTRA_UPLOADS_JSON)
+        val uploadIntent = intent
+        val uploadsJson = uploadIntent?.getStringExtra(EXTRA_UPLOADS_JSON)
         if (!uploadsJson.isNullOrBlank()) {
             uploadJob?.cancel()
             uploadJob = serviceScope?.launch {
                 try {
                     runBatchUpload(
-                        intent.getStringExtra(EXTRA_VAULT_ID).orEmpty(),
-                        intent.getStringExtra(EXTRA_OWNER_UID).orEmpty(),
+                        uploadIntent?.getStringExtra(EXTRA_VAULT_ID).orEmpty(),
+                        uploadIntent?.getStringExtra(EXTRA_OWNER_UID).orEmpty(),
                         uploadsJson
                     )
                 } catch (_: CancellationException) {
