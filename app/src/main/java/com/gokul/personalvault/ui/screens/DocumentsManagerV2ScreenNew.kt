@@ -606,7 +606,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     it.categoryId.lowercase(Locale.ROOT).contains(q)
                 ))
         }
-        .filter { !showFavouritesOnly || memberUid in it.favouriteUids }
+        .filter { !showFavouritesOnly || it.favouriteUids[memberUid] == true }
         .filter {
             when (fileType) {
                 "PDF" -> it.contentType.contains("pdf", true)
@@ -765,7 +765,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     fun toggleFavourite(doc: DocumentRecordV2) {
         scope.launch {
             try {
-                val wasFavourite = memberUid in doc.favouriteUids
+                val wasFavourite = doc.favouriteUids[memberUid] == true
                 repository.setFavourite(vaultId, doc.id, memberUid, !wasFavourite)
                 message = if (wasFavourite) "Removed from Favourites." else "Added to Favourites."
             } catch (error: Exception) {
@@ -787,7 +787,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             var succeeded = 0
             try {
                 targets.forEach { doc ->
-                    repository.setFavourite(vaultId, doc.id, memberUid, memberUid !in doc.favouriteUids)
+                    repository.setFavourite(vaultId, doc.id, memberUid, doc.favouriteUids[memberUid] != true)
                     succeeded++
                 }
                 message = "$succeeded document(s) updated in Favourites."
@@ -2530,7 +2530,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 if (!doc.isDeleted) {
                     ListItem(
-                        headlineContent = { Text(if (memberUid in doc.favouriteUids) "Remove from Favourites" else "Add to Favourites") },
+                        headlineContent = { Text(if (doc.favouriteUids[memberUid] == true) "Remove from Favourites" else "Add to Favourites") },
                         supportingContent = { Text("Only your account's Favourite list is changed") },
                         leadingContent = {
                             Icon(
