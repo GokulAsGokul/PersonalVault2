@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -114,6 +115,7 @@ fun VaultCompactHeader(
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    titleIcon: ImageVector? = null,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     Surface(
@@ -136,6 +138,14 @@ fun VaultCompactHeader(
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
+            }
+            if (titleIcon != null) {
+                Icon(
+                    imageVector = titleIcon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
             }
             androidx.compose.foundation.layout.Column(
                 modifier = Modifier.weight(1f)
