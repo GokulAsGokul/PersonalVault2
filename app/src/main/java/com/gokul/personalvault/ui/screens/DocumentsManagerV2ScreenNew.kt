@@ -1488,7 +1488,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
-                if (recycleBin && deleted.any { it.ownerUid == memberUid }) {
+                if (recycleBin) {
                     item(key = "empty_recycle_bin") {
                         OutlinedButton(
                             onClick = { showEmptyRecycleBinConfirm = true },
@@ -1521,14 +1521,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     }) { Text(if (selectedDocumentIds.size == visible.size) "Clear" else "Select all") }
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(
-                                        onClick = { runBulkFavourite() },
-                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument && !recycleBin,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(Icons.Outlined.Favorite, null)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Favourite")
+                                    if (!recycleBin) {
+                                        OutlinedButton(
+                                            onClick = { runBulkFavourite() },
+                                            enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(Icons.Outlined.Favorite, null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Favourite")
+                                        }
                                     }
                                     if (!recycleBin && visible.any { it.id in selectedDocumentIds && it.ownerUid == memberUid }) {
                                         Button(
