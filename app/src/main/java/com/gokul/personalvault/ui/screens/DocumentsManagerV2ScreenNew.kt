@@ -693,15 +693,63 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
     }
 
-    fun deleteDocument(doc: DocumentRecordV2) {
+    fun toggleFavourite(doc: DocumentRecordV2) {
+        scope.launch {
+            try {
+                val wasFavourite = memberUid in doc.favouriteUids
+                repository.setFavourite(vaultId, doc.id, memberUid, !wasFavourite)
+                message = if (wasFavourite) "Removed from Favourites." else "Added to Favourites."
+            } catch (error: Exception) {
+                message = error.localizedMessage ?: "Unable to update Favourite."
+            }
+        }
+    }
+
+    fun toggleSelection(doc: DocumentRecordV2) {
+        if (doc.id in selectedDocumentIds) selectedDocumentIds.remove(doc.id)
+        else selectedDocumentIds.add(doc.id)
+        if (selectedDocumentIds.isEmpty()) selectionMode = false
+    }
+
+    fun runBulkFavourite() {
+        val targets = visible.filter { it.id in selectedDocumentIds }
         scope.launch {
             busyDocument = true
+            var succeeded = 0
             try {
-                repository.moveToRecycleBin(vaultId, doc)
-                message = "Moved To Recycle Bin. Retained For 30 Days."
+                targets.forEach { doc ->
+                    repository.setFavourite(vaultId, doc.id, memberUid, memberUid !in doc.favouriteUids)
+                    succeeded++
+                }
+                message = "$succeeded document(s) updated in Favourites."
             } catch (error: Exception) {
-                message = error.message ?: "Delete Failed."
+                message = "$succeeded updated. ${error.localizedMessage ?: "Some favourites could not be updated."}"
             } finally {
+                selectedDocumentIds.clear()
+                selectionMode = false
+                busyDocument = false
+            }
+        }
+    }
+
+    fun runBulkDelete() {
+        val targets = visible.filter { it.id in selectedDocumentIds && it.ownerUid == memberUid }
+        val skipped = selectedDocumentIds.size - targets.size
+        scope.launch {
+            busyDocument = true
+            var succeeded = 0
+            try {
+                targets.forEach { doc ->
+                    repository.moveToRecycleBin(vaultId, doc)
+                    succeeded++
+                }
+                message = "$succeeded document(s) moved to Recycle Bin." +
+                    if (skipped > 0) " $skipped skipped: only the owner can delete a document." else ""
+            } catch (error: Exception) {
+                message = "$succeeded moved. ${error.localizedMessage ?: "Some documents could not be deleted."}"
+            } finally {
+                selectedDocumentIds.clear()
+                selectionMode = false
                 busyDocument = false
             }
         }
