@@ -6,6 +6,9 @@ import android.provider.OpenableColumns
 import com.gokul.personalvault.data.model.DocumentRecordV2
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldPath
+import com.google.firebase.firestore.Query
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
@@ -61,12 +64,36 @@ class DocumentRepositoryV2(
     fun documentCollection(vaultId: String) =
         firestore.collection(VAULTS).document(vaultId).collection(DOCUMENTS)
 
+    companion object {
+        const val DOCUMENT_PAGE_SIZE = 50L
+    }
+
     fun sharedDocumentsQuery(vaultId: String) =
         documentCollection(vaultId).whereEqualTo("scope", "SHARED")
 
     fun personalDocumentsQuery(vaultId: String, memberUid: String) =
         documentCollection(vaultId).whereEqualTo("scope", "PERSONAL")
             .whereEqualTo("ownerUid", memberUid)
+
+    fun sharedDocumentsPageQuery(vaultId: String, after: DocumentSnapshot? = null): Query {
+        var query = sharedDocumentsQuery(vaultId)
+            .orderBy(FieldPath.documentId())
+            .limit(DOCUMENT_PAGE_SIZE)
+        if (after != null) query = query.startAfter(after)
+        return query
+    }
+
+    fun personalDocumentsPageQuery(
+        vaultId: String,
+        memberUid: String,
+        after: DocumentSnapshot? = null
+    ): Query {
+        var query = personalDocumentsQuery(vaultId, memberUid)
+            .orderBy(FieldPath.documentId())
+            .limit(DOCUMENT_PAGE_SIZE)
+        if (after != null) query = query.startAfter(after)
+        return query
+    }
 
     fun customCategoryCollection(vaultId: String) =
         firestore.collection(VAULTS).document(vaultId).collection("documentCategories")
