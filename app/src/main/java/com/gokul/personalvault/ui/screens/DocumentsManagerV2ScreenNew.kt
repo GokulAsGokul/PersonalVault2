@@ -755,7 +755,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     val active = documents.filter { !it.isDeleted }
     val scopedActive = active.filter { visibility == "ALL" || it.scope == visibility }
-    val scopedBytes = scopedActive.sumOf { it.sizeBytes }
     val deleted = documents.filter { it.isDeleted }
     val source = if (recycleBin) deleted else active
     val visible = source
@@ -1161,14 +1160,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 onBack = if (canGoBack) ({ goBack() }) else null,
                 titleIcon = if (headerTitle == "Documents") Icons.Outlined.Description else null,
                 actions = {
-                    if (isHome) {
-                        IconButton(onClick = {
-                            showAllDocuments = true
-                            search = ""
-                        }) {
-                            Icon(Icons.Outlined.Search, contentDescription = "Search documents")
-                        }
-                    }
                     Box {
                         IconButton(onClick = { menuExpanded = true }) {
                             Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
@@ -1342,21 +1333,32 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 val recent = active.filter { visibility == "ALL" || it.scope == visibility }
                     .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(3)
                 item(key = "document_summary") {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DocumentSummaryTileV2New("Documents", scopedActive.size.toString(), Icons.Outlined.Description, palette, Modifier.weight(1f))
-                            DocumentSummaryTileV2New("Storage", formatDocumentBytesNew(scopedBytes), Icons.Outlined.Storage, palette, Modifier.weight(1f))
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DocumentSummaryTileV2New(
-                                "Personal", scopedActive.count { it.scope == "PERSONAL" }.toString(),
-                                Icons.Outlined.Person, palette, Modifier.weight(1f), isShared = false
-                            )
-                            DocumentSummaryTileV2New(
-                                "Shared", scopedActive.count { it.scope == "SHARED" }.toString(),
-                                Icons.Outlined.Groups, palette, Modifier.weight(1f), isShared = true
-                            )
-                        }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        DocumentDashboardStatCardV2New(
+                            label = "Documents",
+                            value = scopedActive.size.toString(),
+                            icon = Icons.Outlined.Description,
+                            modifier = Modifier.weight(1f),
+                            cardColor = Color(0xFF4B2B7A)
+                        )
+                        DocumentDashboardStatCardV2New(
+                            label = "Folders",
+                            value = folders.count { visibility == "ALL" || it.scope == visibility }.toString(),
+                            icon = Icons.Outlined.FolderOpen,
+                            modifier = Modifier.weight(1f),
+                            cardColor = Color(0xFF55318A),
+                            iconTint = Color(0xFFFFD34D)
+                        )
+                        DocumentDashboardStatCardV2New(
+                            label = "Shared",
+                            value = active.count { it.scope == "SHARED" }.toString(),
+                            icon = Icons.Outlined.Groups,
+                            modifier = Modifier.weight(1f),
+                            cardColor = Color(0xFF63399A)
+                        )
                     }
                 }
                 item(key = "cat_header") {
@@ -3087,7 +3089,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             DocumentTypeIconNew(doc.contentType, Modifier.size(72.dp))
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                doc.title.ifBlank { doc.originalFileName },
+                                documentDisplayNameV2New(doc),
                                 modifier = Modifier.fillMaxWidth(),
                                 fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.titleLarge,
@@ -3444,6 +3446,64 @@ private fun Modifier.dashedBorderV2New(color: Color, radius: androidx.compose.ui
 // ───────────────────────── Redesign: components ─────────────────────────
 
 @Composable
+private fun DocumentDashboardStatCardV2New(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    modifier: Modifier,
+    cardColor: Color,
+    iconTint: Color = Color.White
+) {
+    Card(
+        modifier = modifier.heightIn(min = 96.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                value,
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Text(
+                label,
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun documentDisplayNameV2New(document: DocumentRecordV2): String {
+    val displayName = document.title.ifBlank { document.originalFileName }.trim()
+    val originalName = document.originalFileName.trim()
+    val extension = originalName.substringAfterLast('.', "")
+        .takeIf { it.isNotBlank() && originalName.lastIndexOf('.') > 0 }
+        ?: return displayName
+
+    return if (displayName.endsWith(".$extension", ignoreCase = true)) {
+        displayName
+    } else {
+        "$displayName.$extension"
+    }
+}
+
+@Composable
 private fun DocumentSummaryTileV2New(
     label: String,
     value: String,
@@ -3570,7 +3630,7 @@ private fun DocumentRowV2New(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
-                    document.title.ifBlank { document.originalFileName },
+                    documentDisplayNameV2New(document),
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
@@ -3636,7 +3696,7 @@ private fun DocumentGridCardV2New(
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                document.title.ifBlank { document.originalFileName },
+                documentDisplayNameV2New(document),
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
