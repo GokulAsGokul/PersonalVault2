@@ -71,13 +71,14 @@ object VaultExternalActivityState {
 @Composable
 private fun VaultSystemBars(window: Window) {
     val darkTheme = isSystemInDarkTheme()
-    val systemBarColor = MaterialTheme.colorScheme.background
     val view = LocalView.current
 
     SideEffect {
-        // Keep both Android system bars in sync with the active Personal Vault theme.
-        window.statusBarColor = systemBarColor.toArgb()
-        window.navigationBarColor = systemBarColor.toArgb()
+        // Android 15+ enforces edge-to-edge for target SDK 35+. Keep the system bars
+        // transparent so the app's theme surface is visible behind both inset areas.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
 
         WindowCompat.getInsetsController(window, view).apply {
             isAppearanceLightStatusBars = !darkTheme
@@ -87,6 +88,9 @@ private fun VaultSystemBars(window: Window) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isStatusBarContrastEnforced = false
             window.isNavigationBarContrastEnforced = false
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.navigationBarDividerColor = android.graphics.Color.TRANSPARENT
         }
     }
 }
