@@ -76,6 +76,7 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Tune
@@ -225,6 +226,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var showDocumentPreview by remember { mutableStateOf(false) }
     var previewBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var previewFile by remember { mutableStateOf<File?>(null) }
+    var previewFileDocumentId by remember { mutableStateOf<String?>(null) }
     var previewTitle by remember { mutableStateOf("") }
     var previewPageIndex by remember { mutableIntStateOf(0) }
     var previewPageCount by remember { mutableIntStateOf(1) }
@@ -715,12 +717,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             downloadTransferredBytes = 0L
             downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
-                val file = previewFile ?: repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
+                val file = if (previewFileDocumentId == doc.id) previewFile
+                    else repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
                     downloadTransferredBytes = transferred.coerceAtLeast(0L)
                     if (total > 0L) downloadTotalBytes = total
                 }
                 val (bitmap, count) = renderPreviewPage(file, doc, pageIndex)
                 previewFile = file
+                previewFileDocumentId = doc.id
                 previewBitmap = bitmap
                 previewPageCount = count
                 previewPageIndex = pageIndex.coerceIn(0, count - 1)
@@ -793,6 +797,27 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 message = "$succeeded document(s) updated in Favourites."
             } catch (error: Exception) {
                 message = "$succeeded updated. ${error.localizedMessage ?: "Some favourites could not be updated."}"
+            } finally {
+                selectedDocumentIds.clear()
+                selectionMode = false
+                busyDocument = false
+            }
+        }
+    }
+
+    fun runBulkRestore() {
+        val targets = visible.filter { it.id in selectedDocumentIds && it.ownerUid == memberUid }
+        scope.launch {
+            busyDocument = true
+            var succeeded = 0
+            try {
+                targets.forEach { doc ->
+                    repository.restore(vaultId, doc.id)
+                    succeeded++
+                }
+                message = "$succeeded document(s) restored."
+            } catch (error: Exception) {
+                message = "$succeeded restored. ${error.localizedMessage ?: "Some documents could not be restored."}"
             } finally {
                 selectedDocumentIds.clear()
                 selectionMode = false
@@ -1315,6 +1340,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         Icon(Icons.Outlined.Delete, null)
                                         Spacer(Modifier.width(6.dp))
                                         Text("Delete")
+                                    }
+                                }
+                                if (recycleBin) {
+                                    Button(
+                                        onClick = { runBulkRestore() },
+                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(Icons.Outlined.Restore, null)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Restore")
                                     }
                                 }
                             }
@@ -3234,6 +3270,11 @@ private fun DocumentRowV2New(
                 }
             }
             if (!isRecycleBin) {
+                if (document.favouriteUids[currentMemberUid] == true) {
+                    Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
+                        tint = Color(0xFFB45BCE), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                }
                 Spacer(Modifier.width(6.dp))
                 ScopePillV2New(document, mine, palette)
             }
@@ -3290,6 +3331,13 @@ private fun DocumentGridCardV2New(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(8.dp))
+            if (!isRecycleBin && document.favouriteUids[currentMemberUid] == true) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
+                        tint = Color(0xFFB45BCE), modifier = Modifier.size(14.dp))
+                    Text("Favourite", color = Color(0xFFB45BCE), style = MaterialTheme.typography.labelSmall)
+                }
+            }
             if (isRecycleBin) {
                 Text("Deleted", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
             } else {
