@@ -815,6 +815,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     fun runBulkRestore() {
         val targets = visible.filter { it.id in selectedDocumentIds && it.ownerUid == memberUid }
+        val skipped = selectedDocumentIds.size - targets.size
         scope.launch {
             busyDocument = true
             var succeeded = 0
@@ -823,7 +824,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     repository.restore(vaultId, doc.id)
                     succeeded++
                 }
-                message = "$succeeded document(s) restored."
+                message = "$succeeded document(s) restored." +
+                    if (skipped > 0) " $skipped skipped: only the owner can restore a document." else ""
             } catch (error: Exception) {
                 message = "$succeeded restored. ${error.localizedMessage ?: "Some documents could not be restored."}"
             } finally {
@@ -1332,7 +1334,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(
                                         onClick = { runBulkFavourite() },
-                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument && !recycleBin,
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Icon(Icons.Outlined.Favorite, null)
@@ -1369,6 +1371,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         FilterChip(
                             selected = showFavouritesOnly,
+                            enabled = !recycleBin,
                             onClick = { showFavouritesOnly = !showFavouritesOnly },
                             label = { Text("Favourites") },
                             leadingIcon = { Icon(Icons.Outlined.Favorite, null, modifier = Modifier.size(16.dp)) }
