@@ -682,7 +682,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     suspend fun renderPreviewPage(file: File, doc: DocumentRecordV2, pageIndex: Int): Pair<androidx.compose.ui.graphics.ImageBitmap, Int> =
         withContext(Dispatchers.IO) {
             if (doc.contentType.startsWith("image/")) {
-                val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(file.absolutePath, bounds)
+                val sampleSize = maxOf(
+                    1,
+                    (bounds.outWidth / 1600).coerceAtLeast(1),
+                    (bounds.outHeight / 2000).coerceAtLeast(1)
+                )
+                val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                val bitmap = BitmapFactory.decodeFile(file.absolutePath, options)
                     ?: throw IllegalStateException("This image cannot be previewed.")
                 bitmap.asImageBitmap() to 1
             } else if (doc.contentType.contains("pdf", ignoreCase = true) ||
@@ -711,12 +719,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     fun previewDocument(doc: DocumentRecordV2, pageIndex: Int = 0) {
         scope.launch {
             busyDocument = true
-            isDownloadingFile = true
+            val cachedPreview = previewFile?.takeIf { previewFileDocumentId == doc.id }
+            isDownloadingFile = cachedPreview == null
             downloadingFileName = doc.title.ifBlank { doc.originalFileName }
             downloadTransferredBytes = 0L
             downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
-                val file = previewFile?.takeIf { previewFileDocumentId == doc.id }
+                val file = cachedPreview
                     ?: repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
                     downloadTransferredBytes = transferred.coerceAtLeast(0L)
                     if (total > 0L) downloadTotalBytes = total
