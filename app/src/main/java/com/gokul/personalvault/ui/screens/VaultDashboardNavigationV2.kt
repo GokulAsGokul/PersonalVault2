@@ -78,9 +78,13 @@ fun VaultDashboardNavigationV2(
                 type = activeNotice?.type ?: VaultSnackbarType.INFO
             )
         },
-        containerColor = Color(0xFFF4F6FB),
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = Color.White) {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 3.dp
+            ) {
                 NavigationBarItem(
                     selected == VaultV2Destination.HOME,
                     { selected = VaultV2Destination.HOME },
@@ -223,31 +227,31 @@ private fun DashboardOverviewV2(
     onOpen: (VaultV2Destination) -> Unit,
     onSignOut: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().background(Color(0xFFF4F6FB))) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         VaultDashboardHeader(onSignOut = onSignOut)
         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
-            Text("Welcome back!", color = Color(0xFF14213D),
+            Text("Welcome back!", color = MaterialTheme.colorScheme.onBackground,
                 style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(email, color = Color(0xFF64748B), style = MaterialTheme.typography.bodySmall)
+            Text(email, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(22.dp))
         Card(
             Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF14213D))
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(Modifier.padding(20.dp)) {
-                Text("YOUR PRIVATE SPACE", color = Color(0xFFB9C9E2),
+                Text("YOUR PRIVATE SPACE", color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text("Everything important, securely organised.", color = Color.White,
+                Text("Everything important, securely organised.", color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(6.dp))
-                Text("Choose a section below to get started.", color = Color(0xFFCBD5E1),
+                Text("Choose a section below to get started.", color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall)
             }
         }
         Spacer(Modifier.height(22.dp))
-        Text("YOUR VAULT", color = Color(0xFF64748B),
+        Text("YOUR VAULT", color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(10.dp))
         LazyVerticalGrid(
@@ -272,15 +276,15 @@ private fun V2DashboardTile(title: String, subtitle: String, icon: ImageVector, 
     Card(
         Modifier.fillMaxWidth().height(142.dp).clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Icon(icon, contentDescription = null, tint = Color(0xFF315CDB), modifier = Modifier.size(27.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(27.dp))
             Column {
-                Text(title, color = Color(0xFF14213D), style = MaterialTheme.typography.titleMedium,
+                Text(title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold)
-                Text(subtitle, color = Color(0xFF64748B), style = MaterialTheme.typography.bodySmall)
+                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -293,11 +297,11 @@ private fun V2ModulePlaceholder(
     icon: ImageVector
 ) {
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFF4F6FB)).padding(24.dp),
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(icon, contentDescription = null, tint = Color(0xFF315CDB), modifier = Modifier.size(52.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(52.dp))
         Spacer(Modifier.height(16.dp))
         Text(title, style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold, color = Color(0xFF14213D))
