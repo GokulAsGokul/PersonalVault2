@@ -410,9 +410,10 @@ class DocumentRepositoryV2(
     }
 
     /**
-     * Replaces the binary at the document's existing Storage path.
+     * Replaces the binary at the document's existing extensionless Storage path.
+     * Cross-type replacements (for example JPG to PDF) are supported; the filename,
+     * extension metadata, MIME type and size are updated to match the replacement.
      * The previous file is overwritten and is not retained as a version.
-     * Document identity and all user-defined metadata remain unchanged.
      */
     suspend fun replaceFile(
         vaultId: String,
