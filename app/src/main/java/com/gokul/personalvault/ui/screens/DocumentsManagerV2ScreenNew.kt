@@ -738,6 +738,41 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
     }
 
+    fun loadMoreDocuments() {
+        if (loadingMoreDocuments) return
+        scope.launch {
+            loadingMoreDocuments = true
+            try {
+                if (sharedHasMore) {
+                    val page = repository.sharedDocumentsPageQuery(vaultId, sharedLastDocument).get().await()
+                    val updated = sharedPageDocuments.toMutableMap()
+                    page.documents.forEach { doc ->
+                        doc.data?.let { updated[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
+                    }
+                    sharedPageDocuments = updated
+                    sharedLastDocument = page.documents.lastOrNull() ?: sharedLastDocument
+                    sharedHasMore = page.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
+                }
+                if (personalHasMore) {
+                    val page = repository.personalDocumentsPageQuery(vaultId, memberUid, personalLastDocument).get().await()
+                    val updated = personalPageDocuments.toMutableMap()
+                    page.documents.forEach { doc ->
+                        doc.data?.let { updated[doc.id] = DocumentRecordV2.fromSnapshot(doc.id, it) }
+                    }
+                    personalPageDocuments = updated
+                    personalLastDocument = page.documents.lastOrNull() ?: personalLastDocument
+                    personalHasMore = page.documents.size.toLong() == DocumentRepositoryV2.DOCUMENT_PAGE_SIZE
+                }
+                documents = (sharedPageDocuments.values + personalPageDocuments.values)
+                    .distinctBy { it.id }
+            } catch (error: Exception) {
+                message = error.localizedMessage ?: error.message ?: "Unable to load more documents."
+            } finally {
+                loadingMoreDocuments = false
+            }
+        }
+    }
+
     fun openDocument(doc: DocumentRecordV2) {
         if (doc.isDeleted) {
             selectedDocument = doc
@@ -1545,6 +1580,23 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             selectionMode = selectionMode,
                             selected = doc.id in selectedDocumentIds
                         )
+                    }
+                }
+                if (sharedHasMore || personalHasMore) {
+                    item(key = "load_more_documents") {
+                        OutlinedButton(
+                            onClick = { loadMoreDocuments() },
+                            enabled = !loadingMoreDocuments,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                        ) {
+                            if (loadingMoreDocuments) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Loading…")
+                            } else {
+                                Text("Load More Documents")
+                            }
+                        }
                     }
                 }
             }
