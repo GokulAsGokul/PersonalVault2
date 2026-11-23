@@ -74,6 +74,9 @@ import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Deselect
@@ -906,8 +909,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     placeholder = { Text("Search documents") },
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     trailingIcon = {
-                        if (search.isNotEmpty()) {
-                            IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Close, "Clear search") }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { advancedSearchExpanded = !advancedSearchExpanded }) {
+                                Icon(Icons.Outlined.Tune, "Advanced search")
+                            }
+                            if (search.isNotEmpty()) {
+                                IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Close, "Clear search") }
+                            }
                         }
                     },
                     shape = RoundedCornerShape(28.dp),
@@ -922,6 +930,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 )
             }
 
+            if (advancedSearchExpanded) {
+                item(key = "advanced_search_options") {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = palette.surface)
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Advanced Search", fontWeight = FontWeight.SemiBold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = searchFileNameOnly, onCheckedChange = { searchFileNameOnly = it })
+                                Text("Search filename only", style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text("Search matches title, filename, notes and category.",
+                                color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
             // ── Scope switch ──
             item(key = "scope") {
                 val scopes = listOf("ALL" to "All", "PERSONAL" to "Personal", "SHARED" to "Shared")
@@ -1168,9 +1195,74 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             }
                         }
+                        IconButton(onClick = {
+                            if (selectionMode) {
+                                selectionMode = false
+                                selectedDocumentIds.clear()
+                            } else {
+                                selectionMode = true
+                                selectedDocumentIds.clear()
+                            }
+                        }) {
+                            Icon(if (selectionMode) Icons.Outlined.Close else Icons.Outlined.SelectAll,
+                                if (selectionMode) "Exit selection" else "Select documents")
+                        }
                         IconButton(onClick = { grid = !grid }) {
                             Icon(if (grid) Icons.Outlined.List else Icons.Outlined.GridView, "Toggle view")
                         }
+                    }
+                }
+                if (selectionMode) {
+                    item(key = "bulk_actions") {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = palette.container)
+                        ) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${selectedDocumentIds.size} selected", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                                    TextButton(onClick = {
+                                        if (selectedDocumentIds.size == visible.size) selectedDocumentIds.clear()
+                                        else {
+                                            selectedDocumentIds.clear()
+                                            selectedDocumentIds.addAll(visible.map { it.id })
+                                        }
+                                    }) { Text(if (selectedDocumentIds.size == visible.size) "Clear" else "Select all") }
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = { runBulkFavourite() },
+                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Outlined.Favorite, null)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Favourite")
+                                    }
+                                    Button(
+                                        onClick = { runBulkDelete() },
+                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument && !recycleBin,
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                    ) {
+                                        Icon(Icons.Outlined.Delete, null)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Delete")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item(key = "favourites_filter") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        FilterChip(
+                            selected = showFavouritesOnly,
+                            onClick = { showFavouritesOnly = !showFavouritesOnly },
+                            label = { Text("Favourites") },
+                            leadingIcon = { Icon(Icons.Outlined.Favorite, null, modifier = Modifier.size(16.dp)) }
+                        )
                     }
                 }
                 item(key = "type_chips") {
