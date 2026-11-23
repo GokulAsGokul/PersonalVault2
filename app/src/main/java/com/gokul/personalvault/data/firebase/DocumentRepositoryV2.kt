@@ -588,8 +588,14 @@ class DocumentRepositoryV2(
         val directory = File(cacheDir, "documents")
         if (!directory.exists()) return
         val cutoff = System.currentTimeMillis() - maxAgeMillis
+        val abandonedTempCutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L
         directory.listFiles()?.forEach { file ->
-            if (file.isFile && file.lastModified() < cutoff) file.delete()
+            if (!file.isFile) return@forEach
+            val abandonedCapture = file.name.startsWith("Photo_") ||
+                file.name.startsWith("Scanned_Document_")
+            val expiredCache = file.lastModified() < cutoff
+            val abandonedCaptureExpired = abandonedCapture && file.lastModified() < abandonedTempCutoff
+            if (expiredCache || abandonedCaptureExpired) file.delete()
         }
     }
 }
