@@ -45,7 +45,7 @@ fun VaultDashboardHeader(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = Color(0xFFF1F0FF)
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier
@@ -70,7 +70,7 @@ fun VaultDashboardHeader(
             androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
                 Text(
                     "Personal Vault 2.0",
-                    color = VaultHeaderNavy,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -78,7 +78,7 @@ fun VaultDashboardHeader(
                 )
                 Text(
                     "Your private space",
-                    color = VaultHeaderMuted,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelMedium
                 )
             }
@@ -87,7 +87,7 @@ fun VaultDashboardHeader(
                     Icon(
                         Icons.Outlined.AccountCircle,
                         contentDescription = "Account options",
-                        tint = VaultHeaderNavy,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(27.dp)
                     )
                 }
@@ -118,7 +118,7 @@ fun VaultCompactHeader(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.background
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier
@@ -133,7 +133,7 @@ fun VaultCompactHeader(
                     Icon(
                         Icons.Outlined.ArrowBack,
                         contentDescription = "Back",
-                        tint = VaultHeaderNavy
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -142,7 +142,7 @@ fun VaultCompactHeader(
             ) {
                 Text(
                     title,
-                    color = VaultHeaderNavy,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -151,7 +151,7 @@ fun VaultCompactHeader(
                 if (!subtitle.isNullOrBlank()) {
                     Text(
                         subtitle,
-                        color = VaultHeaderMuted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
