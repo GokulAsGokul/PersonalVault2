@@ -273,8 +273,18 @@ service cloud.firestore {
             );
         }
 
+        function validDocumentFavourites() {
+          let members = get(/databases/$(database)/documents/vaultsV2/$(vaultId)).data.memberUids;
+          let favourites = request.resource.data.get('favouriteUids', {});
+          return favourites is map
+            && favourites.keys().hasOnly(members)
+            && favourites.get(members[0], false) is bool
+            && (members.size() < 2 || favourites.get(members[1], false) is bool);
+        }
+
         function validDocumentRecord() {
-          return request.resource.data.keys().hasAll([
+          return validDocumentFavourites()
+            && request.resource.data.keys().hasAll([
             'schemaVersion', 'ownerUid', 'scope', 'title', 'titleLower',
             'categoryId', 'description', 'originalFileName', 'contentType',
             'sizeBytes', 'storagePath', 'uploadedAt', 'updatedAt',
