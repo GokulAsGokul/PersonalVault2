@@ -1,6 +1,5 @@
 package com.gokul.personalvault.ui.screens
 
-import android.app.DownloadManager
 import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -12,7 +11,6 @@ import android.content.ClipData
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import android.net.Uri
-import android.os.Environment
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -221,6 +219,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var downloadingFileName by remember { mutableStateOf("") }
     var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
     var downloadTotalBytes by remember { mutableLongStateOf(0L) }
+    var pendingDownloadFile by remember { mutableStateOf<File?>(null) }
+    var pendingDownloadName by remember { mutableStateOf("") }
     var showDocumentPreview by remember { mutableStateOf(false) }
     var previewBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var previewFile by remember { mutableStateOf<File?>(null) }
@@ -403,6 +403,35 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             showAddDocuments = true
         } else {
             message = "No files selected."
+        }
+    }
+
+    val downloadDestinationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*")
+    ) { destination ->
+        val source = pendingDownloadFile
+        if (destination == null || source == null) {
+            pendingDownloadFile = null
+            pendingDownloadName = ""
+            if (destination == null) message = "Download cancelled."
+        } else {
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val output = context.contentResolver.openOutputStream(destination, "w")
+                            ?: throw IllegalStateException("Unable to open the selected download location.")
+                        output.use { stream ->
+                            source.inputStream().use { input -> input.copyTo(stream) }
+                        }
+                    }
+                    message = "Document saved successfully."
+                } catch (error: Exception) {
+                    message = error.localizedMessage ?: error.message ?: "Unable to save the document."
+                } finally {
+                    pendingDownloadFile = null
+                    pendingDownloadName = ""
+                }
+            }
         }
     }
 
@@ -640,6 +669,31 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         editCategory = doc.categoryId
         editScope = doc.scope
         editingDocument = doc
+    }
+
+    fun downloadDocument(doc: DocumentRecordV2) {
+        scope.launch {
+            busyDocument = true
+            isDownloadingFile = true
+            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadTransferredBytes = 0L
+            downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
+            try {
+                val file = repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
+                    downloadTransferredBytes = transferred.coerceAtLeast(0L)
+                    if (total > 0L) downloadTotalBytes = total
+                }
+                pendingDownloadFile = file
+                pendingDownloadName = doc.originalFileName.ifBlank { doc.title }
+                downloadDestinationLauncher.launch(pendingDownloadName)
+                selectedDocument = null
+            } catch (error: Exception) {
+                message = error.localizedMessage ?: error.message ?: "Download failed."
+            } finally {
+                busyDocument = false
+                isDownloadingFile = false
+            }
+        }
     }
 
     fun openDocument(doc: DocumentRecordV2) {
@@ -2534,19 +2588,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         icon = { Icon(Icons.Outlined.Download, null, tint = documentAccent) },
                         label = "Download",
                         enabled = !busyDocument && !doc.isDeleted,
-                        onClick = {
-                            scope.launch {
-                                busyDocument = true
-                                try {
-                                    val url = repository.downloadUrl(vaultId, doc)
-                                    enqueueDocumentDownloadNew(context, url, doc.originalFileName)
-                                    message = "Download started. Check your Downloads folder."
-                                    selectedDocument = null
-                                } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Download failed."
-                                } finally { busyDocument = false }
-                            }
-                        }
+                        onClick = { downloadDocument(doc) }
                     )
                     DocumentActionIconNew(
                         icon = { Icon(Icons.Outlined.Edit, null, tint = documentAccent) },
@@ -3540,22 +3582,6 @@ private fun DocumentActionIconNew(
         }
         Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
-}
-
-private fun enqueueDocumentDownloadNew(context: Context, url: String, originalName: String) {
-    val base = originalName.substringBeforeLast('.', originalName).replace(Regex("[^A-Za-z0-9._ -]"), "_")
-    val extension = originalName.substringAfterLast('.', "")
-    val suffix = System.currentTimeMillis().toString()
-    val safeName = if (extension.isBlank()) "$base ($suffix)" else "$base ($suffix).$extension"
-    val request = DownloadManager.Request(Uri.parse(url))
-        .setTitle(originalName)
-        .setDescription("Downloading document from Personal Vault")
-        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeName)
-        .setAllowedOverMetered(true)
-        .setAllowedOverRoaming(false)
-    val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-    manager.enqueue(request)
 }
 
 private fun formatDocumentBytesNew(bytes: Long): String = when {
