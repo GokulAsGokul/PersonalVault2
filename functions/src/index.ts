@@ -911,6 +911,46 @@ export const permanentlyDeleteV2Document = onCall(async (request) => {
 });
 
 
+/** Permanently empty the signed-in member's Recycle Bin in this vault. */
+export const emptyRecycleBinV2Documents = onCall({timeoutSeconds: 540}, async (request) => {
+  const {uid} = requireIdentity(request);
+  const data = (request.data ?? {}) as CallableData;
+  const vaultId = requireString(data.vaultId, "Vault ID");
+  const vault = await db.collection(OWNER_VAULTS).doc(vaultId).get();
+  const members = assertValidOwnerVault(vault, vaultId);
+  if (!members.includes(uid)) {
+    throw new HttpsError("permission-denied", "You are not a household member.");
+  }
+
+  const documentsRef = db.collection(OWNER_VAULTS).doc(vaultId).collection("documents");
+  const ownedDocuments = await documentsRef.where("ownerUid", "==", uid).get();
+  const deletedDocuments = ownedDocuments.docs.filter((document) => document.get("isDeleted") === true);
+  const bucket = getStorage().bucket();
+  let deletedCount = 0;
+
+  for (let offset = 0; offset < deletedDocuments.length; offset += 100) {
+    const page = deletedDocuments.slice(offset, offset + 100);
+    const storageFiles = page.map((document) => {
+      const expectedPath = `vaultsV2/${vaultId}/documents/${uid}/${document.id}`;
+      if (document.get("storagePath") !== expectedPath) {
+        throw new HttpsError(
+          "failed-precondition",
+          `The storage path for "${document.get("title") ?? document.id}" is invalid. This batch was not deleted.`
+        );
+      }
+      return bucket.file(expectedPath);
+    });
+
+    await Promise.all(storageFiles.map((file) => file.delete({ignoreNotFound: true})));
+    const batch = db.batch();
+    page.forEach((document) => batch.delete(document.ref));
+    await batch.commit();
+    deletedCount += page.length;
+  }
+
+  return {status: "emptied", deletedCount};
+});
+
 /** Delete a folder only when it has no documents and no child folders. */
 export const deleteEmptyV2DocumentFolder = onCall(async (request) => {
   const {uid} = requireIdentity(request);

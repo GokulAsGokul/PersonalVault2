@@ -75,6 +75,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.History
@@ -105,6 +106,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.gokul.personalvault.VaultExternalActivityState
+import com.gokul.personalvault.DocumentUploadForegroundService
+import com.gokul.personalvault.DocumentUploadUiState
 import com.gokul.personalvault.data.firebase.DocumentRepositoryV2
 import com.gokul.personalvault.ui.components.VaultSnackbarHost
 import com.gokul.personalvault.ui.components.classifyVaultSnackbar
@@ -120,7 +123,13 @@ import com.google.firebase.firestore.DocumentSnapshot
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
+import com.google.firebase.functions.FirebaseFunctionsException
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.io.File
@@ -136,6 +145,9 @@ private data class PendingDocumentUploadV2New(
     val sizeBytes: Long,
     val title: String,
     val notes: String = "",
+    val categoryId: String = "other",
+    val scope: String = "PERSONAL",
+    val folderId: String? = null,
     val errorMessage: String? = null,
     val retryBlocked: Boolean = false
 )
@@ -197,6 +209,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var showDeleteFolderConfirm by remember { mutableStateOf(false) }
     var deleteFolderError by remember { mutableStateOf<String?>(null) }
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
+    var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var advancedSearchExpanded by remember { mutableStateOf(false) }
     var searchFileNameOnly by remember { mutableStateOf(false) }
@@ -246,11 +259,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var showAddDocuments by remember { mutableStateOf(false) }
     var showAddOptions by remember { mutableStateOf(false) }
     var showDocumentDetails by remember { mutableStateOf(false) }
-    var uploadCategory by remember { mutableStateOf("other") }
-    var uploadScope by remember { mutableStateOf("PERSONAL") }
-    var uploadCategoryMenu by remember { mutableStateOf(false) }
-    var uploadFolderId by remember { mutableStateOf<String?>(null) }
-    var uploadFolderMenu by remember { mutableStateOf(false) }
     var replacementTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var pendingReplacement by remember { mutableStateOf<PendingDocumentReplacementV2New?>(null) }
     var replacingDocument by remember { mutableStateOf(false) }
@@ -260,6 +268,73 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var pendingScanFile by remember { mutableStateOf<File?>(null) }
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoPreview by remember { mutableStateOf(false) }
+
+    // The foreground service owns the actual Firebase upload. This collector only
+    // mirrors its progress into the screen when the Documents screen is visible.
+    LaunchedEffect(vaultId, memberUid) {
+        DocumentUploadForegroundService.uploadState.collect { uploadState ->
+            when (uploadState) {
+                is DocumentUploadUiState.Idle -> Unit
+                is DocumentUploadUiState.Running -> {
+                    uploading = true
+                    progress = uploadState.overallProgress
+                    currentFileProgress = uploadState.fileProgress
+                    currentUploadIndex = uploadState.fileIndex - 1
+                    message = "Uploading ${uploadState.fileIndex} of ${uploadState.totalFiles}: ${uploadState.fileName}"
+                }
+                is DocumentUploadUiState.Completed -> {
+                    uploading = false
+                    progress = 1f
+                    val previouslyBlocked = pendingUploads.filter { it.retryBlocked }
+                    val failedItems = uploadState.failures.map { failure ->
+                        PendingDocumentUploadV2New(
+                            uri = Uri.parse(failure.uri),
+                            fileName = failure.fileName,
+                            sizeBytes = failure.sizeBytes,
+                            title = failure.title,
+                            notes = failure.notes,
+                            categoryId = failure.categoryId,
+                            scope = failure.scope,
+                            folderId = failure.folderId,
+                            errorMessage = failure.errorMessage,
+                            retryBlocked = failure.retryBlocked
+                        )
+                    }
+                    pendingUploads.clear()
+                    pendingUploads.addAll(previouslyBlocked + failedItems)
+                    if (pendingUploads.isEmpty()) {
+                        message = "${uploadState.uploadedCount} file(s) uploaded successfully."
+                        showAddDocuments = false
+                        pendingPhotoFile?.delete()
+                        pendingPhotoFile = null
+                        pendingPhotoUri = null
+                        capturedPhotoUri = null
+                        pendingScanFile?.delete()
+                        pendingScanFile = null
+                    } else {
+                        val blockedCount = pendingUploads.count { it.retryBlocked }
+                        val retryCount = pendingUploads.size - blockedCount
+                        message = buildString {
+                            append("${uploadState.uploadedCount} file(s) uploaded. ")
+                            if (retryCount > 0) append("$retryCount file(s) can be retried. ")
+                            if (blockedCount > 0) append("$blockedCount file(s) need cleanup before retry; do not upload them again yet.")
+                        }
+                    }
+                    DocumentUploadForegroundService.acknowledgeResult()
+                }
+                is DocumentUploadUiState.Failed -> {
+                    uploading = false
+                    message = "Upload failed: ${uploadState.message}"
+                    DocumentUploadForegroundService.acknowledgeResult()
+                }
+                is DocumentUploadUiState.Cancelled -> {
+                    uploading = false
+                    message = "Upload cancelled because the app was closed."
+                    DocumentUploadForegroundService.acknowledgeResult()
+                }
+            }
+        }
+    }
 
     LaunchedEffect(vaultId) {
         withContext(Dispatchers.IO) {
@@ -360,9 +435,38 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     DisposableEffect(vaultId, category, documentToMove?.categoryId) {
         val folderCategory = if (category == "all") documentToMove?.categoryId else category
         if (folderCategory == null) {
-            folders = emptyList()
-            currentFolderId = null
-            onDispose { }
+            val sharedFolders = mutableMapOf<String, DocumentFolderV2>()
+            val personalFolders = mutableMapOf<String, DocumentFolderV2>()
+            fun publishFolders() {
+                folders = (sharedFolders.values + personalFolders.values).distinctBy { it.id }
+            }
+            val sharedFolderListener = repository.folderCollection(vaultId)
+                .whereEqualTo("scope", "SHARED")
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null && snapshot != null) {
+                        sharedFolders.clear()
+                        snapshot.documents.forEach { doc ->
+                            doc.data?.let { sharedFolders[doc.id] = DocumentFolderV2.fromSnapshot(doc.id, it) }
+                        }
+                        publishFolders()
+                    } else if (error != null) message = "Shared folders: ${error.localizedMessage ?: "Unable to load folders."}"
+                }
+            val personalFolderListener = repository.folderCollection(vaultId)
+                .whereEqualTo("scope", "PERSONAL")
+                .whereEqualTo("ownerUid", memberUid)
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null && snapshot != null) {
+                        personalFolders.clear()
+                        snapshot.documents.forEach { doc ->
+                            doc.data?.let { personalFolders[doc.id] = DocumentFolderV2.fromSnapshot(doc.id, it) }
+                        }
+                        publishFolders()
+                    } else if (error != null) message = "Personal folders: ${error.localizedMessage ?: "Unable to load folders."}"
+                }
+            onDispose {
+                sharedFolderListener.remove()
+                personalFolderListener.remove()
+            }
         } else {
             val sharedFolders = mutableMapOf<String, DocumentFolderV2>()
             val personalFolders = mutableMapOf<String, DocumentFolderV2>()
@@ -403,6 +507,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 message = "Select up to $MAX_DOCUMENT_BATCH_COUNT_NEW files per batch. You selected ${uris.size}."
                 return@rememberLauncherForActivityResult
             }
+            val parentFolder = folders.firstOrNull { it.id == currentFolderId }
+            val defaultCategory = parentFolder?.categoryId ?: if (category == "all") "other" else category
+            val defaultScope = parentFolder?.scope ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
             val selectedFiles = uris.map { uri ->
                 // OpenMultipleDocuments uses ACTION_OPEN_DOCUMENT; retain read access so a
                 // queued upload can still read the selected URI after activity recreation.
@@ -419,7 +526,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     uri = uri,
                     fileName = fileName,
                     sizeBytes = sizeBytes,
-                    title = fileName.substringBeforeLast('.', fileName).take(50)
+                    title = fileName.substringBeforeLast('.', fileName).take(50),
+                    categoryId = defaultCategory,
+                    scope = defaultScope,
+                    folderId = parentFolder?.id
                 )
             }
             val unsupported = selectedFiles.filterNot { repository.isSupportedFileName(it.fileName) }
@@ -453,13 +563,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             capturedPhotoUri = null
             pendingScanFile?.delete()
             pendingScanFile = null
-            val parentFolder = folders.firstOrNull { it.id == currentFolderId }
-            uploadCategory = parentFolder?.categoryId ?: if (category == "all") "other" else category
-            uploadScope = parentFolder?.scope ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
-            uploadFolderId = parentFolder?.id
             showAddDocuments = true
-        } else {
-            message = "No files selected."
         }
     }
 
@@ -511,15 +615,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         fileName = fileName,
                                         sizeBytes = sizeBytes,
                                         title = "Scanned Document ${timestamp}".take(50),
-                                        notes = if (pageCount > 1) "${pageCount} pages scanned" else ""
+                                        notes = if (pageCount > 1) "${pageCount} pages scanned" else "",
+                                        categoryId = folders.firstOrNull { it.id == currentFolderId }?.categoryId
+                                            ?: if (category == "all") "other" else category,
+                                        scope = folders.firstOrNull { it.id == currentFolderId }?.scope
+                                            ?: if (visibility == "SHARED") "SHARED" else "PERSONAL",
+                                        folderId = currentFolderId
                                     )
                                 )
-                                val parentFolder = folders.firstOrNull { it.id == currentFolderId }
-                                uploadCategory = parentFolder?.categoryId
-                                    ?: if (category == "all") "other" else category
-                                uploadScope = parentFolder?.scope
-                                    ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
-                                uploadFolderId = parentFolder?.id
                                 showAddDocuments = true
                             } else {
                                 scannedFile.delete()
@@ -556,7 +659,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             pendingPhotoUri = null
             capturedPhotoUri = null
             showPhotoPreview = false
-            message = if (success) "The camera did not save a photo. Please try again." else "Photo capture cancelled."
+            // Returning from the camera without taking a photo is a normal cancellation.
+            if (success) message = "The camera did not save a photo. Please try again."
         }
     }
 
@@ -635,13 +739,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 uri = photoUri,
                 fileName = fileName,
                 sizeBytes = sizeBytes,
-                title = fileName.substringBeforeLast('.').take(50)
+                title = fileName.substringBeforeLast('.').take(50),
+                categoryId = folders.firstOrNull { it.id == currentFolderId }?.categoryId
+                    ?: if (category == "all") "other" else category,
+                scope = folders.firstOrNull { it.id == currentFolderId }?.scope
+                    ?: if (visibility == "SHARED") "SHARED" else "PERSONAL",
+                folderId = currentFolderId
             )
         )
-        val parentFolder = folders.firstOrNull { it.id == currentFolderId }
-        uploadCategory = parentFolder?.categoryId ?: if (category == "all") "other" else category
-        uploadScope = parentFolder?.scope ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
-        uploadFolderId = parentFolder?.id
         showPhotoPreview = false
         showAddDocuments = true
     }
@@ -802,8 +907,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     clipData = ClipData.newUri(context.contentResolver, doc.originalFileName, uri)
                 }
+                VaultExternalActivityState.documentViewerActive = true
                 context.startActivity(Intent.createChooser(viewIntent, "Open document"))
             } catch (error: Exception) {
+                VaultExternalActivityState.documentViewerActive = false
                 message = error.localizedMessage ?: error.message ?: "Unable to open document."
             } finally {
                 busyDocument = false
@@ -1446,6 +1553,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
+                if (recycleBin) {
+                    item(key = "empty_recycle_bin") {
+                        OutlinedButton(
+                            onClick = { showEmptyRecycleBinConfirm = true },
+                            enabled = !busyDocument,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Empty Recycle Bin")
+                        }
+                    }
+                }
                 if (selectionMode) {
                     item(key = "bulk_actions") {
                         Card(
@@ -1465,27 +1586,31 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     }) { Text(if (selectedDocumentIds.size == visible.size) "Clear" else "Select all") }
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(
-                                        onClick = { runBulkFavourite() },
-                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument && !recycleBin,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(Icons.Outlined.Favorite, null)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Favourite")
+                                    if (!recycleBin) {
+                                        OutlinedButton(
+                                            onClick = { runBulkFavourite() },
+                                            enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(Icons.Outlined.Favorite, null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Favourite")
+                                        }
                                     }
-                                    Button(
-                                        onClick = { runBulkDelete() },
-                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument && !recycleBin,
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                    ) {
-                                        Icon(Icons.Outlined.Delete, null)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Delete")
+                                    if (!recycleBin && visible.any { it.id in selectedDocumentIds && it.ownerUid == memberUid }) {
+                                        Button(
+                                            onClick = { runBulkDelete() },
+                                            enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                        ) {
+                                            Icon(Icons.Outlined.Delete, null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Delete")
+                                        }
                                     }
                                 }
-                                if (recycleBin) {
+                                if (recycleBin && visible.any { it.id in selectedDocumentIds && it.ownerUid == memberUid }) {
                                     Button(
                                         onClick = { runBulkRestore() },
                                         enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
@@ -1623,10 +1748,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     leadingContent = { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.clickable {
                         showAddOptions = false
-                        val parentFolder = folders.firstOrNull { it.id == currentFolderId }
-                        uploadCategory = if (category == "all") "other" else category
-                        uploadScope = parentFolder?.scope
-                            ?: if (visibility == "SHARED") "SHARED" else "PERSONAL"
                         VaultExternalActivityState.documentPickerActive = true
                         picker.launch(arrayOf("*/*"))
                     }
@@ -1814,99 +1935,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         style = MaterialTheme.typography.labelSmall
                     )
                     if (!uploading) {
-                    Text("Save to", fontWeight = FontWeight.SemiBold)
-                    val uploadParentFolder = folders.firstOrNull { it.id == currentFolderId }
-                    if (uploadParentFolder != null) {
-                        Text(
-                            "Saving inside ${uploadParentFolder.name} · ${uploadParentFolder.scope.lowercase().replaceFirstChar { it.uppercase() }}",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = uploadScope == "PERSONAL",
-                                onClick = { uploadScope = "PERSONAL"; uploadFolderId = null },
-                                label = { Text("Personal") },
-                                enabled = !uploading
-                            )
-                            FilterChip(
-                                selected = uploadScope == "SHARED",
-                                onClick = { uploadScope = "SHARED"; uploadFolderId = null },
-                                label = { Text("Shared") },
-                                enabled = !uploading
-                            )
-                        }
-                    }
-                    Text("Category", fontWeight = FontWeight.SemiBold)
-                    if (uploadParentFolder != null) {
-                        Text(
-                            allCategories.firstOrNull { it.first == uploadParentFolder.categoryId }?.second ?: "Category",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Box {
-                            OutlinedButton(
-                                onClick = { uploadCategoryMenu = true },
-                                enabled = !uploading,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(allCategories.firstOrNull { it.first == uploadCategory }?.second ?: "Other")
-                                Spacer(Modifier.weight(1f))
-                                Text("⌄")
-                            }
-                            DropdownMenu(
-                                expanded = uploadCategoryMenu,
-                                onDismissRequest = { uploadCategoryMenu = false }
-                            ) {
-                                allCategories.forEach { (id, name) ->
-                                    DropdownMenuItem(
-                                        text = { Text(name) },
-                                        onClick = { uploadCategory = id; uploadFolderId = null; uploadCategoryMenu = false }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Text("Destination Folder", fontWeight = FontWeight.SemiBold)
-                    if (uploadParentFolder != null) {
+                    if (pendingUploads.isEmpty()) {
                         OutlinedButton(
-                            onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            onClick = {
+                                VaultExternalActivityState.documentPickerActive = true
+                                picker.launch(arrayOf("*/*"))
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(uploadParentFolder.name, modifier = Modifier.weight(1f))
-                            Text("Current folder")
+                            Icon(Icons.Outlined.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add Files")
                         }
-                    } else {
-                        val eligibleUploadFolders = folders.filter {
-                            it.categoryId == uploadCategory && it.scope == uploadScope &&
-                                (uploadScope == "SHARED" || it.ownerUid == memberUid)
-                        }.sortedBy { it.name.lowercase(Locale.ROOT) }
-                        Box {
-                            OutlinedButton(
-                                onClick = { uploadFolderMenu = true }, enabled = !uploading,
-                                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(uploadFolderId?.let { id -> eligibleUploadFolders.firstOrNull { it.id == id }?.name } ?: "Category root", modifier = Modifier.weight(1f))
-                                Text("⌄")
-                            }
-                            DropdownMenu(expanded = uploadFolderMenu, onDismissRequest = { uploadFolderMenu = false }) {
-                                DropdownMenuItem(text = { Text("Category root") }, onClick = {
-                                    uploadFolderId = null; uploadFolderMenu = false
-                                })
-                                eligibleUploadFolders.forEach { folder ->
-                                    DropdownMenuItem(text = { Text(folder.name) }, onClick = {
-                                        uploadFolderId = folder.id; uploadFolderMenu = false
-                                    })
-                                }
-                            }
-                        }
-                        Text("Choose where these files should be organised.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    }
-                    if (!uploading) {
                     Divider()
                     pendingUploads.forEachIndexed { index, pending ->
                         Card(
@@ -1968,6 +2009,89 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 enabled = !uploading,
                                 modifier = Modifier.fillMaxWidth()
                             )
+                            Text("Access", style = MaterialTheme.typography.labelMedium)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = pending.scope == "PERSONAL",
+                                    onClick = { pendingUploads[index] = pending.copy(scope = "PERSONAL", folderId = null) },
+                                    label = { Text("Personal") },
+                                    enabled = !uploading
+                                )
+                                FilterChip(
+                                    selected = pending.scope == "SHARED",
+                                    onClick = { pendingUploads[index] = pending.copy(scope = "SHARED", folderId = null) },
+                                    label = { Text("Shared") },
+                                    enabled = !uploading
+                                )
+                            }
+                            var categoryMenuExpanded by remember(pending.uri) { mutableStateOf(false) }
+                            Text("Category", style = MaterialTheme.typography.labelMedium)
+                            Box {
+                                OutlinedButton(
+                                    onClick = { categoryMenuExpanded = true },
+                                    enabled = !uploading,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(allCategories.firstOrNull { it.first == pending.categoryId }?.second ?: "Other")
+                                    Spacer(Modifier.weight(1f))
+                                    Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
+                                }
+                                DropdownMenu(
+                                    expanded = categoryMenuExpanded,
+                                    onDismissRequest = { categoryMenuExpanded = false }
+                                ) {
+                                    allCategories.forEach { (id, name) ->
+                                        DropdownMenuItem(
+                                            text = { Text(name) },
+                                            onClick = {
+                                                pendingUploads[index] = pending.copy(categoryId = id, folderId = null)
+                                                categoryMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            val eligibleFolders = folders.filter {
+                                it.categoryId == pending.categoryId && it.scope == pending.scope &&
+                                    (pending.scope == "SHARED" || it.ownerUid == memberUid)
+                            }.sortedBy { it.name.lowercase(Locale.ROOT) }
+                            var folderMenuExpanded by remember(pending.uri) { mutableStateOf(false) }
+                            Text("Destination Folder", style = MaterialTheme.typography.labelMedium)
+                            Box {
+                                OutlinedButton(
+                                    onClick = { folderMenuExpanded = true },
+                                    enabled = !uploading,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        pending.folderId?.let { id -> eligibleFolders.firstOrNull { it.id == id }?.name }
+                                            ?: "Category root",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose folder")
+                                }
+                                DropdownMenu(
+                                    expanded = folderMenuExpanded,
+                                    onDismissRequest = { folderMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Category root") },
+                                        onClick = {
+                                            pendingUploads[index] = pending.copy(folderId = null)
+                                            folderMenuExpanded = false
+                                        }
+                                    )
+                                    eligibleFolders.forEach { folder ->
+                                        DropdownMenuItem(
+                                            text = { Text(folder.name) },
+                                            onClick = {
+                                                pendingUploads[index] = pending.copy(folderId = folder.id)
+                                                folderMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                         if (index != pendingUploads.lastIndex) Divider()
                     }
@@ -2030,7 +2154,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 )
                                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(),
                                     color = documentAccent)
-                                Text("Please keep the app open until upload is complete.",
+                                Text("Uploads continue while you use other apps or lock your screen. Closing the app cancels the upload.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -2043,66 +2167,32 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     enabled = !uploading && pendingUploads.any { !it.retryBlocked } &&
                         pendingUploads.filter { !it.retryBlocked }.all { it.title.isNotBlank() },
                     onClick = {
-                        scope.launch {
-                            uploading = true
-                            progress = 0f
-                            currentFileProgress = 0f
-                            var completed = 0
-                            val retryableItems = pendingUploads.filter { !it.retryBlocked }
-                            val total = retryableItems.size
-                            try {
-                                retryableItems.forEachIndexed { index, pending ->
-                                    message = "Uploading ${index + 1} of $total: ${pending.fileName}"
-                                    currentFileProgress = 0f
-                                    currentUploadIndex = index
-                                    try {
-                                        repository.upload(
-                                            vaultId, memberUid, pending.uri, context.contentResolver,
-                                            pending.title.trim(), uploadCategory, pending.notes.trim(), uploadScope,
-                                            uploadFolderId
-                                        ) { value ->
-                                            currentFileProgress = value
-                                            progress = (completed + value) / total.toFloat()
-                                        }
-                                        completed++
-                                        pendingUploads.remove(pending)
-                                    } catch (error: Exception) {
-                                        val errorText = error.localizedMessage ?: error.message ?: "Upload failed"
-                                        val requiresCleanup = error.message?.contains("Do not retry yet", ignoreCase = true) == true
-                                        val itemIndex = pendingUploads.indexOfFirst { it.uri == pending.uri }
-                                        if (itemIndex >= 0) {
-                                            pendingUploads[itemIndex] = pending.copy(
-                                                errorMessage = errorText,
-                                                retryBlocked = requiresCleanup
-                                            )
-                                        }
-                                    }
-                                }
-                                progress = 1f
-                                if (pendingUploads.isEmpty()) {
-                                    message = "$completed file(s) uploaded."
-                                    showAddDocuments = false
-                                    pendingPhotoFile?.delete()
-                                    pendingPhotoFile = null
-                                    pendingPhotoUri = null
-                                    capturedPhotoUri = null
-                                    pendingScanFile?.delete()
-                                    pendingScanFile = null
-                                } else {
-                                    val blockedCount = pendingUploads.count { it.retryBlocked }
-                                    val retryCount = pendingUploads.size - blockedCount
-                                    message = buildString {
-                                        append("$completed file(s) uploaded. ")
-                                        if (retryCount > 0) append("$retryCount file(s) can be retried. ")
-                                        if (blockedCount > 0) append("$blockedCount file(s) need cleanup before retry; do not upload them again yet.")
-                                    }
-                                }
-                            } catch (error: Exception) {
-                                message = "Upload failed: ${error.localizedMessage ?: error.message ?: "Unknown error"}"
-                            } finally {
-                                uploading = false
+                        val retryableItems = pendingUploads.filter { !it.retryBlocked }
+                        val payload = JSONArray().apply {
+                            retryableItems.forEach { pending ->
+                                put(
+                                    JSONObject()
+                                        .put("uri", pending.uri.toString())
+                                        .put("fileName", pending.fileName)
+                                        .put("sizeBytes", pending.sizeBytes)
+                                        .put("title", pending.title.trim())
+                                        .put("notes", pending.notes.trim())
+                                        .put("categoryId", pending.categoryId)
+                                        .put("scope", pending.scope)
+                                        .put("folderId", pending.folderId)
+                                )
                             }
                         }
+                        uploading = true
+                        progress = 0f
+                        currentFileProgress = 0f
+                        currentUploadIndex = 0
+                        DocumentUploadForegroundService.startUploads(
+                            context = context,
+                            vaultId = vaultId,
+                            ownerUid = memberUid,
+                            uploads = payload
+                        )
                     }
                 ) { Text(if (uploading) "Uploading…" else "Upload") }
             },
@@ -2465,6 +2555,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Box {
                             OutlinedButton(onClick = { folderCategoryMenuExpanded = true }) {
                                 Text(allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other")
+                                Spacer(Modifier.width(8.dp))
+                                Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
                             }
                             DropdownMenu(expanded = folderCategoryMenuExpanded, onDismissRequest = { folderCategoryMenuExpanded = false }) {
                                 allCategories.forEach { (id, label) ->
@@ -2686,19 +2778,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         enabled = !busyDocument && !doc.isDeleted,
                         onClick = { downloadDocument(doc) }
                     )
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Edit, null, tint = documentAccent) },
-                        label = "Edit",
-                        enabled = !busyDocument && !doc.isDeleted && doc.ownerUid == memberUid,
-                        onClick = {
-                            editTitle = doc.title
-                            editDescription = doc.description
-                            editCategory = doc.categoryId
-                            editScope = doc.scope
-                            editingDocument = doc
-                            selectedDocument = null
-                        }
-                    )
+                    if (doc.ownerUid == memberUid && !doc.isDeleted) {
+                        DocumentActionIconNew(
+                            icon = { Icon(Icons.Outlined.Edit, null, tint = documentAccent) },
+                            label = "Edit",
+                            enabled = !busyDocument,
+                            onClick = {
+                                editTitle = doc.title
+                                editDescription = doc.description
+                                editCategory = doc.categoryId
+                                editScope = doc.scope
+                                editingDocument = doc
+                                selectedDocument = null
+                            }
+                        )
+                    }
                     DocumentActionIconNew(
                         icon = { Icon(Icons.Outlined.Share, null, tint = documentAccent) },
                         label = "Share",
@@ -2758,23 +2852,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         )
                     }
-                    ListItem(
-                        headlineContent = { Text("Move to Recycle Bin", color = MaterialTheme.colorScheme.error) },
-                        supportingContent = { Text("Keep it recoverable for 30 days") },
-                        leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                        modifier = Modifier.clickable(enabled = !busyDocument && doc.ownerUid == memberUid) {
-                            scope.launch {
-                                busyDocument = true
-                                try {
-                                    repository.moveToRecycleBin(vaultId, doc)
-                                    selectedDocument = null
-                                    message = "Moved to Recycle Bin. Retained for 30 days."
-                                } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Delete failed."
-                                } finally { busyDocument = false }
+                    if (doc.ownerUid == memberUid) {
+                        ListItem(
+                            headlineContent = { Text("Move to Recycle Bin", color = MaterialTheme.colorScheme.error) },
+                            supportingContent = { Text("Keep it recoverable for 30 days") },
+                            leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                            modifier = Modifier.clickable(enabled = !busyDocument) {
+                                scope.launch {
+                                    busyDocument = true
+                                    try {
+                                        repository.moveToRecycleBin(vaultId, doc)
+                                        selectedDocument = null
+                                        message = "Moved to Recycle Bin. Retained for 30 days."
+                                    } catch (error: Exception) {
+                                        message = error.localizedMessage ?: error.message ?: "Delete failed."
+                                    } finally { busyDocument = false }
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 } else if (doc.ownerUid == memberUid) {
                     ListItem(
                         headlineContent = { Text("Restore Document") },
@@ -2872,6 +2968,52 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             confirmButton = {}
+        )
+    }
+
+    if (showEmptyRecycleBinConfirm) {
+        AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp,
+            onDismissRequest = { if (!busyDocument) showEmptyRecycleBinConfirm = false },
+            title = { Text("Empty Recycle Bin?") },
+            text = {
+                Text("All deleted documents owned by you will be permanently removed, including their stored files. This cannot be undone.")
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busyDocument,
+                    onClick = {
+                        scope.launch {
+                            busyDocument = true
+                            try {
+                                val count = repository.emptyRecycleBin(vaultId)
+                                showEmptyRecycleBinConfirm = false
+                                selectedDocument = null
+                                selectedDocumentIds.clear()
+                                selectionMode = false
+                                message = if (count == 0) "Recycle Bin is already empty." else "$count document(s) permanently deleted."
+                            } catch (error: FirebaseFunctionsException) {
+                                message = if (error.code == FirebaseFunctionsException.Code.NOT_FOUND) {
+                                    "The Empty Recycle Bin Firebase function is not deployed to the active project. Run: firebase deploy --only functions --project personalvault2-development"
+                                } else {
+                                    error.localizedMessage ?: "Unable to empty Recycle Bin."
+                                }
+                            } catch (error: Exception) {
+                                message = error.localizedMessage ?: error.message ?: "Unable to empty Recycle Bin."
+                            } finally {
+                                busyDocument = false
+                            }
+                        }
+                    }
+                ) { Text("Empty Bin", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = !busyDocument, onClick = { showEmptyRecycleBinConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 
@@ -3139,17 +3281,27 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             },
             confirmButton = {
                 TextButton(onClick = {
+                    val selectedReplacement = pendingReplacement
+                        ?.takeIf { replacementTarget?.id == doc.id }
+                    if (selectedReplacement != null) {
+                        DocumentUploadForegroundService.start(context, "Replacing document")
+                    }
                     scope.launch {
+                        val replacementJob = currentCoroutineContext()[Job]
+                        if (selectedReplacement != null) {
+                            DocumentUploadForegroundService.setCancelAction { replacementJob?.cancel() }
+                        }
                         busyDocument = true
                         try {
-                            val selectedReplacement = pendingReplacement
-                                ?.takeIf { replacementTarget?.id == doc.id }
                             if (selectedReplacement != null) {
                                 replacingDocument = true
                                 replacementProgress = 0f
                                 repository.replaceFile(
                                     vaultId, doc, selectedReplacement.uri, context.contentResolver
-                                ) { value -> replacementProgress = value }
+                                ) { value ->
+                                    replacementProgress = value
+                                    DocumentUploadForegroundService.updateProgress((value * 100).toInt())
+                                }
                             }
                             repository.updateMetadata(
                                 vaultId, doc, editTitle, editDescription, editCategory, editScope
@@ -3162,6 +3314,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 message = "Document details updated."
                             }
                             editingDocument = null
+                        } catch (error: CancellationException) {
+                            message = "Replacement cancelled because the app was closed."
+                            throw error
                         } catch (error: Exception) {
                             editingDocument = null
                             replacementTarget = null
@@ -3169,6 +3324,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         } finally {
                             replacingDocument = false
                             busyDocument = false
+                            if (selectedReplacement != null) {
+                                DocumentUploadForegroundService.setCancelAction(null)
+                                DocumentUploadForegroundService.stop(context)
+                            }
                         }
                     }
                 }, enabled = !busyDocument && !replacingDocument) {

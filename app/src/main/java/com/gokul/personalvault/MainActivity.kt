@@ -56,12 +56,20 @@ import com.gokul.personalvault.data.firebase.VaultRepositoryV2
 import com.gokul.personalvault.data.local.VaultKeySessionV2
 import com.gokul.personalvault.ui.screens.MasterPasswordV2Screen
 
-// Tracks the temporary system document-picker activity so returning from it does not lock the vault.
+// Tracks external system activities that temporarily cover the vault.
 object VaultExternalActivityState {
     @Volatile var documentPickerActive: Boolean = false
+    @Volatile var documentViewerActive: Boolean = false
 }
 
 class MainActivity : ComponentActivity() {
+    override fun onDestroy() {
+        if (isFinishing) {
+            DocumentUploadForegroundService.cancelAndStop(this)
+        }
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -172,8 +180,14 @@ LaunchedEffect(currentUid) {
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner, currentUid) {
                 val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_STOP && !VaultExternalActivityState.documentPickerActive) {
-                        // Keep the vault unlocked while the system document picker is temporarily open.
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        VaultExternalActivityState.documentViewerActive = false
+                    }
+                    if (event == Lifecycle.Event.ON_STOP &&
+                        !VaultExternalActivityState.documentPickerActive &&
+                        !VaultExternalActivityState.documentViewerActive
+                    ) {
+                        // Keep the vault unlocked while an external document picker or viewer is temporarily open.
                         VaultKeySessionV2.clear()
                         VaultCrypto.clearSession()
                         HouseholdCrypto.clearSession()

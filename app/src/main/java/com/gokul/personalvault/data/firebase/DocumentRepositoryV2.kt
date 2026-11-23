@@ -12,10 +12,34 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
+import com.google.firebase.storage.UploadTask
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import java.util.Locale
 import java.io.File
 import java.util.UUID
+
+private suspend fun UploadTask.awaitCancellable() {
+    suspendCancellableCoroutine<Unit> { continuation ->
+        addOnSuccessListener {
+            if (continuation.isActive) continuation.resume(Unit)
+        }
+        addOnFailureListener { error ->
+            if (continuation.isActive) continuation.resumeWithException(error)
+        }
+        addOnCanceledListener {
+            if (continuation.isActive) {
+                continuation.cancel(CancellationException("The document upload was cancelled."))
+            }
+        }
+        continuation.invokeOnCancellation {
+            cancel()
+        }
+    }
+}
 
 class DocumentRepositoryV2(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
@@ -341,7 +365,7 @@ class DocumentRepositoryV2(
             val total = snapshot.totalByteCount
             if (total > 0L) onProgress(snapshot.bytesTransferred.toFloat() / total.toFloat())
         }
-        uploadTask.await()
+        uploadTask.awaitCancellable()
 
         val now = FieldValue.serverTimestamp()
         val record = hashMapOf<String, Any?>(
@@ -410,9 +434,10 @@ class DocumentRepositoryV2(
     }
 
     /**
-     * Replaces the binary at the document's existing Storage path.
+     * Replaces the binary at the document's existing extensionless Storage path.
+     * Cross-type replacements (for example JPG to PDF) are supported; the filename,
+     * extension metadata, MIME type and size are updated to match the replacement.
      * The previous file is overwritten and is not retained as a version.
-     * Document identity and all user-defined metadata remain unchanged.
      */
     suspend fun replaceFile(
         vaultId: String,
@@ -466,7 +491,7 @@ class DocumentRepositoryV2(
             val total = snapshot.totalByteCount
             if (total > 0L) onProgress(snapshot.bytesTransferred.toFloat() / total.toFloat())
         }
-        uploadTask.await()
+        uploadTask.awaitCancellable()
 
         try {
             documentCollection(vaultId).document(document.id).update(
@@ -526,6 +551,13 @@ class DocumentRepositoryV2(
     suspend fun permanentlyDelete(vaultId: String, documentId: String) {
         functions.getHttpsCallable("permanentlyDeleteV2Document")
             .call(mapOf("vaultId" to vaultId, "documentId" to documentId)).await()
+    }
+
+    suspend fun emptyRecycleBin(vaultId: String): Int {
+        val result = functions.getHttpsCallable("emptyRecycleBinV2Documents")
+            .call(mapOf("vaultId" to vaultId)).await()
+        val data = result.data as? Map<*, *>
+        return (data?.get("deletedCount") as? Number)?.toInt() ?: 0
     }
 
     suspend fun downloadToCache(
