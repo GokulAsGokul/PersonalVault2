@@ -248,6 +248,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoPreview by remember { mutableStateOf(false) }
 
+    LaunchedEffect(vaultId) {
+        withContext(Dispatchers.IO) {
+            repository.cleanupDocumentCache(context.cacheDir)
+        }
+    }
+
     LaunchedEffect(showAddDocuments) {
         if (showAddDocuments) uploadFormScrollState.scrollTo(0)
     }
