@@ -1283,28 +1283,61 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
             // ── Scope switch ──
             item(key = "scope") {
-                val scopes = listOf("ALL" to "All", "PERSONAL" to "Personal", "SHARED" to "Shared")
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    scopes.forEachIndexed { index, (value, label) ->
-                        SegmentedButton(
-                            selected = visibility == value,
-                            onClick = {
-                                visibility = value
-                                if (!recycleBin) {
+                val scopes = listOf(
+                    Triple("ALL", "All", Icons.Outlined.SelectAll),
+                    Triple("PERSONAL", "Personal", Icons.Outlined.Person),
+                    Triple("SHARED", "Shared", Icons.Outlined.Groups),
+                    Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    scopes.forEach { (value, label, icon) ->
+                        val selected = if (value == "RECYCLE_BIN") recycleBin else !recycleBin && visibility == value
+                        Surface(
+                            modifier = Modifier.weight(1f).heightIn(min = 52.dp).clickable {
+                                if (value == "RECYCLE_BIN") {
+                                    recycleBin = true
+                                    category = "all"
+                                    currentFolderId = null
+                                    showAllDocuments = false
+                                    visibility = "ALL"
+                                } else {
+                                    recycleBin = false
+                                    visibility = value
                                     category = "all"
                                     currentFolderId = null
                                     showAllDocuments = false
                                 }
                             },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = scopes.size),
-                            icon = {},
-                            colors = SegmentedButtonDefaults.colors(
-                                activeContainerColor = documentAccent,
-                                activeContentColor = palette.onAccent,
-                                inactiveContainerColor = palette.container,
-                                inactiveContentColor = MaterialTheme.colorScheme.onSurface
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (selected) documentAccent else palette.container,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (selected) documentAccent else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
                             )
-                        ) { Text(label) }
+                        ) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = null,
+                                    tint = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Text(
+                                    label,
+                                    color = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1331,7 +1364,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } else if (isHome) {
                 // ── Home: summary, recent documents and categories ──
                 val recent = active.filter { visibility == "ALL" || it.scope == visibility }
-                    .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(3)
+                    .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(5)
                 item(key = "document_summary") {
                     Row(
                         Modifier.fillMaxWidth(),
@@ -1362,12 +1395,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
                 item(key = "cat_header") {
-                    Text(
-                        "Categories",
-                        Modifier.padding(top = 12.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Categories",
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(
+                            onClick = { newCategory = ""; categoryDialog = true },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("New Category", color = documentAccent)
+                        }
+                    }
                 }
                 items(allCategories.chunked(2)) { categoryRow ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1417,31 +1463,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             onClick = { openDocument(doc) },
                             onMore = { selectedDocument = doc }
                         )
-                    }
-                }
-                item(key = "recycle_row") {
-                    Card(
-                        Modifier.fillMaxWidth().padding(top = 4.dp).clickable {
-                            recycleBin = true
-                            category = "all"
-                            showAllDocuments = false
-                            currentFolderId = null
-                        },
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = palette.surface)
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Outlined.Delete, null, tint = mutedColor)
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text("Recycle Bin", fontWeight = FontWeight.SemiBold)
-                                Text("${deleted.size} deleted files", style = MaterialTheme.typography.bodySmall, color = mutedColor)
-                            }
-                            Icon(Icons.Outlined.ChevronRight, null, tint = mutedColor)
-                        }
                     }
                 }
             } else {
