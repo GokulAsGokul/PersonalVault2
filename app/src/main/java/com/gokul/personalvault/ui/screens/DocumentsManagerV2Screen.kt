@@ -2574,13 +2574,13 @@ private fun saveDocumentToDownloads(
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, safeDisplayName)
-            put(MediaStore.Downloads.MIME_TYPE, mimeType.ifBlank { "application/octet-stream" })
+            put(MediaStore.MediaColumns.DISPLAY_NAME, safeDisplayName)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType.ifBlank { "application/octet-stream" })
             put(
-                MediaStore.Downloads.RELATIVE_PATH,
+                MediaStore.MediaColumns.RELATIVE_PATH,
                 Environment.DIRECTORY_DOWNLOADS + "/Personal Vault"
             )
-            put(MediaStore.Downloads.IS_PENDING, 1)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         val resolver = context.contentResolver
         val destination = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
@@ -2592,7 +2592,7 @@ private fun saveDocumentToDownloads(
                 source.inputStream().use { input -> input.copyTo(stream) }
             }
             val completedValues = ContentValues().apply {
-                put(MediaStore.Downloads.IS_PENDING, 0)
+                put(MediaStore.MediaColumns.IS_PENDING, 0)
             }
             check(resolver.update(destination, completedValues, null, null) > 0) {
                 "The file was copied but could not be published in Downloads."
