@@ -1,5 +1,7 @@
 package com.gokul.personalvault.ui.screens
 
+import com.gokul.personalvault.ui.components.VaultCompactHeader
+
 import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -1155,51 +1157,26 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            if (!recycleBin) ExtendedFloatingActionButton(
-                onClick = { showAddOptions = true },
-                expanded = fabExpanded,
-                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                text = { Text("Add") },
-                containerColor = documentAccent,
-                contentColor = palette.onAccent,
-                shape = RoundedCornerShape(18.dp)
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 112.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // ── Header ──
-            item(key = "header") {
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (canGoBack) {
-                        IconButton(onClick = { goBack() }) {
-                            Icon(Icons.Outlined.ChevronRight, "Back", Modifier.rotate(180f))
-                        }
-                    }
-                    Column(Modifier.weight(1f).padding(start = if (canGoBack) 0.dp else 4.dp)) {
-                        Text(
-                            headerTitle,
-                            style = if (isHome) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(headerSubtitle, style = MaterialTheme.typography.bodySmall, color = mutedColor)
-                    }
+        topBar = {
+            var menuExpanded by remember { mutableStateOf(false) }
+            VaultCompactHeader(
+                title = headerTitle,
+                subtitle = headerSubtitle,
+                onBack = if (canGoBack) ({ goBack() }) else null,
+                actions = {
                     Box {
-                        var menuExpanded by remember { mutableStateOf(false) }
                         IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Outlined.MoreVert, "More options")
+                            Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
                         }
-                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
                             DropdownMenuItem(
                                 text = { Text(if (recycleBin) "All Documents" else "Recycle Bin") },
-                                leadingIcon = { Icon(if (recycleBin) Icons.Outlined.Description else Icons.Outlined.Delete, null) },
+                                leadingIcon = {
+                                    Icon(if (recycleBin) Icons.Outlined.Description else Icons.Outlined.Delete, null)
+                                },
                                 onClick = {
                                     recycleBin = !recycleBin
                                     category = "all"
@@ -1222,8 +1199,26 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
-            }
-
+            )
+        },
+        floatingActionButton = {
+            if (!recycleBin) ExtendedFloatingActionButton(
+                onClick = { showAddOptions = true },
+                expanded = fabExpanded,
+                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                text = { Text("Add") },
+                containerColor = documentAccent,
+                contentColor = palette.onAccent,
+                shape = RoundedCornerShape(18.dp)
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 112.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             // ── Upload progress banner (replaces the old inline progress) ──
             if (uploading) {
                 item(key = "uploading") {
