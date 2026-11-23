@@ -6,11 +6,15 @@ import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.content.Context
+import android.content.ContentValues
 import android.content.Intent
 import android.content.ClipData
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -229,8 +233,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var downloadingFileName by remember { mutableStateOf("") }
     var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
     var downloadTotalBytes by remember { mutableLongStateOf(0L) }
-    var pendingDownloadFile by remember { mutableStateOf<File?>(null) }
-    var pendingDownloadName by remember { mutableStateOf("") }
+    var isSavingDownloadedFile by remember { mutableStateOf(false) }
     var showDocumentPreview by remember { mutableStateOf(false) }
     var previewBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var previewFile by remember { mutableStateOf<File?>(null) }
@@ -457,35 +460,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             showAddDocuments = true
         } else {
             message = "No files selected."
-        }
-    }
-
-    val downloadDestinationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("*/*")
-    ) { destination ->
-        val source = pendingDownloadFile
-        if (destination == null || source == null) {
-            pendingDownloadFile = null
-            pendingDownloadName = ""
-            if (destination == null) message = "Download cancelled."
-        } else {
-            scope.launch {
-                try {
-                    withContext(Dispatchers.IO) {
-                        val output = context.contentResolver.openOutputStream(destination, "w")
-                            ?: throw IllegalStateException("Unable to open the selected download location.")
-                        output.use { stream ->
-                            source.inputStream().use { input -> input.copyTo(stream) }
-                        }
-                    }
-                    message = "Document saved successfully."
-                } catch (error: Exception) {
-                    message = error.localizedMessage ?: error.message ?: "Unable to save the document."
-                } finally {
-                    pendingDownloadFile = null
-                    pendingDownloadName = ""
-                }
-            }
         }
     }
 
@@ -737,14 +711,26 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     downloadTransferredBytes = transferred.coerceAtLeast(0L)
                     if (total > 0L) downloadTotalBytes = total
                 }
-                pendingDownloadFile = file
-                pendingDownloadName = doc.originalFileName.ifBlank { doc.title }
-                downloadDestinationLauncher.launch(pendingDownloadName)
+                isSavingDownloadedFile = true
+                withContext(Dispatchers.IO) {
+                    saveDocumentToDownloadsNew(
+                        context = context,
+                        source = file,
+                        displayName = doc.originalFileName.ifBlank { doc.title },
+                        mimeType = doc.contentType
+                    )
+                }
+                message = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    "Downloaded to Downloads/Personal Vault."
+                } else {
+                    "Downloaded to the app's Downloads folder."
+                }
                 selectedDocument = null
             } catch (error: Exception) {
                 message = error.localizedMessage ?: error.message ?: "Download failed."
             } finally {
                 busyDocument = false
+                isSavingDownloadedFile = false
                 isDownloadingFile = false
             }
         }
@@ -2876,7 +2862,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Text(if (total > 0L) "${(progressValue * 100).toInt()}% downloaded" else "Downloading…",
+                    Text(
+                        when {
+                            isSavingDownloadedFile -> "Saving to Downloads/Personal Vault…"
+                            total > 0L -> "${(progressValue * 100).toInt()}% downloaded"
+                            else -> "Downloading…"
+                        },
                         style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
             },
@@ -3693,6 +3684,59 @@ private fun DocumentActionIconNew(
         Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
+
+
+/**
+ * Publishes a completed document download into Downloads/Personal Vault without
+ * opening the system Save As picker.
+ */
+private fun saveDocumentToDownloadsNew(
+    context: Context,
+    source: File,
+    displayName: String,
+    mimeType: String
+) {
+    require(source.isFile && source.length() > 0L) { "The downloaded document is missing or empty." }
+    val safeDisplayName = displayName.substringAfterLast('/').substringAfterLast('\\')
+        .ifBlank { "document" }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, safeDisplayName)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType.ifBlank { "application/octet-stream" })
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Personal Vault")
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val resolver = context.contentResolver
+        val destination = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException("Unable to create the file in Downloads/Personal Vault.")
+        try {
+            val output = resolver.openOutputStream(destination, "w")
+                ?: throw IllegalStateException("Unable to open the destination file.")
+            output.use { stream ->
+                source.inputStream().use { input -> input.copyTo(stream) }
+            }
+            val completedValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.IS_PENDING, 0)
+            }
+            check(resolver.update(destination, completedValues, null, null) > 0) {
+                "The file was copied but could not be published in Downloads."
+            }
+        } catch (error: Exception) {
+            resolver.delete(destination, null, null)
+            throw error
+        }
+    } else {
+        val externalDownloads = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: context.filesDir
+        val downloadsDirectory = File(externalDownloads, "Personal Vault")
+        if (!downloadsDirectory.exists() && !downloadsDirectory.mkdirs()) {
+            throw IllegalStateException("Unable to create the app Downloads folder.")
+        }
+        source.copyTo(File(downloadsDirectory, safeDisplayName), overwrite = true)
+    }
+}
+
 
 private fun formatDocumentBytesNew(bytes: Long): String = when {
     bytes < 1024 -> "$bytes B"
