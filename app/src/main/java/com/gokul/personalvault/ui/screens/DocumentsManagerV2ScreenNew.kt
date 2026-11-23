@@ -285,8 +285,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 is DocumentUploadUiState.Completed -> {
                     uploading = false
                     progress = 1f
-                    pendingUploads.clear()
-                    pendingUploads.addAll(uploadState.failures.map { failure ->
+                    val previouslyBlocked = pendingUploads.filter { it.retryBlocked }
+                    val failedItems = uploadState.failures.map { failure ->
                         PendingDocumentUploadV2New(
                             uri = Uri.parse(failure.uri),
                             fileName = failure.fileName,
@@ -299,8 +299,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             errorMessage = failure.errorMessage,
                             retryBlocked = failure.retryBlocked
                         )
-                    })
-                    if (uploadState.failures.isEmpty()) {
+                    }
+                    pendingUploads.clear()
+                    pendingUploads.addAll(previouslyBlocked + failedItems)
+                    if (pendingUploads.isEmpty()) {
                         message = "${uploadState.uploadedCount} file(s) uploaded successfully."
                         showAddDocuments = false
                         pendingPhotoFile?.delete()
@@ -310,14 +312,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         pendingScanFile?.delete()
                         pendingScanFile = null
                     } else {
-                        val blockedCount = uploadState.failures.count { it.retryBlocked }
-                        val retryCount = uploadState.failures.size - blockedCount
+                        val blockedCount = pendingUploads.count { it.retryBlocked }
+                        val retryCount = pendingUploads.size - blockedCount
                         message = buildString {
                             append("${uploadState.uploadedCount} file(s) uploaded. ")
                             if (retryCount > 0) append("$retryCount file(s) can be retried. ")
                             if (blockedCount > 0) append("$blockedCount file(s) need cleanup before retry; do not upload them again yet.")
                         }
                     }
+                    DocumentUploadForegroundService.acknowledgeResult()
+                }
+                is DocumentUploadUiState.Failed -> {
+                    uploading = false
+                    message = "Upload failed: ${uploadState.message}"
                     DocumentUploadForegroundService.acknowledgeResult()
                 }
                 is DocumentUploadUiState.Cancelled -> {
