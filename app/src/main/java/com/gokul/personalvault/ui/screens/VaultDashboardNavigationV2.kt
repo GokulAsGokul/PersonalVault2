@@ -199,17 +199,19 @@ fun VaultDashboardNavigationV2(
                     vaultId = vaultId,
                     memberUid = memberUid
                 )
-                else -> V2ModulePlaceholder(
-                    title = when (selected) {
-                        VaultV2Destination.DOCUMENTS -> "Documents"
-                        else -> "Personal Information"
-                    },
-                    description = "This V2 section will be connected in a later implementation stage.",
-                    icon = when (selected) {
-                        VaultV2Destination.DOCUMENTS -> Icons.Outlined.Description
-                        else -> Icons.Outlined.Person
+                else -> Column(Modifier.fillMaxSize()) {
+                    VaultCompactHeader(
+                        title = "Personal Information",
+                        onBack = { selected = VaultV2Destination.HOME }
+                    )
+                    Box(Modifier.weight(1f)) {
+                        V2ModulePlaceholder(
+                            title = "Personal Information",
+                            description = "This V2 section will be connected in a later implementation stage.",
+                            icon = Icons.Outlined.Person
+                        ) { selected = VaultV2Destination.HOME }
                     }
-                ) { selected = VaultV2Destination.HOME }
+                }
             }
         }
     }
