@@ -522,21 +522,50 @@ class DocumentRepositoryV2(
             .lowercase(Locale.ROOT)
             .filter { it.isLetterOrDigit() }
             .take(10)
-        val targetDirectory = File(cacheDir, "documents").apply { mkdirs() }
-        val localFile = File(targetDirectory, document.id + if (extension.isBlank()) "" else ".$extension")
-        val downloadTask = storage.reference.child(document.storagePath).getFile(localFile)
-        downloadTask.addOnProgressListener { snapshot ->
-            onProgress(snapshot.bytesTransferred, snapshot.totalByteCount)
+        require(document.id.isNotBlank() && document.ownerUid.isNotBlank()) {
+            "Invalid document identity."
         }
-        downloadTask.await()
-        onProgress(localFile.length(), localFile.length())
-        return localFile
+        require(extension in SUPPORTED_EXTENSIONS) { "Unsupported document file type." }
+        val targetDirectory = File(cacheDir, "documents").apply { mkdirs() }
+        val suffix = if (extension.isBlank()) "" else ".$extension"
+        val localFile = File(targetDirectory, document.id + suffix)
+        val partialFile = File(targetDirectory, document.id + suffix + ".part")
+        partialFile.delete()
+        try {
+            val downloadTask = storage.reference.child(expectedPath).getFile(partialFile)
+            downloadTask.addOnProgressListener { snapshot ->
+                onProgress(snapshot.bytesTransferred, snapshot.totalByteCount)
+            }
+            downloadTask.await()
+            require(partialFile.isFile && partialFile.length() > 0L) {
+                "The downloaded document is empty."
+            }
+            if (document.sizeBytes > 0L) {
+                require(partialFile.length() == document.sizeBytes) {
+                    "The downloaded file size does not match its document record."
+                }
+            }
+            if (localFile.exists() && !localFile.delete()) {
+                throw IllegalStateException("Unable to replace the previous cached document.")
+            }
+            if (!partialFile.renameTo(localFile)) {
+                partialFile.copyTo(localFile, overwrite = true)
+                partialFile.delete()
+            }
+            onProgress(localFile.length(), localFile.length())
+            return localFile
+        } catch (error: Exception) {
+            partialFile.delete()
+            throw error
+        }
     }
 
-    suspend fun downloadUrl(vaultId: String, document: DocumentRecordV2): String {
-        require(document.storagePath.startsWith("vaultsV2/$vaultId/documents/")) {
-            "Invalid document storage path."
+    fun cleanupDocumentCache(cacheDir: File, maxAgeMillis: Long = 7L * 24L * 60L * 60L * 1000L) {
+        val directory = File(cacheDir, "documents")
+        if (!directory.exists()) return
+        val cutoff = System.currentTimeMillis() - maxAgeMillis
+        directory.listFiles()?.forEach { file ->
+            if (file.isFile && file.lastModified() < cutoff) file.delete()
         }
-        return storage.reference.child(document.storagePath).downloadUrl.await().toString()
     }
 }
