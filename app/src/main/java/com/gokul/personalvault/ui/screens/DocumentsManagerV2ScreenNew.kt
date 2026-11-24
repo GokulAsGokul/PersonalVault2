@@ -2665,6 +2665,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
+                }
             },
             confirmButton = {
                 Row(
