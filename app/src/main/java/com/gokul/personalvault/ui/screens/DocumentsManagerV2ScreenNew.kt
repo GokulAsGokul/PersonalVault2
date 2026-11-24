@@ -81,7 +81,6 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.ArrowDropDown
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.History
@@ -2536,12 +2535,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                                     ) {
                                         Surface(
-                                            modifier = Modifier.size(42.dp),
+                                            modifier = Modifier.size(36.dp),
                                             shape = RoundedCornerShape(13.dp),
                                             color = categoryTint.copy(alpha = 0.16f)
                                         ) {
@@ -2559,10 +2558,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             modifier = Modifier.weight(1f),
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Medium,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
+                                            maxLines = 4,
+                                            overflow = TextOverflow.Clip
                                         )
                                         IconButton(
+                                            modifier = Modifier.size(36.dp),
                                             enabled = categoryDeletingId == null,
                                             onClick = {
                                                 categoryToEdit = id to name
@@ -2577,6 +2577,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             )
                                         }
                                         IconButton(
+                                            modifier = Modifier.size(36.dp),
                                             enabled = categoryDeletingId == null,
                                             onClick = {
                                                 scope.launch {
@@ -2639,27 +2640,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         .width(4.dp)
                                         .height(34.dp)
                                         .background(documentAccent, RoundedCornerShape(4.dp))
-                                )
-                            }
-                        }
-                        if (manageCategoriesScrollState.canScrollForward) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 2.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Outlined.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = documentAccent,
-                                    modifier = Modifier.size(17.dp)
-                                )
-                                Text(
-                                    "Scroll to see more",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = documentAccent
                                 )
                             }
                         }
