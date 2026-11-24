@@ -1225,8 +1225,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 0.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             // ── Upload progress banner (replaces the old inline progress) ──
             if (uploading) {
