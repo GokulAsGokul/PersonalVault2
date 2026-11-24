@@ -1,6 +1,8 @@
 
 package com.gokul.personalvault.ui.screens
 
+import com.gokul.personalvault.ui.components.VaultCompactHeader
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -196,6 +198,37 @@ fun PasswordManagerV2Screen(
     Scaffold(
         containerColor = PvBackground,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            VaultCompactHeader(
+                title = "Passwords",
+                subtitle = "${records.size} credentials • Encrypted",
+                actions = {
+                    IconButton(onClick = { searchExpanded = !searchExpanded; if (!searchExpanded) search = "" }) {
+                        Icon(
+                            if (searchExpanded) Icons.Outlined.Close else Icons.Outlined.Search,
+                            contentDescription = if (searchExpanded) "Close search" else "Search passwords",
+                            tint = PvNavy
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { showHeaderMenu = true }) {
+                            Icon(Icons.Outlined.MoreVert, contentDescription = "More options", tint = PvMuted)
+                        }
+                        DropdownMenu(expanded = showHeaderMenu, onDismissRequest = { showHeaderMenu = false }) {
+                            DropdownMenuItem(text = { Text("Sort passwords") }, onClick = { showHeaderMenu = false; showSortMenu = true })
+                            DropdownMenuItem(
+                                text = { Text("Send test notification") },
+                                onClick = {
+                                    showHeaderMenu = false
+                                    PasswordExpiryReminderScheduler.sendTestNotification(context)
+                                    message = "Test notification queued. Check your notification shade."
+                                }
+                            )
+                        }
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -213,36 +246,6 @@ fun PasswordManagerV2Screen(
         Column(
             Modifier.fillMaxSize().padding(padding).background(PvBackground).padding(horizontal = 18.dp)
         ) {
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Password Manager", color = PvText, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Lock, null, tint = PvTeal, modifier = Modifier.size(13.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("${records.size} credentials • Encrypted", color = PvMuted, style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-                IconButton(onClick = { searchExpanded = !searchExpanded; if (!searchExpanded) search = "" }) {
-                    Icon(if (searchExpanded) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (searchExpanded) "Close search" else "Search passwords", tint = PvNavy)
-                }
-                Box {
-                    IconButton(onClick = { showHeaderMenu = true }) {
-                        Icon(Icons.Outlined.MoreVert, contentDescription = "More options", tint = PvMuted)
-                    }
-                    DropdownMenu(expanded = showHeaderMenu, onDismissRequest = { showHeaderMenu = false }) {
-                        DropdownMenuItem(text = { Text("Sort passwords") }, onClick = { showHeaderMenu = false; showSortMenu = true })
-                        DropdownMenuItem(
-                            text = { Text("Send test notification") },
-                            onClick = {
-                                showHeaderMenu = false
-                                PasswordExpiryReminderScheduler.sendTestNotification(context)
-                                message = "Test notification queued. Check your notification shade."
-                            }
-                        )
-                    }
-                }
-            }
             if (searchExpanded) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
