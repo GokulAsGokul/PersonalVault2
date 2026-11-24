@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Key
@@ -41,7 +40,7 @@ fun VaultDashboardNavigationV2(
     vaultId: String,
     memberUid: String,
     isVaultUnlocked: Boolean,
-    onRequestVaultUnlock: (VaultV2Destination) -> Unit,
+    onRequestVaultUnlock: (VaultV2Destination, () -> Unit) -> Unit,
     onSignOut: () -> Unit
 ) {
     var selected by rememberSaveable { mutableStateOf(VaultV2Destination.HOME) }
@@ -50,6 +49,13 @@ fun VaultDashboardNavigationV2(
             selected == VaultV2Destination.PERSONAL_INFO
     var vaultUnlocked by remember { mutableStateOf(isVaultUnlocked) }
     LaunchedEffect(isVaultUnlocked) { vaultUnlocked = isVaultUnlocked }
+    LaunchedEffect(selected, vaultUnlocked) {
+        if ((selected == VaultV2Destination.PASSWORDS ||
+                selected == VaultV2Destination.DOCUMENTS ||
+                selected == VaultV2Destination.PERSONAL_INFO) && !vaultUnlocked) {
+            onRequestVaultUnlock(selected) { selected = VaultV2Destination.HOME }
+        }
+    }
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val activeNotice = VaultSnackbarController.notice
@@ -166,11 +172,7 @@ fun VaultDashboardNavigationV2(
                     },
                     onBack = { selected = VaultV2Destination.HOME }
                 )
-                protected && !vaultUnlocked -> VaultLockedV2(
-                    destination = selected,
-                    onUnlock = { onRequestVaultUnlock(selected) },
-                    onBack = { selected = VaultV2Destination.HOME }
-                )
+                protected && !vaultUnlocked -> Box(Modifier.fillMaxSize())
                 selected == VaultV2Destination.PASSWORDS -> PasswordManagerV2Screen(
                     vaultId = vaultId,
                     memberUid = memberUid
@@ -270,36 +272,6 @@ private fun V2DashboardTile(title: String, subtitle: String, icon: ImageVector, 
                 Text(subtitle, color = Color(0xFF64748B), style = MaterialTheme.typography.bodySmall)
             }
         }
-    }
-}
-
-@Composable
-private fun VaultLockedV2(
-    destination: VaultV2Destination,
-    onUnlock: () -> Unit,
-    onBack: () -> Unit
-) {
-    val title = when (destination) {
-        VaultV2Destination.PASSWORDS -> "Passwords"
-        VaultV2Destination.DOCUMENTS -> "Documents"
-        else -> "Personal Information"
-    }
-    Column(
-        Modifier.fillMaxSize().background(Color(0xFFF4F6FB)).padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(Icons.Outlined.Fingerprint, contentDescription = null,
-            tint = Color(0xFF315CDB), modifier = Modifier.size(58.dp))
-        Spacer(Modifier.height(18.dp))
-        Text("$title is locked", style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold, color = Color(0xFF14213D))
-        Spacer(Modifier.height(8.dp))
-        Text("Unlock your vault with your master password to access this section.",
-            color = Color(0xFF64748B), style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(22.dp))
-        Button(onClick = onUnlock, modifier = Modifier.fillMaxWidth()) { Text("Set up / Unlock Vault") }
-        TextButton(onClick = onBack) { Text("Back to Dashboard") }
     }
 }
 

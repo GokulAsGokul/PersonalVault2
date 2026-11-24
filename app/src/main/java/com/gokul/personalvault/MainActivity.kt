@@ -131,6 +131,7 @@ fun FirebaseLoginScreen() {
             var requestedUnlockDestination by remember {
                 mutableStateOf<VaultV2Destination?>(null)
             }
+            var cancelVaultUnlock by remember { mutableStateOf<(() -> Unit)?>(null) }
             var vaultId by remember { mutableStateOf<String?>(null) }
             var vaultLoading by remember { mutableStateOf(true) }
             var vaultError by remember { mutableStateOf("") }
@@ -193,6 +194,7 @@ LaunchedEffect(currentUid) {
                         HouseholdCrypto.clearSession()
                         sessionUnlocked = false
                         requestedUnlockDestination = null
+                        cancelVaultUnlock = null
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
@@ -207,7 +209,8 @@ LaunchedEffect(currentUid) {
                     vaultId = vaultId.orEmpty(),
                     memberUid = currentUid,
                     isVaultUnlocked = sessionUnlocked,
-                    onRequestVaultUnlock = { destination ->
+                    onRequestVaultUnlock = { destination, cancelUnlock ->
+                        cancelVaultUnlock = cancelUnlock
                         if (vaultId == null) {
                             vaultError = "Your V2 vault is not ready yet. Please retry after the connection completes."
                         } else {
@@ -242,7 +245,11 @@ LaunchedEffect(currentUid) {
                                 // underneath will now display the requested protected module.
                                 requestedUnlockDestination = null
                             },
-                            onBack = { requestedUnlockDestination = null }
+                            onBack = {
+                                requestedUnlockDestination = null
+                                cancelVaultUnlock?.invoke()
+                                cancelVaultUnlock = null
+                            }
                         )
                     }
                 }
