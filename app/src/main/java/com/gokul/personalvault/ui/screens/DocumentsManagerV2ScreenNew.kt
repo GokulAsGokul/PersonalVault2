@@ -2405,14 +2405,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 330.dp),
+                        .height(240.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     if (customCategories.isEmpty()) {
                         Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f, fill = false),
+                            modifier = Modifier.fillMaxSize(),
                             shape = RoundedCornerShape(20.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
                             border = androidx.compose.foundation.BorderStroke(
@@ -2463,7 +2461,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f, fill = false)
+                                .weight(1f)
                                 .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(9.dp)
                         ) {
