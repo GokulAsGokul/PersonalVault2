@@ -1,5 +1,7 @@
 package com.gokul.personalvault.ui.screens
 
+import com.gokul.personalvault.ui.components.VaultCompactHeader
+
 import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -16,10 +18,13 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -231,9 +236,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var message by remember { mutableStateOf("") }
     var categoryDialog by remember { mutableStateOf(false) }
     var newCategory by remember { mutableStateOf("") }
+    var categoryCreateError by remember { mutableStateOf<String?>(null) }
+    var categoryCreateSaving by remember { mutableStateOf(false) }
+    var categoryCreateValidationAttempt by remember { mutableIntStateOf(0) }
+    val categoryCreateShake = remember { Animatable(0f) }
     var manageCategories by remember { mutableStateOf(false) }
+    val manageCategoriesScrollState = rememberScrollState()
     var categoryToEdit by remember { mutableStateOf<Pair<String, String>?>(null) }
     var categoryEditName by remember { mutableStateOf("") }
+    var categoryRenameError by remember { mutableStateOf<String?>(null) }
+    var categoryRenameSaving by remember { mutableStateOf(false) }
+    var categoryRenameValidationAttempt by remember { mutableIntStateOf(0) }
+    val categoryRenameShake = remember { Animatable(0f) }
+    var categoryDeletingId by remember { mutableStateOf<String?>(null) }
+    val addOptionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var customCategories by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var selectedDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var editingDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
@@ -344,6 +360,26 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     LaunchedEffect(showAddDocuments) {
         if (showAddDocuments) uploadFormScrollState.scrollTo(0)
+    }
+
+    LaunchedEffect(categoryCreateValidationAttempt) {
+        if (categoryCreateValidationAttempt > 0) {
+            triggerVaultErrorVibration(context)
+            categoryCreateShake.snapTo(0f)
+            listOf(-9f, 9f, -7f, 7f, -4f, 4f, 0f).forEach {
+                categoryCreateShake.animateTo(it, tween(35))
+            }
+        }
+    }
+
+    LaunchedEffect(categoryRenameValidationAttempt) {
+        if (categoryRenameValidationAttempt > 0) {
+            triggerVaultErrorVibration(context)
+            categoryRenameShake.snapTo(0f)
+            listOf(-9f, 9f, -7f, 7f, -4f, 4f, 0f).forEach {
+                categoryRenameShake.animateTo(it, tween(35))
+            }
+        }
     }
 
     // Status messages are shown as snackbars. While an upload is running the
@@ -752,6 +788,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     val active = documents.filter { !it.isDeleted }
+    val scopedActive = active.filter { visibility == "ALL" || it.scope == visibility }
     val deleted = documents.filter { it.isDeleted }
     val source = if (recycleBin) deleted else active
     val visible = source
@@ -793,7 +830,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
         }
 
-    val bytes = active.sumOf { it.sizeBytes }
     val allCategories = BuiltInDocumentCategoriesV2.all.map { it.id to it.name } + customCategories
 
     fun editDocument(doc: DocumentRecordV2) {
@@ -1143,18 +1179,39 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         showAllDocuments -> "All files"
         else -> "Documents"
     }
-    val headerSubtitle = when {
-        recycleBin -> "Deleted files are kept for 30 days"
-        category != "all" ->
-            "${folders.size} folders, ${active.count { it.categoryId == category }} files"
-        else -> "${active.size} files, ${formatDocumentBytesNew(bytes)}"
-    }
+    val headerSubtitle = if (recycleBin) "Deleted files are kept for 30 days" else null
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
     val mutedColor = palette.muted
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            var menuExpanded by remember { mutableStateOf(false) }
+            VaultCompactHeader(
+                title = headerTitle,
+                subtitle = headerSubtitle,
+                onBack = if (canGoBack) ({ goBack() }) else null,
+                titleIcon = if (headerTitle == "Documents") Icons.Outlined.Description else null,
+                actions = {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Manage Categories") },
+                                leadingIcon = { Icon(Icons.Outlined.Edit, null) },
+                                onClick = { manageCategories = true; menuExpanded = false }
+                            )
+                        }
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             if (!recycleBin) ExtendedFloatingActionButton(
                 onClick = { showAddOptions = true },
@@ -1170,60 +1227,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 112.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 0.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // ── Header ──
-            item(key = "header") {
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (canGoBack) {
-                        IconButton(onClick = { goBack() }) {
-                            Icon(Icons.Outlined.ChevronRight, "Back", Modifier.rotate(180f))
-                        }
-                    }
-                    Column(Modifier.weight(1f).padding(start = if (canGoBack) 0.dp else 4.dp)) {
-                        Text(
-                            headerTitle,
-                            style = if (isHome) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(headerSubtitle, style = MaterialTheme.typography.bodySmall, color = mutedColor)
-                    }
-                    Box {
-                        var menuExpanded by remember { mutableStateOf(false) }
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Outlined.MoreVert, "More options")
-                        }
-                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            DropdownMenuItem(
-                                text = { Text(if (recycleBin) "All Documents" else "Recycle Bin") },
-                                leadingIcon = { Icon(if (recycleBin) Icons.Outlined.Description else Icons.Outlined.Delete, null) },
-                                onClick = {
-                                    recycleBin = !recycleBin
-                                    category = "all"
-                                    showAllDocuments = false
-                                    visibility = "ALL"
-                                    currentFolderId = null
-                                    menuExpanded = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Manage Categories") },
-                                leadingIcon = { Icon(Icons.Outlined.Edit, null) },
-                                onClick = { manageCategories = true; menuExpanded = false }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("New Category") },
-                                leadingIcon = { Icon(Icons.Outlined.Add, null) },
-                                onClick = { newCategory = ""; categoryDialog = true; menuExpanded = false }
-                            )
-                        }
-                    }
-                }
-            }
-
             // ── Upload progress banner (replaces the old inline progress) ──
             if (uploading) {
                 item(key = "uploading") {
@@ -1240,8 +1246,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             }
 
-            // ── Search ──
-            item(key = "search") {
+            // Search is available in All Files and deeper views, not on the Documents dashboard.
+            if (!isHome) item(key = "search") {
                 TextField(
                     value = search,
                     onValueChange = { search = it },
@@ -1271,7 +1277,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 )
             }
 
-            if (advancedSearchExpanded) {
+            if (advancedSearchExpanded && !isHome) {
                 item(key = "advanced_search_options") {
                     Card(
                         Modifier.fillMaxWidth(),
@@ -1290,30 +1296,186 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             }
-            // ── Scope switch ──
-            item(key = "scope") {
-                val scopes = listOf("ALL" to "All", "PERSONAL" to "Personal", "SHARED" to "Shared")
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    scopes.forEachIndexed { index, (value, label) ->
-                        SegmentedButton(
-                            selected = visibility == value,
-                            onClick = {
-                                visibility = value
-                                if (!recycleBin) {
-                                    category = "all"
-                                    currentFolderId = null
-                                    showAllDocuments = false
-                                }
-                            },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = scopes.size),
-                            icon = {},
-                            colors = SegmentedButtonDefaults.colors(
-                                activeContainerColor = documentAccent,
-                                activeContentColor = palette.onAccent,
-                                inactiveContainerColor = palette.container,
-                                inactiveContentColor = MaterialTheme.colorScheme.onSurface
+            // Unified Documents Overview: scope filters and live statistics.
+            if (isHome) {
+                item(key = "documents_overview") {
+                    val overviewDocuments = if (recycleBin) deleted else scopedActive
+                    val overviewFolders = folders.filter {
+                        visibility == "ALL" || it.scope == visibility
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = palette.surface),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            documentAccent.copy(alpha = 0.28f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            val scopes = listOf(
+                                Triple("ALL", "All", Icons.Outlined.SelectAll),
+                                Triple("PERSONAL", "Personal", Icons.Outlined.Person),
+                                Triple("SHARED", "Shared", Icons.Outlined.Groups),
+                                Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
                             )
-                        ) { Text(label) }
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                scopes.forEach { (value, label, icon) ->
+                                    val selected = if (value == "RECYCLE_BIN") recycleBin
+                                        else !recycleBin && visibility == value
+                                    Surface(
+                                        modifier = Modifier.weight(1f).heightIn(min = 62.dp).clickable {
+                                            if (value == "RECYCLE_BIN") {
+                                                recycleBin = true
+                                                category = "all"
+                                                currentFolderId = null
+                                                showAllDocuments = false
+                                                visibility = "ALL"
+                                            } else {
+                                                recycleBin = false
+                                                visibility = value
+                                                category = "all"
+                                                currentFolderId = null
+                                                showAllDocuments = false
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = if (selected) documentAccent else palette.container,
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            if (selected) documentAccent
+                                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+                                        )
+                                    ) {
+                                        Column(
+                                            Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 7.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            Icon(
+                                                icon,
+                                                contentDescription = null,
+                                                tint = if (selected) palette.onAccent
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                            Text(
+                                                label,
+                                                color = if (selected) palette.onAccent
+                                                    else MaterialTheme.colorScheme.onSurface,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                DocumentDashboardStatCardV2New(
+                                    label = "Documents",
+                                    value = overviewDocuments.size.toString(),
+                                    icon = Icons.Outlined.Description,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF352347),
+                                    iconTint = Color(0xFFD2A8FF)
+                                )
+                                DocumentDashboardStatCardV2New(
+                                    label = "Storage",
+                                    value = formatDocumentBytesNew(overviewDocuments.sumOf { it.sizeBytes }),
+                                    icon = Icons.Outlined.Storage,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF252D4A),
+                                    iconTint = Color(0xFF58B8FF)
+                                )
+                                DocumentDashboardStatCardV2New(
+                                    label = "Personal",
+                                    value = overviewDocuments.count { it.scope == "PERSONAL" }.toString(),
+                                    icon = Icons.Outlined.Person,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF1D3A2C),
+                                    iconTint = Color(0xFF8FE0A7)
+                                )
+                                DocumentDashboardStatCardV2New(
+                                    label = "Shared",
+                                    value = overviewDocuments.count { it.scope == "SHARED" }.toString(),
+                                    icon = Icons.Outlined.Groups,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF352347),
+                                    iconTint = Color(0xFFD2A8FF)
+                                )
+                                DocumentDashboardStatCardV2New(
+                                    label = "Folders",
+                                    value = overviewFolders.size.toString(),
+                                    icon = Icons.Outlined.FolderOpen,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF3A2D28),
+                                    iconTint = Color(0xFFFFD34D)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Scope selector remains available in non-dashboard document views.
+                item(key = "scope") {
+                    val scopes = listOf(
+                        Triple("ALL", "All", Icons.Outlined.SelectAll),
+                        Triple("PERSONAL", "Personal", Icons.Outlined.Person),
+                        Triple("SHARED", "Shared", Icons.Outlined.Groups),
+                        Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        scopes.forEach { (value, label, icon) ->
+                            val selected = if (value == "RECYCLE_BIN") recycleBin
+                                else !recycleBin && visibility == value
+                            Surface(
+                                modifier = Modifier.weight(1f).heightIn(min = 52.dp).clickable {
+                                    if (value == "RECYCLE_BIN") {
+                                        recycleBin = true
+                                        category = "all"
+                                        currentFolderId = null
+                                        showAllDocuments = false
+                                        visibility = "ALL"
+                                    } else {
+                                        recycleBin = false
+                                        visibility = value
+                                        category = "all"
+                                        currentFolderId = null
+                                        showAllDocuments = false
+                                    }
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (selected) documentAccent else palette.container,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (selected) documentAccent else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                                )
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Icon(icon, contentDescription = null,
+                                        tint = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(17.dp))
+                                    Text(label, color = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1340,23 +1502,55 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } else if (isHome) {
                 // ── Home: summary, recent documents and categories ──
                 val recent = active.filter { visibility == "ALL" || it.scope == visibility }
-                    .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(3)
-                item(key = "document_summary") {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DocumentSummaryTileV2New("Documents", active.size.toString(), Icons.Outlined.Description, palette, Modifier.weight(1f))
-                            DocumentSummaryTileV2New("Storage", formatDocumentBytesNew(bytes), Icons.Outlined.Storage, palette, Modifier.weight(1f))
+                    .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(5)
+                item(key = "cat_header") {
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Categories",
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(
+                            onClick = {
+                                newCategory = ""
+                                categoryCreateError = null
+                                categoryDialog = true
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("New Category", color = documentAccent)
                         }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DocumentSummaryTileV2New(
-                                "Personal", active.count { it.scope == "PERSONAL" }.toString(),
-                                Icons.Outlined.Person, palette, Modifier.weight(1f), isShared = false
-                            )
-                            DocumentSummaryTileV2New(
-                                "Shared", active.count { it.scope == "SHARED" }.toString(),
-                                Icons.Outlined.Groups, palette, Modifier.weight(1f), isShared = true
+                    }
+                }
+                items(allCategories.chunked(2)) { categoryRow ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        categoryRow.forEach { (id, name) ->
+                            val count = active.count {
+                                it.categoryId == id && (visibility == "ALL" || it.scope == visibility)
+                            }
+                            val (tileBg, tileFg) = categoryStyleV2New(id, isDarkUi)
+                            CategoryCardV2New(
+                                name = name,
+                                icon = categoryIconV2New(id),
+                                count = count,
+                                tileBg = tileBg,
+                                tileFg = tileFg,
+                                palette = palette,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    category = id
+                                    currentFolderId = null
+                                    showAllDocuments = false
+                                }
                             )
                         }
+                        if (categoryRow.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
                 item(key = "recent_header") {
@@ -1382,64 +1576,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             onClick = { openDocument(doc) },
                             onMore = { selectedDocument = doc }
                         )
-                    }
-                }
-                item(key = "cat_header") {
-                    Text(
-                        "Categories",
-                        Modifier.padding(top = 12.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                items(allCategories.chunked(3)) { categoryRow ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        categoryRow.forEach { (id, name) ->
-                            val count = active.count {
-                                it.categoryId == id && (visibility == "ALL" || it.scope == visibility)
-                            }
-                            val (tileBg, tileFg) = categoryStyleV2New(id, isDarkUi)
-                            CategoryCardV2New(
-                                name = name,
-                                icon = categoryIconV2New(id),
-                                count = count,
-                                tileBg = tileBg,
-                                tileFg = tileFg,
-                                palette = palette,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    category = id
-                                    currentFolderId = null
-                                    showAllDocuments = false
-                                }
-                            )
-                        }
-                        repeat(3 - categoryRow.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-                item(key = "recycle_row") {
-                    Card(
-                        Modifier.fillMaxWidth().padding(top = 4.dp).clickable {
-                            recycleBin = true
-                            category = "all"
-                            showAllDocuments = false
-                            currentFolderId = null
-                        },
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = palette.surface)
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Outlined.Delete, null, tint = mutedColor)
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text("Recycle Bin", fontWeight = FontWeight.SemiBold)
-                                Text("${deleted.size} deleted files", style = MaterialTheme.typography.bodySmall, color = mutedColor)
-                            }
-                            Icon(Icons.Outlined.ChevronRight, null, tint = mutedColor)
-                        }
                     }
                 }
             } else {
@@ -1733,12 +1869,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     if (showAddOptions) {
         ModalBottomSheet(
             onDismissRequest = { showAddOptions = false },
+            sheetState = addOptionsSheetState,
             containerColor = documentSurface,
             tonalElevation = 8.dp
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text("Add to Documents", style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold)
@@ -2222,28 +2359,90 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             containerColor = MaterialTheme.colorScheme.surface,
 
             tonalElevation = 8.dp,
-            onDismissRequest = { categoryDialog = false },
-            title = { Text("New category") },
-            text = { OutlinedTextField(newCategory, { newCategory = it.take(30) },
-                label = { Text("Category name (max 30)") }, singleLine = true) },
-            confirmButton = {
-                TextButton(onClick = {
-                    val clean = newCategory.trim()
-                    val duplicate = customCategories.any { it.second.equals(clean, true) } ||
-                        BuiltInDocumentCategoriesV2.all.any { it.name.equals(clean, true) }
-                    if (clean.isNotEmpty() && !duplicate) {
-                        scope.launch {
-                            try {
-                                repository.createCategory(vaultId, clean)
-                                newCategory = ""; categoryDialog = false
-                            } catch (error: Exception) {
-                                message = error.message ?: "Unable to create category."
+            onDismissRequest = { if (!categoryCreateSaving) categoryDialog = false },
+            title = { Text("Add New Category", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = newCategory,
+                        onValueChange = { newCategory = it.take(30); categoryCreateError = null },
+                        modifier = Modifier.fillMaxWidth().offset(x = categoryCreateShake.value.dp),
+                        label = { Text("New Category Name") },
+                        singleLine = true,
+                        isError = categoryCreateError != null,
+                        enabled = !categoryCreateSaving,
+                        trailingIcon = {
+                            if (newCategory.isNotEmpty()) {
+                                IconButton(onClick = { newCategory = ""; categoryCreateError = null }) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear category name")
+                                }
+                            }
+                        },
+                        supportingText = {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(
+                                    categoryCreateError.orEmpty(),
+                                    color = if (categoryCreateError != null) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text("${newCategory.length}/30", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                    } else message = "Enter a unique category name."
-                }) { Text("Create") }
+                    )
+                    if (categoryCreateSaving) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth(), color = documentAccent)
+                        Text("Saving category…", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             },
-            dismissButton = { TextButton(onClick = { categoryDialog = false }) { Text("Cancel") } }
+            confirmButton = {
+                TextButton(
+                    enabled = !categoryCreateSaving,
+                    onClick = {
+                        val clean = newCategory.trim()
+                        val duplicate = customCategories.any { it.second.equals(clean, true) } ||
+                            BuiltInDocumentCategoriesV2.all.any { it.name.equals(clean, true) }
+                        val validation = when {
+                            clean.isEmpty() -> "Category Name is mandatory"
+                            duplicate -> "Category Name is already available"
+                            else -> null
+                        }
+                        if (validation != null) {
+                            categoryCreateError = validation
+                            categoryCreateValidationAttempt++
+                        } else {
+                            scope.launch {
+                                categoryCreateSaving = true
+                                try {
+                                    repository.createCategory(vaultId, clean)
+                                    newCategory = ""
+                                    categoryCreateError = null
+                                    categoryDialog = false
+                                    message = "Category created successfully."
+                                } catch (error: Exception) {
+                                    if (error is FirebaseFunctionsException &&
+                                        error.code == FirebaseFunctionsException.Code.ALREADY_EXISTS
+                                    ) {
+                                        categoryCreateError = "Category Name is already available"
+                                        categoryCreateValidationAttempt++
+                                    } else {
+                                        message = error.localizedMessage ?: error.message ?: "Unable to create category."
+                                    }
+                                } finally {
+                                    categoryCreateSaving = false
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    if (categoryCreateSaving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !categoryCreateSaving, onClick = { categoryDialog = false }) { Text("Cancel") }
+            }
         )
     }
 
@@ -2255,31 +2454,306 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             containerColor = MaterialTheme.colorScheme.surface,
 
             tonalElevation = 8.dp,
-            onDismissRequest = { manageCategories = false; categoryToEdit = null },
-            title = { Text("Manage custom categories") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (customCategories.isEmpty()) Text("No custom categories yet.")
-                    customCategories.forEach { (id, name) ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(name, Modifier.weight(1f))
-                            TextButton(onClick = { categoryToEdit = id to name; categoryEditName = name }) { Text("Rename") }
-                            TextButton(onClick = {
-                                scope.launch {
-                                    try {
-                                        repository.deleteCategory(vaultId, id)
-                                        if (category == id) category = "all"
-                                        message = "Category deleted."
-                                    } catch (error: Exception) {
-                                        message = error.message ?: "Reassign documents before deleting this category."
-                                    }
-                                }
-                            }) { Text("Delete") }
+            onDismissRequest = {
+                if (categoryDeletingId == null) {
+                    manageCategories = false
+                    categoryToEdit = null
+                }
+            },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.size(48.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        color = documentAccent.copy(alpha = 0.18f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Outlined.FolderOpen,
+                                contentDescription = null,
+                                tint = documentAccent,
+                                modifier = Modifier.size(25.dp)
+                            )
                         }
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            "Manage Custom Categories",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Organise your documents your way",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { manageCategories = false }) { Text("Done") } }
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (customCategories.isEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(64.dp),
+                                    shape = RoundedCornerShape(21.dp),
+                                    color = documentAccent.copy(alpha = 0.14f)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            Icons.Outlined.FolderOpen,
+                                            contentDescription = null,
+                                            tint = documentAccent,
+                                            modifier = Modifier.size(34.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    "No custom categories yet",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    "Create your first category to organise your documents.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Button(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 2.dp)
+                                        .heightIn(min = 44.dp),
+                                    enabled = categoryDeletingId == null,
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = documentAccent,
+                                        contentColor = palette.onAccent
+                                    ),
+                                    onClick = {
+                                        manageCategories = false
+                                        newCategory = ""
+                                        categoryCreateError = null
+                                        categoryDialog = true
+                                    }
+                                ) {
+                                    Icon(Icons.Outlined.Add, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Create Category", fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "${customCategories.size} ${if (customCategories.size == 1) "category" else "categories"}",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            TextButton(
+                                enabled = categoryDeletingId == null,
+                                onClick = {
+                                    manageCategories = false
+                                    newCategory = ""
+                                    categoryCreateError = null
+                                    categoryDialog = true
+                                },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Add Category", color = documentAccent)
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(end = 10.dp)
+                                    .verticalScroll(manageCategoriesScrollState),
+                                verticalArrangement = Arrangement.spacedBy(9.dp)
+                            ) {
+                            customCategories.forEachIndexed { index, (id, name) ->
+                                val categoryIconColors = listOf(
+                                    Color(0xFFB88AF5),
+                                    Color(0xFF83D7A1),
+                                    Color(0xFFF2C76C),
+                                    Color(0xFF82B8F5),
+                                    Color(0xFFE59AD8)
+                                )
+                                val categoryTint = categoryIconColors[index % categoryIconColors.size]
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier.size(36.dp),
+                                            shape = RoundedCornerShape(13.dp),
+                                            color = categoryTint.copy(alpha = 0.16f)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    Icons.Outlined.FolderOpen,
+                                                    contentDescription = null,
+                                                    tint = categoryTint,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            name,
+                                            modifier = Modifier.weight(1f),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 4,
+                                            overflow = TextOverflow.Clip
+                                        )
+                                        IconButton(
+                                            modifier = Modifier.size(36.dp),
+                                            enabled = categoryDeletingId == null,
+                                            onClick = {
+                                                categoryToEdit = id to name
+                                                categoryEditName = name
+                                                categoryRenameError = null
+                                            }
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.Edit,
+                                                contentDescription = "Rename $name",
+                                                tint = documentAccent
+                                            )
+                                        }
+                                        IconButton(
+                                            modifier = Modifier.size(36.dp),
+                                            enabled = categoryDeletingId == null,
+                                            onClick = {
+                                                scope.launch {
+                                                    categoryDeletingId = id
+                                                    try {
+                                                        repository.deleteCategory(vaultId, id)
+                                                        if (category == id) category = "all"
+                                                        manageCategories = false
+                                                        categoryToEdit = null
+                                                        message = "Category deleted successfully."
+                                                    } catch (error: Exception) {
+                                                        message = error.localizedMessage ?: error.message
+                                                            ?: "Reassign documents before deleting this category."
+                                                    } finally {
+                                                        categoryDeletingId = null
+                                                    }
+                                                }
+                                            }
+                                        ) {
+                                            if (categoryDeletingId == id) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(18.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Icon(
+                                                    Icons.Outlined.Delete,
+                                                    contentDescription = "Delete $name",
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (manageCategoriesScrollState.maxValue > 0) {
+                            val scrollProgress = (
+                                manageCategoriesScrollState.value.toFloat() /
+                                    manageCategoriesScrollState.maxValue.toFloat()
+                                ).coerceIn(0f, 1f)
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .fillMaxHeight()
+                                    .width(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                )
+                                val thumbTravel = (maxHeight - 34.dp).coerceAtLeast(0.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .offset(y = thumbTravel * scrollProgress)
+                                        .width(4.dp)
+                                        .height(34.dp)
+                                        .background(documentAccent, RoundedCornerShape(4.dp))
+                                )
+                            }
+                        }
+                    }
+                }
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        enabled = categoryDeletingId == null,
+                        onClick = { manageCategories = false }
+                    ) {
+                        Text("Done", color = documentAccent)
+                    }
+                }
+            }
         )
     }
 
@@ -2291,25 +2765,90 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             containerColor = MaterialTheme.colorScheme.surface,
 
             tonalElevation = 8.dp,
-            onDismissRequest = { categoryToEdit = null },
-            title = { Text("Rename category") },
-            text = { OutlinedTextField(categoryEditName, { categoryEditName = it.take(30) },
-                label = { Text("Category name") }, singleLine = true) },
-            confirmButton = {
-                TextButton(onClick = {
-                    val clean = categoryEditName.trim()
-                    val duplicate = customCategories.any { it.first != id && it.second.equals(clean, true) } ||
-                        BuiltInDocumentCategoriesV2.all.any { it.name.equals(clean, true) }
-                    if (clean.isNotEmpty() && !duplicate) scope.launch {
-                        try {
-                            repository.renameCategory(vaultId, id, clean)
-                            categoryToEdit = null
-                            message = "Category renamed."
-                        } catch (error: Exception) { message = error.message ?: "Rename failed." }
-                    } else message = "Enter a unique category name."
-                }) { Text("Save") }
+            onDismissRequest = { if (!categoryRenameSaving) categoryToEdit = null },
+            title = { Text("Rename Category", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = categoryEditName,
+                        onValueChange = { categoryEditName = it.take(30); categoryRenameError = null },
+                        modifier = Modifier.fillMaxWidth().offset(x = categoryRenameShake.value.dp),
+                        label = { Text("New Category Name") },
+                        singleLine = true,
+                        isError = categoryRenameError != null,
+                        enabled = !categoryRenameSaving,
+                        trailingIcon = {
+                            if (categoryEditName.isNotEmpty()) {
+                                IconButton(onClick = { categoryEditName = ""; categoryRenameError = null }) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear category name")
+                                }
+                            }
+                        },
+                        supportingText = {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(
+                                    categoryRenameError.orEmpty(),
+                                    color = if (categoryRenameError != null) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text("${categoryEditName.length}/30", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    )
+                    if (categoryRenameSaving) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth(), color = documentAccent)
+                        Text("Saving category…", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             },
-            dismissButton = { TextButton(onClick = { categoryToEdit = null }) { Text("Cancel") } }
+            confirmButton = {
+                TextButton(
+                    enabled = !categoryRenameSaving,
+                    onClick = {
+                        val clean = categoryEditName.trim()
+                        val validation = when {
+                            clean.isEmpty() -> "Category Name is mandatory"
+                            clean == oldName -> "Category Name is not modified"
+                            customCategories.any { it.first != id && it.second.equals(clean, true) } ||
+                                BuiltInDocumentCategoriesV2.all.any { it.name.equals(clean, true) } ->
+                                "Category Name is already available"
+                            else -> null
+                        }
+                        if (validation != null) {
+                            categoryRenameError = validation
+                            categoryRenameValidationAttempt++
+                        } else {
+                            scope.launch {
+                                categoryRenameSaving = true
+                                try {
+                                    repository.renameCategory(vaultId, id, clean)
+                                    categoryToEdit = null
+                                    categoryRenameError = null
+                                    message = "Category renamed successfully."
+                                } catch (error: Exception) {
+                                    if (error is FirebaseFunctionsException &&
+                                        error.code == FirebaseFunctionsException.Code.ALREADY_EXISTS
+                                    ) {
+                                        categoryRenameError = "Category Name is already available"
+                                        categoryRenameValidationAttempt++
+                                    } else {
+                                        message = error.localizedMessage ?: error.message ?: "Rename failed."
+                                    }
+                                } finally {
+                                    categoryRenameSaving = false
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    if (categoryRenameSaving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !categoryRenameSaving, onClick = { categoryToEdit = null }) { Text("Cancel") }
+            }
         )
     }
 
@@ -3087,7 +3626,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             DocumentTypeIconNew(doc.contentType, Modifier.size(72.dp))
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                doc.title.ifBlank { doc.originalFileName },
+                                documentDisplayNameV2New(doc),
                                 modifier = Modifier.fillMaxWidth(),
                                 fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.titleLarge,
@@ -3444,6 +3983,67 @@ private fun Modifier.dashedBorderV2New(color: Color, radius: androidx.compose.ui
 // ───────────────────────── Redesign: components ─────────────────────────
 
 @Composable
+private fun DocumentDashboardStatCardV2New(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    modifier: Modifier,
+    cardColor: Color,
+    iconTint: Color = Color.White
+) {
+    Card(
+        modifier = modifier.heightIn(min = 104.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 9.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                value,
+                color = Color.White,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Text(
+                label,
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Clip,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+private fun documentDisplayNameV2New(document: DocumentRecordV2): String {
+    val displayName = document.title.ifBlank { document.originalFileName }.trim()
+    val originalName = document.originalFileName.trim()
+    val extension = originalName.substringAfterLast('.', "")
+        .takeIf { it.isNotBlank() && originalName.lastIndexOf('.') > 0 }
+        ?: return displayName
+
+    return if (displayName.endsWith(".$extension", ignoreCase = true)) {
+        displayName
+    } else {
+        "$displayName.$extension"
+    }
+}
+
+@Composable
 private fun DocumentSummaryTileV2New(
     label: String,
     value: String,
@@ -3463,15 +4063,21 @@ private fun DocumentSummaryTileV2New(
         false -> if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
         null -> palette.accent
     }
-    Card(modifier = modifier, shape = RoundedCornerShape(16.dp),
+    Card(modifier = modifier.heightIn(min = 68.dp), shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = tileBackground)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(icon, contentDescription = null, tint = tileAccent, modifier = Modifier.size(21.dp))
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
-                color = if (isShared != null) tileAccent else MaterialTheme.colorScheme.onSurface)
-            Text(label, style = MaterialTheme.typography.labelSmall,
-                color = if (isShared != null) tileAccent else palette.muted, maxLines = 1)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = tileAccent, modifier = Modifier.size(22.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(label, style = MaterialTheme.typography.labelSmall,
+                    color = if (isShared != null) tileAccent else palette.muted, maxLines = 1)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                    color = if (isShared != null) tileAccent else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
@@ -3562,12 +4168,12 @@ private fun DocumentRowV2New(
             }
             DocumentTypeIconNew(document.contentType, Modifier.size(46.dp))
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
-                    document.title.ifBlank { document.originalFileName }.take(50),
+                    documentDisplayNameV2New(document),
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyLarge
                 )
@@ -3578,18 +4184,18 @@ private fun DocumentRowV2New(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (isRecycleBin) {
-                    Text("Deleted", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (!isRecycleBin) ScopePillV2New(document, mine, palette)
+                    if (document.favouriteUids[currentMemberUid] == true && !isRecycleBin) {
+                        Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
+                            tint = Color(0xFFB45BCE), modifier = Modifier.size(15.dp))
+                    }
+                    if (isRecycleBin) {
+                        Text("Deleted", color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall)
+                    }
                 }
-            }
-            if (!isRecycleBin) {
-                if (document.favouriteUids[currentMemberUid] == true) {
-                    Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
-                        tint = Color(0xFFB45BCE), modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                }
-                Spacer(Modifier.width(6.dp))
-                ScopePillV2New(document, mine, palette)
             }
             IconButton(onClick = onMore) {
                 Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
@@ -3630,7 +4236,7 @@ private fun DocumentGridCardV2New(
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                document.title.ifBlank { document.originalFileName }.take(50),
+                documentDisplayNameV2New(document),
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -3680,17 +4286,17 @@ private fun CategoryCardV2New(
             Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(Modifier.size(40.dp), shape = RoundedCornerShape(12.dp), color = tileBg) {
+            Surface(Modifier.size(36.dp), shape = RoundedCornerShape(11.dp), color = tileBg) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = tileFg, modifier = Modifier.size(21.dp))
+                    Icon(icon, contentDescription = null, tint = tileFg, modifier = Modifier.size(20.dp))
                 }
             }
-            Spacer(Modifier.width(10.dp))
-            Column {
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     name,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
