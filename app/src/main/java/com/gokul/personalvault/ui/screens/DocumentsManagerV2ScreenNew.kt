@@ -2365,122 +2365,202 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             title = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "Manage Custom Categories",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        "Organise the categories used for your documents",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.size(48.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        color = documentAccent.copy(alpha = 0.18f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Outlined.FolderOpen,
+                                contentDescription = null,
+                                tint = documentAccent,
+                                modifier = Modifier.size(25.dp)
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            "Manage Custom Categories",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Organise your documents your way",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             },
             text = {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 320.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .heightIn(max = 330.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     if (customCategories.isEmpty()) {
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false),
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                            )
                         ) {
                             Column(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 22.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 18.dp, vertical = 24.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(9.dp)
                             ) {
-                                Icon(
-                                    Icons.Outlined.FolderOpen,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(38.dp),
-                                    tint = documentAccent
-                                )
+                                Surface(
+                                    modifier = Modifier.size(76.dp),
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = documentAccent.copy(alpha = 0.14f)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            Icons.Outlined.FolderOpen,
+                                            contentDescription = null,
+                                            tint = documentAccent,
+                                            modifier = Modifier.size(40.dp)
+                                        )
+                                    }
+                                }
                                 Text(
                                     "No custom categories yet",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
                                     "Create your first category to organise your documents.",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                             }
                         }
                     } else {
                         Text(
-                            "${customCategories.size} custom ${if (customCategories.size == 1) "category" else "categories"}",
+                            "${customCategories.size} ${if (customCategories.size == 1) "category" else "categories"}",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        customCategories.forEach { (id, name) ->
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 6.dp, top = 7.dp, bottom = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = documentAccent.copy(alpha = 0.16f)
-                                    ) {
-                                        Icon(
-                                            Icons.Outlined.FolderOpen,
-                                            contentDescription = null,
-                                            tint = documentAccent,
-                                            modifier = Modifier.padding(8.dp).size(20.dp)
-                                        )
-                                    }
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(
-                                        name,
-                                        modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(9.dp)
+                        ) {
+                            customCategories.forEachIndexed { index, (id, name) ->
+                                val categoryIconColors = listOf(
+                                    Color(0xFFB88AF5),
+                                    Color(0xFF83D7A1),
+                                    Color(0xFFF2C76C),
+                                    Color(0xFF82B8F5),
+                                    Color(0xFFE59AD8)
+                                )
+                                val categoryTint = categoryIconColors[index % categoryIconColors.size]
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                                     )
-                                    TextButton(
-                                        enabled = categoryDeletingId == null,
-                                        onClick = {
-                                            categoryToEdit = id to name
-                                            categoryEditName = name
-                                            categoryRenameError = null
-                                        }
-                                    ) { Text("Rename") }
-                                    TextButton(
-                                        enabled = categoryDeletingId == null,
-                                        onClick = {
-                                            scope.launch {
-                                                categoryDeletingId = id
-                                                try {
-                                                    repository.deleteCategory(vaultId, id)
-                                                    if (category == id) category = "all"
-                                                    manageCategories = false
-                                                    categoryToEdit = null
-                                                    message = "Category deleted successfully."
-                                                } catch (error: Exception) {
-                                                    message = error.localizedMessage ?: error.message
-                                                        ?: "Reassign documents before deleting this category."
-                                                } finally {
-                                                    categoryDeletingId = null
-                                                }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier.size(42.dp),
+                                            shape = RoundedCornerShape(13.dp),
+                                            color = categoryTint.copy(alpha = 0.16f)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    Icons.Outlined.FolderOpen,
+                                                    contentDescription = null,
+                                                    tint = categoryTint,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
                                             }
                                         }
-                                    ) {
-                                        if (categoryDeletingId == id) {
-                                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                                        } else Text("Delete")
+                                        Text(
+                                            name,
+                                            modifier = Modifier.weight(1f),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        IconButton(
+                                            enabled = categoryDeletingId == null,
+                                            onClick = {
+                                                categoryToEdit = id to name
+                                                categoryEditName = name
+                                                categoryRenameError = null
+                                            }
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.Edit,
+                                                contentDescription = "Rename $name",
+                                                tint = documentAccent
+                                            )
+                                        }
+                                        IconButton(
+                                            enabled = categoryDeletingId == null,
+                                            onClick = {
+                                                scope.launch {
+                                                    categoryDeletingId = id
+                                                    try {
+                                                        repository.deleteCategory(vaultId, id)
+                                                        if (category == id) category = "all"
+                                                        manageCategories = false
+                                                        categoryToEdit = null
+                                                        message = "Category deleted successfully."
+                                                    } catch (error: Exception) {
+                                                        message = error.localizedMessage ?: error.message
+                                                            ?: "Reassign documents before deleting this category."
+                                                    } finally {
+                                                        categoryDeletingId = null
+                                                    }
+                                                }
+                                            }
+                                        ) {
+                                            if (categoryDeletingId == id) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(18.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Icon(
+                                                    Icons.Outlined.Delete,
+                                                    contentDescription = "Delete $name",
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -2491,12 +2571,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             confirmButton = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 50.dp),
                         enabled = categoryDeletingId == null,
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = documentAccent,
+                            contentColor = palette.onAccent
+                        ),
                         onClick = {
                             manageCategories = false
                             newCategory = ""
@@ -2506,7 +2592,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     ) {
                         Icon(Icons.Outlined.Add, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Add Category")
+                        Text("Add Category", fontWeight = FontWeight.SemiBold)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -2515,7 +2601,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         TextButton(
                             enabled = categoryDeletingId == null,
                             onClick = { manageCategories = false }
-                        ) { Text("Done") }
+                        ) {
+                            Text("Done", color = documentAccent)
+                        }
                     }
                 }
             }
