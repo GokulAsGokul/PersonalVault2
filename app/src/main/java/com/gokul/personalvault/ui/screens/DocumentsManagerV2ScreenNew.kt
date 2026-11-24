@@ -1296,61 +1296,180 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             }
-            // ── Scope switch ──
-            item(key = "scope") {
-                val scopes = listOf(
-                    Triple("ALL", "All", Icons.Outlined.SelectAll),
-                    Triple("PERSONAL", "Personal", Icons.Outlined.Person),
-                    Triple("SHARED", "Shared", Icons.Outlined.Groups),
-                    Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
-                )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    scopes.forEach { (value, label, icon) ->
-                        val selected = if (value == "RECYCLE_BIN") recycleBin else !recycleBin && visibility == value
-                        Surface(
-                            modifier = Modifier.weight(1f).heightIn(min = 52.dp).clickable {
-                                if (value == "RECYCLE_BIN") {
-                                    recycleBin = true
-                                    category = "all"
-                                    currentFolderId = null
-                                    showAllDocuments = false
-                                    visibility = "ALL"
-                                } else {
-                                    recycleBin = false
-                                    visibility = value
-                                    category = "all"
-                                    currentFolderId = null
-                                    showAllDocuments = false
-                                }
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (selected) documentAccent else palette.container,
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (selected) documentAccent else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                            )
+            // Unified Documents Overview: scope filters and live statistics.
+            if (isHome) {
+                item(key = "documents_overview") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = palette.surface),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            documentAccent.copy(alpha = 0.28f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Column(
-                                Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            val scopes = listOf(
+                                Triple("ALL", "All", Icons.Outlined.SelectAll),
+                                Triple("PERSONAL", "Personal", Icons.Outlined.Person),
+                                Triple("SHARED", "Shared", Icons.Outlined.Groups),
+                                Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
+                            )
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    icon,
-                                    contentDescription = null,
-                                    tint = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(17.dp)
+                                scopes.forEach { (value, label, icon) ->
+                                    val selected = if (value == "RECYCLE_BIN") recycleBin
+                                        else !recycleBin && visibility == value
+                                    Surface(
+                                        modifier = Modifier.weight(1f).heightIn(min = 62.dp).clickable {
+                                            if (value == "RECYCLE_BIN") {
+                                                recycleBin = true
+                                                category = "all"
+                                                currentFolderId = null
+                                                showAllDocuments = false
+                                                visibility = "ALL"
+                                            } else {
+                                                recycleBin = false
+                                                visibility = value
+                                                category = "all"
+                                                currentFolderId = null
+                                                showAllDocuments = false
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = if (selected) documentAccent else palette.container,
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            if (selected) documentAccent
+                                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+                                        )
+                                    ) {
+                                        Column(
+                                            Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 7.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            Icon(
+                                                icon,
+                                                contentDescription = null,
+                                                tint = if (selected) palette.onAccent
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                            Text(
+                                                label,
+                                                color = if (selected) palette.onAccent
+                                                    else MaterialTheme.colorScheme.onSurface,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                DocumentDashboardStatCardV2New(
+                                    label = "Documents",
+                                    value = active.size.toString(),
+                                    icon = Icons.Outlined.Description,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF352347),
+                                    iconTint = Color(0xFFD2A8FF)
                                 )
-                                Text(
-                                    label,
-                                    color = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurface,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    softWrap = false
+                                DocumentDashboardStatCardV2New(
+                                    label = "Storage",
+                                    value = formatDocumentBytesNew(active.sumOf { it.sizeBytes }),
+                                    icon = Icons.Outlined.Storage,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF252D4A),
+                                    iconTint = Color(0xFF58B8FF)
                                 )
+                                DocumentDashboardStatCardV2New(
+                                    label = "Personal",
+                                    value = active.count { it.scope == "PERSONAL" }.toString(),
+                                    icon = Icons.Outlined.Person,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF1D3A2C),
+                                    iconTint = Color(0xFF8FE0A7)
+                                )
+                                DocumentDashboardStatCardV2New(
+                                    label = "Shared",
+                                    value = active.count { it.scope == "SHARED" }.toString(),
+                                    icon = Icons.Outlined.Groups,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF352347),
+                                    iconTint = Color(0xFFD2A8FF)
+                                )
+                                DocumentDashboardStatCardV2New(
+                                    label = "Folders",
+                                    value = folders.size.toString(),
+                                    icon = Icons.Outlined.FolderOpen,
+                                    modifier = Modifier.weight(1f),
+                                    cardColor = Color(0xFF3A2D28),
+                                    iconTint = Color(0xFFFFD34D)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Scope selector remains available in non-dashboard document views.
+                item(key = "scope") {
+                    val scopes = listOf(
+                        Triple("ALL", "All", Icons.Outlined.SelectAll),
+                        Triple("PERSONAL", "Personal", Icons.Outlined.Person),
+                        Triple("SHARED", "Shared", Icons.Outlined.Groups),
+                        Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        scopes.forEach { (value, label, icon) ->
+                            val selected = if (value == "RECYCLE_BIN") recycleBin
+                                else !recycleBin && visibility == value
+                            Surface(
+                                modifier = Modifier.weight(1f).heightIn(min = 52.dp).clickable {
+                                    if (value == "RECYCLE_BIN") {
+                                        recycleBin = true
+                                        category = "all"
+                                        currentFolderId = null
+                                        showAllDocuments = false
+                                        visibility = "ALL"
+                                    } else {
+                                        recycleBin = false
+                                        visibility = value
+                                        category = "all"
+                                        currentFolderId = null
+                                        showAllDocuments = false
+                                    }
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (selected) documentAccent else palette.container,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (selected) documentAccent else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                                )
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Icon(icon, contentDescription = null,
+                                        tint = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(17.dp))
+                                    Text(label, color = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                                }
                             }
                         }
                     }
@@ -1380,35 +1499,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 // ── Home: summary, recent documents and categories ──
                 val recent = active.filter { visibility == "ALL" || it.scope == visibility }
                     .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(5)
-                item(key = "document_summary") {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        DocumentDashboardStatCardV2New(
-                            label = "Documents",
-                            value = scopedActive.size.toString(),
-                            icon = Icons.Outlined.Description,
-                            modifier = Modifier.weight(1f),
-                            cardColor = Color(0xFF4B2B7A)
-                        )
-                        DocumentDashboardStatCardV2New(
-                            label = "Folders",
-                            value = folders.count { visibility == "ALL" || it.scope == visibility }.toString(),
-                            icon = Icons.Outlined.FolderOpen,
-                            modifier = Modifier.weight(1f),
-                            cardColor = Color(0xFF55318A),
-                            iconTint = Color(0xFFFFD34D)
-                        )
-                        DocumentDashboardStatCardV2New(
-                            label = "Shared",
-                            value = active.count { it.scope == "SHARED" }.toString(),
-                            icon = Icons.Outlined.Groups,
-                            modifier = Modifier.weight(1f),
-                            cardColor = Color(0xFF63399A)
-                        )
-                    }
-                }
                 item(key = "cat_header") {
                     Row(
                         Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -3898,13 +3988,13 @@ private fun DocumentDashboardStatCardV2New(
     iconTint: Color = Color.White
 ) {
     Card(
-        modifier = modifier.heightIn(min = 96.dp),
+        modifier = modifier.heightIn(min = 104.dp),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 9.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
