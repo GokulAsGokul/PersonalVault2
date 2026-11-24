@@ -1299,6 +1299,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             // Unified Documents Overview: scope filters and live statistics.
             if (isHome) {
                 item(key = "documents_overview") {
+                    val overviewDocuments = if (recycleBin) deleted else scopedActive
+                    val overviewFolders = folders.filter {
+                        visibility == "ALL" || it.scope == visibility
+                    }
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         shape = RoundedCornerShape(24.dp),
@@ -1381,7 +1385,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             ) {
                                 DocumentDashboardStatCardV2New(
                                     label = "Documents",
-                                    value = active.size.toString(),
+                                    value = overviewDocuments.size.toString(),
                                     icon = Icons.Outlined.Description,
                                     modifier = Modifier.weight(1f),
                                     cardColor = Color(0xFF352347),
@@ -1389,7 +1393,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 )
                                 DocumentDashboardStatCardV2New(
                                     label = "Storage",
-                                    value = formatDocumentBytesNew(active.sumOf { it.sizeBytes }),
+                                    value = formatDocumentBytesNew(overviewDocuments.sumOf { it.sizeBytes }),
                                     icon = Icons.Outlined.Storage,
                                     modifier = Modifier.weight(1f),
                                     cardColor = Color(0xFF252D4A),
@@ -1397,7 +1401,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 )
                                 DocumentDashboardStatCardV2New(
                                     label = "Personal",
-                                    value = active.count { it.scope == "PERSONAL" }.toString(),
+                                    value = overviewDocuments.count { it.scope == "PERSONAL" }.toString(),
                                     icon = Icons.Outlined.Person,
                                     modifier = Modifier.weight(1f),
                                     cardColor = Color(0xFF1D3A2C),
@@ -1405,7 +1409,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 )
                                 DocumentDashboardStatCardV2New(
                                     label = "Shared",
-                                    value = active.count { it.scope == "SHARED" }.toString(),
+                                    value = overviewDocuments.count { it.scope == "SHARED" }.toString(),
                                     icon = Icons.Outlined.Groups,
                                     modifier = Modifier.weight(1f),
                                     cardColor = Color(0xFF352347),
@@ -1413,7 +1417,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 )
                                 DocumentDashboardStatCardV2New(
                                     label = "Folders",
-                                    value = folders.size.toString(),
+                                    value = overviewFolders.size.toString(),
                                     icon = Icons.Outlined.FolderOpen,
                                     modifier = Modifier.weight(1f),
                                     cardColor = Color(0xFF3A2D28),
