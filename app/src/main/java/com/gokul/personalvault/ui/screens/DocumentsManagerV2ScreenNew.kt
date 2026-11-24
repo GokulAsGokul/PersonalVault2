@@ -2325,7 +2325,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     categoryDialog = false
                                     message = "Category created successfully."
                                 } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Unable to create category."
+                                    if (error is FirebaseFunctionsException &&
+                                        error.code == FirebaseFunctionsException.Code.ALREADY_EXISTS
+                                    ) {
+                                        categoryCreateError = "Category Name is already available"
+                                        categoryCreateValidationAttempt++
+                                    } else {
+                                        message = error.localizedMessage ?: error.message ?: "Unable to create category."
+                                    }
                                 } finally {
                                     categoryCreateSaving = false
                                 }
@@ -2477,7 +2484,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     categoryRenameError = null
                                     message = "Category renamed successfully."
                                 } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Rename failed."
+                                    if (error is FirebaseFunctionsException &&
+                                        error.code == FirebaseFunctionsException.Code.ALREADY_EXISTS
+                                    ) {
+                                        categoryRenameError = "Category Name is already available"
+                                        categoryRenameValidationAttempt++
+                                    } else {
+                                        message = error.localizedMessage ?: error.message ?: "Rename failed."
+                                    }
                                 } finally {
                                     categoryRenameSaving = false
                                 }
