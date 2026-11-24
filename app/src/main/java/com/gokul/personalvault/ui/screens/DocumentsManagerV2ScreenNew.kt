@@ -18,6 +18,8 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
@@ -233,9 +235,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var message by remember { mutableStateOf("") }
     var categoryDialog by remember { mutableStateOf(false) }
     var newCategory by remember { mutableStateOf("") }
+    var categoryCreateError by remember { mutableStateOf<String?>(null) }
+    var categoryCreateSaving by remember { mutableStateOf(false) }
+    var categoryCreateValidationAttempt by remember { mutableIntStateOf(0) }
+    val categoryCreateShake = remember { Animatable(0f) }
     var manageCategories by remember { mutableStateOf(false) }
     var categoryToEdit by remember { mutableStateOf<Pair<String, String>?>(null) }
     var categoryEditName by remember { mutableStateOf("") }
+    var categoryRenameError by remember { mutableStateOf<String?>(null) }
+    var categoryRenameSaving by remember { mutableStateOf(false) }
+    var categoryRenameValidationAttempt by remember { mutableIntStateOf(0) }
+    val categoryRenameShake = remember { Animatable(0f) }
+    var categoryDeletingId by remember { mutableStateOf<String?>(null) }
+    val addOptionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var customCategories by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var selectedDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var editingDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
@@ -346,6 +358,26 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     LaunchedEffect(showAddDocuments) {
         if (showAddDocuments) uploadFormScrollState.scrollTo(0)
+    }
+
+    LaunchedEffect(categoryCreateValidationAttempt) {
+        if (categoryCreateValidationAttempt > 0) {
+            triggerVaultErrorVibration(context)
+            categoryCreateShake.snapTo(0f)
+            listOf(-9f, 9f, -7f, 7f, -4f, 4f, 0f).forEach {
+                categoryCreateShake.animateTo(it, tween(35))
+            }
+        }
+    }
+
+    LaunchedEffect(categoryRenameValidationAttempt) {
+        if (categoryRenameValidationAttempt > 0) {
+            triggerVaultErrorVibration(context)
+            categoryRenameShake.snapTo(0f)
+            listOf(-9f, 9f, -7f, 7f, -4f, 4f, 0f).forEach {
+                categoryRenameShake.animateTo(it, tween(35))
+            }
+        }
     }
 
     // Status messages are shown as snackbars. While an upload is running the
@@ -1169,28 +1201,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             onDismissRequest = { menuExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text(if (recycleBin) "All Documents" else "Recycle Bin") },
-                                leadingIcon = {
-                                    Icon(if (recycleBin) Icons.Outlined.Description else Icons.Outlined.Delete, null)
-                                },
-                                onClick = {
-                                    recycleBin = !recycleBin
-                                    category = "all"
-                                    showAllDocuments = false
-                                    visibility = "ALL"
-                                    currentFolderId = null
-                                    menuExpanded = false
-                                }
-                            )
-                            DropdownMenuItem(
                                 text = { Text("Manage Categories") },
                                 leadingIcon = { Icon(Icons.Outlined.Edit, null) },
                                 onClick = { manageCategories = true; menuExpanded = false }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("New Category") },
-                                leadingIcon = { Icon(Icons.Outlined.Add, null) },
-                                onClick = { newCategory = ""; categoryDialog = true; menuExpanded = false }
                             )
                         }
                     }
@@ -1212,8 +1225,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // ── Upload progress banner (replaces the old inline progress) ──
             if (uploading) {
@@ -1756,12 +1769,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     if (showAddOptions) {
         ModalBottomSheet(
             onDismissRequest = { showAddOptions = false },
+            sheetState = addOptionsSheetState,
             containerColor = documentSurface,
             tonalElevation = 8.dp
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text("Add to Documents", style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold)
@@ -2245,28 +2259,83 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             containerColor = MaterialTheme.colorScheme.surface,
 
             tonalElevation = 8.dp,
-            onDismissRequest = { categoryDialog = false },
-            title = { Text("New category") },
-            text = { OutlinedTextField(newCategory, { newCategory = it.take(30) },
-                label = { Text("Category name (max 30)") }, singleLine = true) },
-            confirmButton = {
-                TextButton(onClick = {
-                    val clean = newCategory.trim()
-                    val duplicate = customCategories.any { it.second.equals(clean, true) } ||
-                        BuiltInDocumentCategoriesV2.all.any { it.name.equals(clean, true) }
-                    if (clean.isNotEmpty() && !duplicate) {
-                        scope.launch {
-                            try {
-                                repository.createCategory(vaultId, clean)
-                                newCategory = ""; categoryDialog = false
-                            } catch (error: Exception) {
-                                message = error.message ?: "Unable to create category."
+            onDismissRequest = { if (!categoryCreateSaving) categoryDialog = false },
+            title = { Text("Add New Category", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = newCategory,
+                        onValueChange = { newCategory = it.take(30); categoryCreateError = null },
+                        modifier = Modifier.fillMaxWidth().offset(x = categoryCreateShake.value.dp),
+                        label = { Text("New Category Name") },
+                        singleLine = true,
+                        isError = categoryCreateError != null,
+                        enabled = !categoryCreateSaving,
+                        trailingIcon = {
+                            if (newCategory.isNotEmpty()) {
+                                IconButton(onClick = { newCategory = ""; categoryCreateError = null }) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear category name")
+                                }
+                            }
+                        },
+                        supportingText = {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(
+                                    categoryCreateError.orEmpty(),
+                                    color = if (categoryCreateError != null) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text("${newCategory.length}/30", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                    } else message = "Enter a unique category name."
-                }) { Text("Create") }
+                    )
+                    if (categoryCreateSaving) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth(), color = documentAccent)
+                        Text("Saving category…", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             },
-            dismissButton = { TextButton(onClick = { categoryDialog = false }) { Text("Cancel") } }
+            confirmButton = {
+                TextButton(
+                    enabled = !categoryCreateSaving,
+                    onClick = {
+                        val clean = newCategory.trim()
+                        val duplicate = customCategories.any { it.second.equals(clean, true) } ||
+                            BuiltInDocumentCategoriesV2.all.any { it.name.equals(clean, true) }
+                        val validation = when {
+                            clean.isEmpty() -> "Category Name is mandatory"
+                            duplicate -> "Category Name is already available"
+                            else -> null
+                        }
+                        if (validation != null) {
+                            categoryCreateError = validation
+                            categoryCreateValidationAttempt++
+                        } else {
+                            scope.launch {
+                                categoryCreateSaving = true
+                                try {
+                                    repository.createCategory(vaultId, clean)
+                                    newCategory = ""
+                                    categoryCreateError = null
+                                    categoryDialog = false
+                                    message = "Category created successfully."
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message ?: "Unable to create category."
+                                } finally {
+                                    categoryCreateSaving = false
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    if (categoryCreateSaving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !categoryCreateSaving, onClick = { categoryDialog = false }) { Text("Cancel") }
+            }
         )
     }
 
@@ -2278,7 +2347,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             containerColor = MaterialTheme.colorScheme.surface,
 
             tonalElevation = 8.dp,
-            onDismissRequest = { manageCategories = false; categoryToEdit = null },
+            onDismissRequest = {
+                if (categoryDeletingId == null) {
+                    manageCategories = false
+                    categoryToEdit = null
+                }
+            },
             title = { Text("Manage custom categories") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -2286,18 +2360,36 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     customCategories.forEach { (id, name) ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(name, Modifier.weight(1f))
-                            TextButton(onClick = { categoryToEdit = id to name; categoryEditName = name }) { Text("Rename") }
-                            TextButton(onClick = {
-                                scope.launch {
-                                    try {
-                                        repository.deleteCategory(vaultId, id)
-                                        if (category == id) category = "all"
-                                        message = "Category deleted."
-                                    } catch (error: Exception) {
-                                        message = error.message ?: "Reassign documents before deleting this category."
+                            TextButton(
+                                enabled = categoryDeletingId == null,
+                                onClick = {
+                                    categoryToEdit = id to name
+                                    categoryEditName = name
+                                    categoryRenameError = null
+                                }
+                            ) { Text("Rename") }
+                            TextButton(
+                                enabled = categoryDeletingId == null,
+                                onClick = {
+                                    scope.launch {
+                                        categoryDeletingId = id
+                                        try {
+                                            repository.deleteCategory(vaultId, id)
+                                            if (category == id) category = "all"
+                                            message = "Category deleted successfully."
+                                        } catch (error: Exception) {
+                                            message = error.localizedMessage ?: error.message
+                                                ?: "Reassign documents before deleting this category."
+                                        } finally {
+                                            categoryDeletingId = null
+                                        }
                                     }
                                 }
-                            }) { Text("Delete") }
+                            ) {
+                                if (categoryDeletingId == id) {
+                                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                } else Text("Delete")
+                            }
                         }
                     }
                 }
@@ -2314,25 +2406,83 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             containerColor = MaterialTheme.colorScheme.surface,
 
             tonalElevation = 8.dp,
-            onDismissRequest = { categoryToEdit = null },
-            title = { Text("Rename category") },
-            text = { OutlinedTextField(categoryEditName, { categoryEditName = it.take(30) },
-                label = { Text("Category name") }, singleLine = true) },
-            confirmButton = {
-                TextButton(onClick = {
-                    val clean = categoryEditName.trim()
-                    val duplicate = customCategories.any { it.first != id && it.second.equals(clean, true) } ||
-                        BuiltInDocumentCategoriesV2.all.any { it.name.equals(clean, true) }
-                    if (clean.isNotEmpty() && !duplicate) scope.launch {
-                        try {
-                            repository.renameCategory(vaultId, id, clean)
-                            categoryToEdit = null
-                            message = "Category renamed."
-                        } catch (error: Exception) { message = error.message ?: "Rename failed." }
-                    } else message = "Enter a unique category name."
-                }) { Text("Save") }
+            onDismissRequest = { if (!categoryRenameSaving) categoryToEdit = null },
+            title = { Text("Rename Category", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = categoryEditName,
+                        onValueChange = { categoryEditName = it.take(30); categoryRenameError = null },
+                        modifier = Modifier.fillMaxWidth().offset(x = categoryRenameShake.value.dp),
+                        label = { Text("New Category Name") },
+                        singleLine = true,
+                        isError = categoryRenameError != null,
+                        enabled = !categoryRenameSaving,
+                        trailingIcon = {
+                            if (categoryEditName.isNotEmpty()) {
+                                IconButton(onClick = { categoryEditName = ""; categoryRenameError = null }) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear category name")
+                                }
+                            }
+                        },
+                        supportingText = {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(
+                                    categoryRenameError.orEmpty(),
+                                    color = if (categoryRenameError != null) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text("${categoryEditName.length}/30", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    )
+                    if (categoryRenameSaving) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth(), color = documentAccent)
+                        Text("Saving category…", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             },
-            dismissButton = { TextButton(onClick = { categoryToEdit = null }) { Text("Cancel") } }
+            confirmButton = {
+                TextButton(
+                    enabled = !categoryRenameSaving,
+                    onClick = {
+                        val clean = categoryEditName.trim()
+                        val validation = when {
+                            clean.isEmpty() -> "Category Name is mandatory"
+                            clean == oldName -> "Category Name is not modified"
+                            customCategories.any { it.first != id && it.second.equals(clean, true) } ||
+                                BuiltInDocumentCategoriesV2.all.any { it.name.equals(clean, true) } ->
+                                "Category Name is already available"
+                            else -> null
+                        }
+                        if (validation != null) {
+                            categoryRenameError = validation
+                            categoryRenameValidationAttempt++
+                        } else {
+                            scope.launch {
+                                categoryRenameSaving = true
+                                try {
+                                    repository.renameCategory(vaultId, id, clean)
+                                    categoryToEdit = null
+                                    categoryRenameError = null
+                                    message = "Category renamed successfully."
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message ?: "Rename failed."
+                                } finally {
+                                    categoryRenameSaving = false
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    if (categoryRenameSaving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !categoryRenameSaving, onClick = { categoryToEdit = null }) { Text("Cancel") }
+            }
         )
     }
 
