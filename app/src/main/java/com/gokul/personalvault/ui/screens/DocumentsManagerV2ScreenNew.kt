@@ -1419,7 +1419,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             fontWeight = FontWeight.Bold
                         )
                         TextButton(
-                            onClick = { newCategory = ""; categoryDialog = true },
+                            onClick = {
+                                newCategory = ""
+                                categoryCreateError = null
+                                categoryDialog = true
+                            },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -2394,7 +2398,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { manageCategories = false }) { Text("Done") } }
+            confirmButton = {
+                TextButton(
+                    enabled = categoryDeletingId == null,
+                    onClick = { manageCategories = false }
+                ) { Text("Done") }
+            }
         )
     }
 
