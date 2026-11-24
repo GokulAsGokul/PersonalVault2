@@ -2364,54 +2364,157 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     categoryToEdit = null
                 }
             },
-            title = { Text("Manage Custom Categories") },
+            title = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "Manage Custom Categories",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Organise the categories used for your documents",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (customCategories.isEmpty()) Text("No custom categories yet.")
-                    customCategories.forEach { (id, name) ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(name, Modifier.weight(1f))
-                            TextButton(
-                                enabled = categoryDeletingId == null,
-                                onClick = {
-                                    categoryToEdit = id to name
-                                    categoryEditName = name
-                                    categoryRenameError = null
-                                }
-                            ) { Text("Rename") }
-                            TextButton(
-                                enabled = categoryDeletingId == null,
-                                onClick = {
-                                    scope.launch {
-                                        categoryDeletingId = id
-                                        try {
-                                            repository.deleteCategory(vaultId, id)
-                                            if (category == id) category = "all"
-                                            manageCategories = false
-                                            categoryToEdit = null
-                                            message = "Category deleted successfully."
-                                        } catch (error: Exception) {
-                                            message = error.localizedMessage ?: error.message
-                                                ?: "Reassign documents before deleting this category."
-                                        } finally {
-                                            categoryDeletingId = null
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (customCategories.isEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 22.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.FolderOpen,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(38.dp),
+                                    tint = documentAccent
+                                )
+                                Text(
+                                    "No custom categories yet",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    "Create your first category to organise your documents.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            "${customCategories.size} custom ${if (customCategories.size == 1) "category" else "categories"}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        customCategories.forEach { (id, name) ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 6.dp, top = 7.dp, bottom = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = documentAccent.copy(alpha = 0.16f)
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.FolderOpen,
+                                            contentDescription = null,
+                                            tint = documentAccent,
+                                            modifier = Modifier.padding(8.dp).size(20.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        name,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    TextButton(
+                                        enabled = categoryDeletingId == null,
+                                        onClick = {
+                                            categoryToEdit = id to name
+                                            categoryEditName = name
+                                            categoryRenameError = null
                                         }
+                                    ) { Text("Rename") }
+                                    TextButton(
+                                        enabled = categoryDeletingId == null,
+                                        onClick = {
+                                            scope.launch {
+                                                categoryDeletingId = id
+                                                try {
+                                                    repository.deleteCategory(vaultId, id)
+                                                    if (category == id) category = "all"
+                                                    manageCategories = false
+                                                    categoryToEdit = null
+                                                    message = "Category deleted successfully."
+                                                } catch (error: Exception) {
+                                                    message = error.localizedMessage ?: error.message
+                                                        ?: "Reassign documents before deleting this category."
+                                                } finally {
+                                                    categoryDeletingId = null
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        if (categoryDeletingId == id) {
+                                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                        } else Text("Delete")
                                     }
                                 }
-                            ) {
-                                if (categoryDeletingId == id) {
-                                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                                } else Text("Delete")
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(
-                    enabled = categoryDeletingId == null,
-                    onClick = { manageCategories = false }
-                ) { Text("Done") }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = categoryDeletingId == null,
+                        shape = RoundedCornerShape(14.dp),
+                        onClick = {
+                            manageCategories = false
+                            newCategory = ""
+                            categoryCreateError = null
+                            categoryDialog = true
+                        }
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Add Category")
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            enabled = categoryDeletingId == null,
+                            onClick = { manageCategories = false }
+                        ) { Text("Done") }
+                    }
+                }
             }
         )
     }
