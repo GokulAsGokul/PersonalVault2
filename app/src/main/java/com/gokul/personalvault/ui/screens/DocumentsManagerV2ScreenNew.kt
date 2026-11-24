@@ -2422,13 +2422,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 18.dp, vertical = 24.dp),
+                                    .padding(horizontal = 18.dp, vertical = 14.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(9.dp)
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
                                 Surface(
-                                    modifier = Modifier.size(76.dp),
-                                    shape = RoundedCornerShape(24.dp),
+                                    modifier = Modifier.size(64.dp),
+                                    shape = RoundedCornerShape(21.dp),
                                     color = documentAccent.copy(alpha = 0.14f)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -2436,7 +2436,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             Icons.Outlined.FolderOpen,
                                             contentDescription = null,
                                             tint = documentAccent,
-                                            modifier = Modifier.size(40.dp)
+                                            modifier = Modifier.size(34.dp)
                                         )
                                     }
                                 }
@@ -2454,8 +2454,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Button(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(top = 6.dp)
-                                        .heightIn(min = 48.dp),
+                                        .padding(top = 2.dp)
+                                        .heightIn(min = 44.dp),
                                     enabled = categoryDeletingId == null,
                                     shape = RoundedCornerShape(14.dp),
                                     colors = ButtonDefaults.buttonColors(
