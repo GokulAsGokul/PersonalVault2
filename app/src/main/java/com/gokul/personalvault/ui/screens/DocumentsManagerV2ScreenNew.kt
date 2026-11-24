@@ -240,6 +240,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var categoryCreateValidationAttempt by remember { mutableIntStateOf(0) }
     val categoryCreateShake = remember { Animatable(0f) }
     var manageCategories by remember { mutableStateOf(false) }
+    val manageCategoriesScrollState = rememberScrollState()
     var categoryToEdit by remember { mutableStateOf<Pair<String, String>?>(null) }
     var categoryEditName by remember { mutableStateOf("") }
     var categoryRenameError by remember { mutableStateOf<String?>(null) }
@@ -2450,21 +2451,68 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
+                                Button(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 6.dp)
+                                        .heightIn(min = 48.dp),
+                                    enabled = categoryDeletingId == null,
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = documentAccent,
+                                        contentColor = palette.onAccent
+                                    ),
+                                    onClick = {
+                                        manageCategories = false
+                                        newCategory = ""
+                                        categoryCreateError = null
+                                        categoryDialog = true
+                                    }
+                                ) {
+                                    Icon(Icons.Outlined.Add, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Create Category", fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
                     } else {
-                        Text(
-                            "${customCategories.size} ${if (customCategories.size == 1) "category" else "categories"}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Column(
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "${customCategories.size} ${if (customCategories.size == 1) "category" else "categories"}",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            TextButton(
+                                enabled = categoryDeletingId == null,
+                                onClick = {
+                                    manageCategories = false
+                                    newCategory = ""
+                                    categoryCreateError = null
+                                    categoryDialog = true
+                                },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Add Category", color = documentAccent)
+                            }
+                        }
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f)
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(9.dp)
                         ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(end = 10.dp)
+                                    .verticalScroll(manageCategoriesScrollState),
+                                verticalArrangement = Arrangement.spacedBy(9.dp)
+                            ) {
                             customCategories.forEachIndexed { index, (id, name) ->
                                 val categoryIconColors = listOf(
                                     Color(0xFFB88AF5),
@@ -2562,46 +2610,67 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     }
                                 }
                             }
+                            if (manageCategoriesScrollState.maxValue > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterEnd)
+                                        .width(3.dp)
+                                        .fillMaxHeight()
+                                        .background(
+                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                )
+                                val scrollProgress = if (manageCategoriesScrollState.maxValue == 0) {
+                                    0f
+                                } else {
+                                    manageCategoriesScrollState.value.toFloat() /
+                                        manageCategoriesScrollState.maxValue.toFloat()
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(y = (scrollProgress * 170f).dp)
+                                        .width(3.dp)
+                                        .height(34.dp)
+                                        .background(documentAccent, RoundedCornerShape(4.dp))
+                                )
+                            }
+                        }
+                        if (manageCategoriesScrollState.canScrollForward) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Outlined.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = documentAccent,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Text(
+                                    "Scroll to see more",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = documentAccent
+                                )
+                            }
                         }
                     }
                 }
             },
             confirmButton = {
-                Column(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 50.dp),
+                    TextButton(
                         enabled = categoryDeletingId == null,
-                        shape = RoundedCornerShape(15.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = documentAccent,
-                            contentColor = palette.onAccent
-                        ),
-                        onClick = {
-                            manageCategories = false
-                            newCategory = ""
-                            categoryCreateError = null
-                            categoryDialog = true
-                        }
+                        onClick = { manageCategories = false }
                     ) {
-                        Icon(Icons.Outlined.Add, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Add Category", fontWeight = FontWeight.SemiBold)
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(
-                            enabled = categoryDeletingId == null,
-                            onClick = { manageCategories = false }
-                        ) {
-                            Text("Done", color = documentAccent)
-                        }
+                        Text("Done", color = documentAccent)
                     }
                 }
             }
