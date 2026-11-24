@@ -2364,7 +2364,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     categoryToEdit = null
                 }
             },
-            title = { Text("Manage custom categories") },
+            title = { Text("Manage Custom Categories") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (customCategories.isEmpty()) Text("No custom categories yet.")
@@ -2387,6 +2387,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         try {
                                             repository.deleteCategory(vaultId, id)
                                             if (category == id) category = "all"
+                                            manageCategories = false
+                                            categoryToEdit = null
                                             message = "Category deleted successfully."
                                         } catch (error: Exception) {
                                             message = error.localizedMessage ?: error.message
