@@ -2380,7 +2380,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (customCategories.isEmpty()) {
