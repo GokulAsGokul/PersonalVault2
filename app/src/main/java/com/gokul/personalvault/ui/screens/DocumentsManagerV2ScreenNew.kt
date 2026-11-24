@@ -2610,28 +2610,31 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     }
                                 }
                             }
-                            if (manageCategoriesScrollState.maxValue > 0) {
+                        }
+                        if (manageCategoriesScrollState.maxValue > 0) {
+                            val scrollProgress = (
+                                manageCategoriesScrollState.value.toFloat() /
+                                    manageCategoriesScrollState.maxValue.toFloat()
+                                ).coerceIn(0f, 1f)
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .fillMaxHeight()
+                                    .width(4.dp)
+                            ) {
                                 Box(
                                     modifier = Modifier
-                                        .align(Alignment.CenterEnd)
-                                        .width(3.dp)
-                                        .fillMaxHeight()
+                                        .fillMaxSize()
                                         .background(
                                             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
                                             RoundedCornerShape(4.dp)
                                         )
                                 )
-                                val scrollProgress = if (manageCategoriesScrollState.maxValue == 0) {
-                                    0f
-                                } else {
-                                    manageCategoriesScrollState.value.toFloat() /
-                                        manageCategoriesScrollState.maxValue.toFloat()
-                                }
+                                val thumbTravel = (maxHeight - 34.dp).coerceAtLeast(0.dp)
                                 Box(
                                     modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .offset(y = (scrollProgress * 170f).dp)
-                                        .width(3.dp)
+                                        .offset(y = thumbTravel * scrollProgress)
+                                        .width(4.dp)
                                         .height(34.dp)
                                         .background(documentAccent, RoundedCornerShape(4.dp))
                                 )
