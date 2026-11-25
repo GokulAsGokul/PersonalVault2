@@ -1757,6 +1757,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 FolderCardV2New(
                                         folder = folder,
                                         palette = palette,
+                                        fileCount = active.count { it.folderId == folder.id },
+                                        subfolderCount = folders.count { it.parentFolderId == folder.id },
                                         modifier = Modifier.weight(1f),
                                         onOpen = { currentFolderId = folder.id },
                                         onMore = { selectedFolder = folder; showFolderActions = true }
@@ -4936,6 +4938,8 @@ private fun CategoryCardV2New(
 private fun FolderCardV2New(
     folder: DocumentFolderV2,
     palette: DocPaletteV2New,
+    fileCount: Int,
+    subfolderCount: Int,
     modifier: Modifier,
     onOpen: () -> Unit,
     onMore: () -> Unit
@@ -4963,6 +4967,7 @@ private fun FolderCardV2New(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
+                Text("$fileCount files · $subfolderCount folders", color = palette.muted, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                 ScopeLabelV2New(folder.scope, palette)
             }
             IconButton(onClick = onMore, modifier = Modifier.size(28.dp)) {
