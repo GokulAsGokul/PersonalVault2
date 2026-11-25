@@ -81,6 +81,7 @@ fun VaultDashboardNavigationV2(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             NavigationBar(
+                modifier = Modifier.height(68.dp),
                 // Match the app background visible behind the transparent status bar.
                 containerColor = MaterialTheme.colorScheme.background,
                 contentColor = MaterialTheme.colorScheme.onBackground,
