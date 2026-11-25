@@ -24,6 +24,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
@@ -1205,6 +1206,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 if (showRecycleBinSearch) Icons.Outlined.Close else Icons.Outlined.Search,
                                 contentDescription = if (showRecycleBinSearch) "Close Recycle Bin search" else "Search Recycle Bin"
                             )
+                        }
+                    } else {
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Manage Categories") },
+                                    leadingIcon = { Icon(Icons.Outlined.Edit, null) },
+                                    onClick = { manageCategories = true; menuExpanded = false }
+                                )
+                            }
                         }
                     }
                 }
@@ -3348,7 +3362,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     selectedDocument?.let { doc ->
         ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface,
+            dragHandle = null
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
@@ -3360,8 +3375,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     val originalLocation = buildString {
                         append("Documents / ")
                         append(if (doc.scope == "SHARED") "Shared" else "Personal")
-                        append(" / ")
-                        append(doc.folderId?.let { id -> folders.firstOrNull { it.id == id }?.name } ?: categoryName)
+                        val folderNames = mutableListOf<String>()
+                        var folderCursor = doc.folderId
+                        val visitedFolderIds = mutableSetOf<String>()
+                        while (folderCursor != null && visitedFolderIds.add(folderCursor)) {
+                            val folder = folders.firstOrNull { it.id == folderCursor } ?: break
+                            folderNames.add(0, folder.name)
+                            folderCursor = folder.parentFolderId
+                        }
+                        folderNames.forEach { append(" / "); append(it) }
                     }
                     val deletedAtText = doc.deletedAt?.toDate()?.let {
                         SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
@@ -3417,7 +3439,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Modifier.fillMaxWidth()
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(if (isDarkUi) Color(0xFF241C30) else palette.surface)
-                                .then(Modifier),
+                                .border(
+                                    1.dp,
+                                    documentAccent.copy(alpha = if (isDarkUi) 0.42f else 0.22f),
+                                    RoundedCornerShape(20.dp)
+                                ),
                             verticalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             @Composable
@@ -3455,7 +3481,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             }
                             detailRow("Original Location", originalLocation, Icons.Outlined.FolderOpen)
-                            detailRow("Category", categoryName, Icons.Outlined.FavoriteBorder)
+                            detailRow("Category", categoryName, Icons.Outlined.FolderOpen)
                             detailRow("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Description)
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
