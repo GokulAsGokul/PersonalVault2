@@ -4581,7 +4581,7 @@ private fun DocumentRowV2New(
     val palette = documentPaletteV2New(dark)
     val mine = document.ownerUid == currentMemberUid
     Card(
-        modifier = Modifier.fillMaxWidth().combinedClickable(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).combinedClickable(
             interactionSource = null,
             indication = ripple(color = palette.accent),
             onClick = onClick,
@@ -4672,7 +4672,7 @@ private fun DocumentGridCardV2New(
     val palette = documentPaletteV2New(dark)
     val mine = document.ownerUid == currentMemberUid
     Card(
-        modifier = modifier.clickable(
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
             interactionSource = null,
             indication = ripple(color = palette.accent),
             onClick = onClick
@@ -4731,7 +4731,7 @@ private fun CategoryCardV2New(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier.clickable(
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
             interactionSource = null,
             indication = ripple(color = palette.accent),
             onClick = onClick
@@ -4771,7 +4771,7 @@ private fun FolderCardV2New(
     onOpen: () -> Unit
 ) {
     Card(
-        modifier = modifier.clickable(
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
             interactionSource = null,
             indication = ripple(color = palette.accent),
             onClick = onOpen
