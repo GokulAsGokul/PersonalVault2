@@ -4055,7 +4055,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                             Spacer(Modifier.height(12.dp))
-                            ScopeLabelV2New(doc.scope, palette)
+                            ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
                             Spacer(Modifier.height(10.dp))
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
@@ -4563,7 +4563,48 @@ private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVect
 
 @Composable
 private fun ScopePillV2New(document: DocumentRecordV2, mine: Boolean, palette: DocPaletteV2New) {
-    ScopeLabelV2New(document.scope, palette)
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val label = when {
+        document.scope != "SHARED" -> "Only Me"
+        mine -> "Shared"
+        else -> "Spouse"
+    }
+    val shared = document.scope == "SHARED"
+    val background = if (shared) {
+        if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
+    } else {
+        if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+    }
+    val foreground = if (shared) {
+        if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
+    } else {
+        if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+    }
+    Surface(shape = RoundedCornerShape(10.dp), color = background) {
+        Row(
+            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                when (label) {
+                    "Only Me" -> Icons.Outlined.Person
+                    "Shared" -> Icons.Outlined.Groups
+                    else -> Icons.Outlined.Person
+                },
+                contentDescription = null,
+                tint = foreground,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = foreground,
+                maxLines = 1
+            )
+        }
+    }
 }
 
 @Composable
