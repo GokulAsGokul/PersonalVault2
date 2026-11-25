@@ -3778,7 +3778,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             if (!doc.isDeleted) {
                                 Row(
                                     Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                                        .background(actionCard)
+                                        .background(actionCardBackground)
                                         .clickable(enabled = !busyDocument) {
                                             toggleFavourite(doc)
                                             selectedDocument = null
