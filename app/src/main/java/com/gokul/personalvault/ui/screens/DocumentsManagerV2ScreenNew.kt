@@ -217,6 +217,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var showDeleteFolderConfirm by remember { mutableStateOf(false) }
     var deleteFolderError by remember { mutableStateOf<String?>(null) }
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
+    var showBulkPermanentDeleteConfirm by remember { mutableStateOf(false) }
     var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
     var showRecycleBinSearch by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
@@ -1897,7 +1898,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             Text("Restore", fontWeight = FontWeight.Bold)
                                         }
                                         Button(
-                                            onClick = { runBulkPermanentDelete() },
+                                            onClick = { showBulkPermanentDeleteConfirm = true },
                                             enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
                                             modifier = Modifier.weight(1.35f).heightIn(min = 58.dp),
                                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
@@ -3960,6 +3961,31 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 TextButton(enabled = !busyDocument, onClick = { showEmptyRecycleBinConfirm = false }) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    if (showBulkPermanentDeleteConfirm) {
+        AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            onDismissRequest = { if (!busyDocument) showBulkPermanentDeleteConfirm = false },
+            title = { Text("Delete selected documents permanently?") },
+            text = { Text("The selected personal documents owned by you and their stored files will be permanently deleted. This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    enabled = !busyDocument,
+                    onClick = {
+                        showBulkPermanentDeleteConfirm = false
+                        runBulkPermanentDelete()
+                    }
+                ) { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !busyDocument,
+                    onClick = { showBulkPermanentDeleteConfirm = false }
+                ) { Text("Cancel") }
             }
         )
     }
