@@ -958,6 +958,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             busyDocument = true
             isDownloadingFile = true
             downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileType = doc.originalFileName.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
+                ?: when {
+                    doc.contentType.contains("pdf", true) -> "PDF"
+                    doc.contentType.startsWith("image/jpeg", true) -> "JPG"
+                    doc.contentType.startsWith("image/png", true) -> "PNG"
+                    doc.contentType.startsWith("image/", true) -> "IMAGE"
+                    doc.contentType.contains("spreadsheet", true) || doc.contentType.contains("excel", true) -> "XLSX"
+                    doc.contentType.contains("word", true) -> "DOCX"
+                    else -> "DOCUMENT"
+                }
             downloadTransferredBytes = 0L
             downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
