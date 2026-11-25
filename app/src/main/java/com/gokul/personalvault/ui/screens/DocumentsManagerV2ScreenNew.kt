@@ -216,7 +216,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
-    var showRecycleBinSearch by remember { mutableStateOf(false) }
     var advancedSearchExpanded by remember { mutableStateOf(false) }
     var searchFileNameOnly by remember { mutableStateOf(false) }
     var showFavouritesOnly by remember { mutableStateOf(false) }
@@ -1172,9 +1171,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     val categoryTitle = allCategories.firstOrNull { it.first == category }?.second ?: "Documents"
     val childFolders = folders.filter {
-        it.parentFolderId == currentFolderId && (visibility == "ALL" || it.scope == visibility)
-    }.filter {
-        !recycleBin || search.isBlank() || it.name.contains(search.trim(), ignoreCase = true)
+        !recycleBin && it.parentFolderId == currentFolderId &&
+            (visibility == "ALL" || it.scope == visibility)
     }.sortedBy { it.name.lowercase(Locale.ROOT) }
     val headerTitle = when {
         recycleBin -> "Recycle Bin"
@@ -1197,26 +1195,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 onBack = if (canGoBack) ({ goBack() }) else null,
                 titleIcon = if (headerTitle == "Documents") Icons.Outlined.Description else null,
                 actions = {
-                    if (recycleBin) {
-                        IconButton(onClick = {
-                            showRecycleBinSearch = !showRecycleBinSearch
-                            if (!showRecycleBinSearch) search = ""
-                        }) {
-                            Icon(if (showRecycleBinSearch) Icons.Outlined.Close else Icons.Outlined.Search,
-                                contentDescription = if (showRecycleBinSearch) "Close search" else "Search Recycle Bin")
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
                         }
-                    } else {
-                        Box {
-                            IconButton(onClick = { menuExpanded = true }) {
-                                Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
-                            }
-                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                DropdownMenuItem(
-                                    text = { Text("Manage Categories") },
-                                    leadingIcon = { Icon(Icons.Outlined.Edit, null) },
-                                    onClick = { manageCategories = true; menuExpanded = false }
-                                )
-                            }
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Manage Categories") },
+                                leadingIcon = { Icon(Icons.Outlined.Edit, null) },
+                                onClick = { manageCategories = true; menuExpanded = false }
+                            )
                         }
                     }
                 }
@@ -1257,13 +1245,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
 
             // Search is available in All Files and deeper views, not on the Documents dashboard.
-            if (!isHome && (!recycleBin || showRecycleBinSearch)) item(key = "search") {
+            if (!isHome && !recycleBin) item(key = "search") {
                 TextField(
                     value = search,
                     onValueChange = { search = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text(if (recycleBin) "Search deleted files & folders" else "Search documents") },
+                    placeholder = { Text("Search documents") },
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1634,20 +1622,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
                     }
-                    item(key = "empty_recycle_bin") {
-                        OutlinedButton(
-                            onClick = { showEmptyRecycleBinConfirm = true },
-                            enabled = !busyDocument,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Empty Recycle Bin")
-                        }
-                    }
                 }
-                if (inCategory || recycleBin) {
+                if (inCategory) {
                     val folderPath = mutableListOf<DocumentFolderV2>()
                     var folderCursor = currentFolderId
                     val visitedFolderIds = mutableSetOf<String>()
@@ -1691,7 +1667,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    val folderSlots: List<DocumentFolderV2?> = if (recycleBin) childFolders else childFolders + listOf<DocumentFolderV2?>(null)
+                    val folderSlots: List<DocumentFolderV2?> = childFolders + listOf<DocumentFolderV2?>(null)
                     items(folderSlots.chunked(2)) { slotRow ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             slotRow.forEach { folder ->
@@ -1908,6 +1884,49 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             } else {
                                 Text("Load More Documents")
                             }
+                        }
+                    }
+                }
+
+                // Recycle Bin search is deliberately placed at the bottom,
+                // immediately above the destructive Empty Recycle Bin action.
+                if (recycleBin) {
+                    item(key = "recycle_bin_search") {
+                        TextField(
+                            value = search,
+                            onValueChange = { search = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            placeholder = { Text("Search deleted files") },
+                            leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                            trailingIcon = {
+                                if (search.isNotEmpty()) {
+                                    IconButton(onClick = { search = "" }) {
+                                        Icon(Icons.Outlined.Close, "Clear search")
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(28.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = palette.surface,
+                                unfocusedContainerColor = palette.surface,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                                errorIndicatorColor = Color.Transparent
+                            )
+                        )
+                    }
+                    item(key = "empty_recycle_bin") {
+                        OutlinedButton(
+                            onClick = { showEmptyRecycleBinConfirm = true },
+                            enabled = !busyDocument,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Empty Recycle Bin")
                         }
                     }
                 }
