@@ -24,6 +24,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.ripple
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
@@ -108,6 +111,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.gokul.personalvault.VaultExternalActivityState
@@ -214,7 +218,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var showDeleteFolderConfirm by remember { mutableStateOf(false) }
     var deleteFolderError by remember { mutableStateOf<String?>(null) }
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
+    var showBulkPermanentDeleteConfirm by remember { mutableStateOf(false) }
     var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
+    var showRecycleBinSearch by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var advancedSearchExpanded by remember { mutableStateOf(false) }
     var searchFileNameOnly by remember { mutableStateOf(false) }
@@ -806,7 +812,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     it.categoryId.replace('_', ' ').lowercase(Locale.ROOT).contains(q)
             }
         }
-        .filter { !showFavouritesOnly || it.favouriteUids[memberUid] == true }
+        .filter { recycleBin || !showFavouritesOnly || it.favouriteUids[memberUid] == true }
         .filter {
             when (fileType) {
                 "PDF" -> it.contentType.contains("pdf", true)
@@ -1089,8 +1095,35 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
     }
 
+    fun runBulkPermanentDelete() {
+        val targets = visible.filter {
+            it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
+        }
+        val skipped = selectedDocumentIds.size - targets.size
+        scope.launch {
+            busyDocument = true
+            var succeeded = 0
+            try {
+                targets.forEach { doc ->
+                    repository.permanentlyDelete(vaultId, doc.id)
+                    succeeded++
+                }
+                message = "$succeeded document(s) permanently deleted." +
+                    if (skipped > 0) " $skipped skipped: only personal documents owned by you can be permanently deleted." else ""
+            } catch (error: Exception) {
+                message = "$succeeded deleted. ${error.localizedMessage ?: "Some documents could not be permanently deleted."}"
+            } finally {
+                selectedDocumentIds.clear()
+                selectionMode = false
+                busyDocument = false
+            }
+        }
+    }
+
     fun runBulkRestore() {
-        val targets = visible.filter { it.id in selectedDocumentIds && it.ownerUid == memberUid }
+        val targets = visible.filter {
+            it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
+        }
         val skipped = selectedDocumentIds.size - targets.size
         scope.launch {
             busyDocument = true
@@ -1171,7 +1204,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     val categoryTitle = allCategories.firstOrNull { it.first == category }?.second ?: "Documents"
     val childFolders = folders.filter {
-        it.parentFolderId == currentFolderId && (visibility == "ALL" || it.scope == visibility)
+        !recycleBin && it.parentFolderId == currentFolderId &&
+            (visibility == "ALL" || it.scope == visibility)
     }.sortedBy { it.name.lowercase(Locale.ROOT) }
     val headerTitle = when {
         recycleBin -> "Recycle Bin"
@@ -1179,7 +1213,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         showAllDocuments -> "All files"
         else -> "Documents"
     }
-    val headerSubtitle = if (recycleBin) "Deleted files are kept for 30 days" else null
+    val headerSubtitle = null
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
     val mutedColor = palette.muted
@@ -1194,19 +1228,28 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 onBack = if (canGoBack) ({ goBack() }) else null,
                 titleIcon = if (headerTitle == "Documents") Icons.Outlined.Description else null,
                 actions = {
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
-                        }
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Manage Categories") },
-                                leadingIcon = { Icon(Icons.Outlined.Edit, null) },
-                                onClick = { manageCategories = true; menuExpanded = false }
+                    if (recycleBin) {
+                        IconButton(onClick = {
+                            showRecycleBinSearch = !showRecycleBinSearch
+                            if (!showRecycleBinSearch) search = ""
+                        }) {
+                            Icon(
+                                if (showRecycleBinSearch) Icons.Outlined.Close else Icons.Outlined.Search,
+                                contentDescription = if (showRecycleBinSearch) "Close Recycle Bin search" else "Search Recycle Bin"
                             )
+                        }
+                    } else {
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Manage Categories") },
+                                    leadingIcon = { Icon(Icons.Outlined.Edit, null) },
+                                    onClick = { manageCategories = true; menuExpanded = false }
+                                )
+                            }
                         }
                     }
                 }
@@ -1247,7 +1290,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
 
             // Search is available in All Files and deeper views, not on the Documents dashboard.
-            if (!isHome) item(key = "search") {
+            if (!isHome && !recycleBin) item(key = "search") {
                 TextField(
                     value = search,
                     onValueChange = { search = it },
@@ -1427,7 +1470,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
-            } else {
+            } else if (!recycleBin) {
                 // Scope selector remains available in non-dashboard document views.
                 item(key = "scope") {
                     val scopes = listOf(
@@ -1580,7 +1623,92 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             } else {
                 // ── Category / folder / all / recycle bin ──
-                if (inCategory) {
+                if (recycleBin) {
+                    item(key = "recycle_bin_overview") {
+                        val totalBytes = deleted.sumOf { it.sizeBytes }
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                            shape = RoundedCornerShape(26.dp),
+                            colors = CardDefaults.cardColors(containerColor = palette.surface),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, documentAccent.copy(alpha = 0.22f))
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(Modifier.size(58.dp), shape = RoundedCornerShape(18.dp),
+                                        color = if (isDarkUi) Color(0xFF40252D) else Color(0xFFFFE8E8)) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Outlined.Delete, null, tint = Color(0xFFE36A75),
+                                                modifier = Modifier.size(30.dp))
+                                        }
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Recycle Bin", style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold)
+                                        Text("Deleted files stay here for 30 days",
+                                            color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(deleted.size.toString(), style = MaterialTheme.typography.headlineSmall,
+                                            fontWeight = FontWeight.Bold)
+                                        Text("Deleted items", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(formatDocumentBytesNew(totalBytes), style = MaterialTheme.typography.headlineSmall,
+                                            fontWeight = FontWeight.Bold)
+                                        Text("Storage used", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                Text("Items are automatically and permanently deleted 30 days after they were moved here.",
+                                    color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+                if (recycleBin) {
+                    item(key = "empty_recycle_bin") {
+                        OutlinedButton(
+                            onClick = { showEmptyRecycleBinConfirm = true },
+                            enabled = !busyDocument,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Empty Recycle Bin")
+                        }
+                    }
+                    if (showRecycleBinSearch) item(key = "recycle_bin_search") {
+                        TextField(
+                            value = search,
+                            onValueChange = { search = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            placeholder = { Text("Search deleted files") },
+                            leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                            trailingIcon = {
+                                if (search.isNotEmpty()) {
+                                    IconButton(onClick = { search = "" }) {
+                                        Icon(Icons.Outlined.Close, "Clear search")
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(28.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = palette.surface,
+                                unfocusedContainerColor = palette.surface,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                                errorIndicatorColor = Color.Transparent
+                            )
+                        )
+                    }
+                }
+                if (inCategory && !recycleBin) {
                     val folderPath = mutableListOf<DocumentFolderV2>()
                     var folderCursor = currentFolderId
                     val visitedFolderIds = mutableSetOf<String>()
@@ -1616,7 +1744,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
                     }
-                    item(key = "folders_header") {
+                    if (childFolders.isNotEmpty()) item(key = "folders_header") {
                         Text(
                             "Folders",
                             Modifier.padding(top = 4.dp),
@@ -1633,11 +1761,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 } else {
                                     FolderCardV2New(
                                         folder = folder,
-                                        isOwner = folder.ownerUid == memberUid,
                                         palette = palette,
                                         modifier = Modifier.weight(1f),
-                                        onOpen = { currentFolderId = folder.id },
-                                        onMore = { selectedFolder = folder; showFolderActions = true }
+                                        onOpen = { currentFolderId = folder.id }
                                     )
                                 }
                             }
@@ -1649,19 +1775,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 item(key = "files_header") {
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(
-                                when {
-                                    recycleBin -> "Deleted Documents"
-                                    category == "all" -> "All files"
-                                    else -> "Files"
-                                },
+                            if (!recycleBin) Text(
+                                if (category == "all") "All files" else "Files",
                                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
                             )
-                            Text("${visible.size} files", color = mutedColor, style = MaterialTheme.typography.bodySmall)
+                            Text("${visible.size} ${if (recycleBin) "items" else "files"}",
+                                color = mutedColor, style = MaterialTheme.typography.bodySmall)
                         }
                         Box {
                             TextButton(onClick = { sortMenu = true }) {
                                 Text(sortLabelV2New(sort), color = documentAccent)
+                                Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Show sorting options", tint = documentAccent)
                             }
                             DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                                 DocumentSortV2New.values().forEach { value ->
@@ -1672,7 +1796,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             }
                         }
-                        IconButton(onClick = {
+                        if (!recycleBin) IconButton(onClick = {
                             if (selectionMode) {
                                 selectionMode = false
                                 selectedDocumentIds.clear()
@@ -1689,20 +1813,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
-                if (recycleBin) {
-                    item(key = "empty_recycle_bin") {
-                        OutlinedButton(
-                            onClick = { showEmptyRecycleBinConfirm = true },
-                            enabled = !busyDocument,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Empty Recycle Bin")
-                        }
-                    }
-                }
                 if (selectionMode) {
                     item(key = "bulk_actions") {
                         Card(
@@ -1713,6 +1823,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("${selectedDocumentIds.size} selected", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                                    if (recycleBin) {
+                                        TextButton(onClick = {
+                                            selectionMode = false
+                                            selectedDocumentIds.clear()
+                                        }) { Text("Done") }
+                                    }
                                     TextButton(onClick = {
                                         if (selectedDocumentIds.size == visible.size) selectedDocumentIds.clear()
                                         else {
@@ -1746,26 +1862,43 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         }
                                     }
                                 }
-                                if (recycleBin && visible.any { it.id in selectedDocumentIds && it.ownerUid == memberUid }) {
-                                    Button(
-                                        onClick = { runBulkRestore() },
-                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Icon(Icons.Outlined.Restore, null)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Restore")
+                                if (recycleBin && visible.any {
+                                    it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
+                                }) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Button(
+                                            onClick = { runBulkRestore() },
+                                            enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                            modifier = Modifier.weight(1f).heightIn(min = 58.dp)
+                                        ) {
+                                            Icon(Icons.Outlined.Restore, null)
+                                            Spacer(Modifier.width(7.dp))
+                                            Text("Restore", fontWeight = FontWeight.Bold)
+                                        }
+                                        Button(
+                                            onClick = { showBulkPermanentDeleteConfirm = true },
+                                            enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                            modifier = Modifier.weight(1.35f).heightIn(min = 58.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (isDarkUi) Color(0xFF5B203B) else Color(0xFFFFE3EA),
+                                                contentColor = if (isDarkUi) Color(0xFFFF9BB2) else Color(0xFFB42345)
+                                            )
+                                        ) {
+                                            Icon(Icons.Outlined.DeleteForever, null)
+                                            Spacer(Modifier.width(7.dp))
+                                            Text("Delete Permanently", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-                item(key = "favourites_filter") {
+                if (!recycleBin) item(key = "favourites_filter") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         FilterChip(
                             selected = showFavouritesOnly,
-                            enabled = !recycleBin,
                             onClick = { showFavouritesOnly = !showFavouritesOnly },
                             label = { Text("Favourites") },
                             leadingIcon = { Icon(Icons.Outlined.Favorite, null, modifier = Modifier.size(16.dp)) }
@@ -1799,7 +1932,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     item(key = "empty") {
                         EmptyStateV2New(
                             palette,
-                            if (recycleBin) "Recycle Bin is empty" else if (search.isNotBlank()) "No matching documents" else "No documents found",
+                            if (recycleBin) {
+                                if (currentFolderId == null) "No deleted files" else "No deleted files in this folder"
+                            } else if (search.isNotBlank()) "No matching documents" else "No documents found",
                             if (recycleBin) "Deleted files will appear here."
                             else if (search.isNotBlank()) "Try another name or clear your search."
                             else "Upload a file to get started.",
@@ -1839,6 +1974,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 if (selectionMode) toggleSelection(doc)
                                 else if (recycleBin) selectedDocument = doc else openDocument(doc)
                             },
+                            onLongClick = {
+                                if (recycleBin) {
+                                    if (!selectionMode) selectionMode = true
+                                    toggleSelection(doc)
+                                }
+                            },
                             onMore = { selectedDocument = doc },
                             selectionMode = selectionMode,
                             selected = doc.id in selectedDocumentIds
@@ -1862,6 +2003,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
+
             }
         }
     }
@@ -3282,12 +3424,250 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     selectedDocument?.let { doc ->
         ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface,
+            dragHandle = null
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                if (doc.isDeleted) {
+                    val categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second
+                        ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+                    val originalLocation = buildString {
+                        append("Documents / ")
+                        append(if (doc.scope == "SHARED") "Shared" else "Personal")
+                        val folderNames = mutableListOf<String>()
+                        var folderCursor = doc.folderId
+                        val visitedFolderIds = mutableSetOf<String>()
+                        while (folderCursor != null && visitedFolderIds.add(folderCursor)) {
+                            val folder = folders.firstOrNull { it.id == folderCursor } ?: break
+                            folderNames.add(0, folder.name)
+                            folderCursor = folder.parentFolderId
+                        }
+                        folderNames.forEach { append(" / "); append(it) }
+                    }
+                    val deletedAtText = doc.deletedAt?.toDate()?.let {
+                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                    } ?: "—"
+                    val purgeAtText = doc.purgeAt?.toDate()?.let {
+                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                    } ?: "—"
+                    val remainingDays = doc.purgeAt?.toDate()?.time?.let {
+                        kotlin.math.ceil((it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0).toInt()
+                    }
+                    val typeLabel = when {
+                        doc.contentType.contains("pdf", true) -> "PDF Document"
+                        doc.contentType.startsWith("image/") -> "${doc.contentType.substringAfter('/').uppercase()} Image"
+                        doc.contentType.contains("word", true) -> "Word Document"
+                        doc.contentType.contains("sheet", true) || doc.contentType.contains("excel", true) -> "Spreadsheet"
+                        else -> doc.contentType.substringAfter('/').replace('-', ' ').replace('_', ' ')
+                            .replaceFirstChar { it.uppercase() } + " File"
+                    }
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 4.dp).padding(bottom = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
+                    ) {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Surface(
+                                Modifier.width(42.dp).height(5.dp),
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                            ) {}
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            DocumentTypeIconNew(doc.contentType, Modifier.size(64.dp))
+                            Column(
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                Text(
+                                    documentDisplayNameV2New(doc),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Clip,
+                                    softWrap = true
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    ScopePillV2New(doc, doc.ownerUid == memberUid, documentPaletteV2New(isDarkUi))
+                                    val typeBadgeColors = when {
+                                        doc.contentType.contains("pdf", true) ->
+                                            (if (isDarkUi) Color(0xFF4A2020) else Color(0xFFFFE3E3)) to
+                                                (if (isDarkUi) Color(0xFFFF9A9A) else Color(0xFFC42020))
+                                        doc.contentType.startsWith("image/") ->
+                                            (if (isDarkUi) Color(0xFF1E3350) else Color(0xFFDDEBFF)) to
+                                                (if (isDarkUi) Color(0xFF9CC4FF) else Color(0xFF1D63C2))
+                                        doc.contentType.contains("spreadsheet", true) ||
+                                            doc.contentType.contains("excel", true) || doc.contentType.contains("sheet", true) ->
+                                            (if (isDarkUi) Color(0xFF1B3A2A) else Color(0xFFDDF4E5)) to
+                                                (if (isDarkUi) Color(0xFF9BE3BA) else Color(0xFF13733F))
+                                        else ->
+                                            (if (isDarkUi) Color(0xFF302447) else Color(0xFFEBE2FF)) to
+                                                (if (isDarkUi) Color(0xFFCDB5FF) else Color(0xFF5B2FB5))
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = typeBadgeColors.first
+                                    ) {
+                                        Text(
+                                            typeLabel,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = typeBadgeColors.second,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                            IconButton(onClick = { selectedDocument = null }) {
+                                Icon(Icons.Outlined.Close, "Close")
+                            }
+                        }
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isDarkUi) Color(0xFF241C30) else palette.surface)
+                                .border(
+                                    1.dp,
+                                    documentAccent.copy(alpha = if (isDarkUi) 0.42f else 0.22f),
+                                    RoundedCornerShape(20.dp)
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(0.dp)
+                        ) {
+                            @Composable
+                            fun detailRow(label: String, value: String, icon: ImageVector, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                ) {
+                                    Icon(icon, null, tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
+                                        modifier = Modifier.size(24.dp))
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(label, style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(value, style = MaterialTheme.typography.bodyLarge,
+                                            color = valueColor, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                                if (label != "Size") HorizontalDivider(
+                                    Modifier.padding(start = 54.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                                )
+                            }
+                            detailRow("Deleted On", deletedAtText, Icons.Outlined.CalendarToday)
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.History,
+                                    null,
+                                    tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        "Auto Delete On",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            purgeAtText,
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        if (remainingDays != null) {
+                                            Spacer(Modifier.width(6.dp))
+                                            Text(
+                                                if (remainingDays <= 0) "Due" else "($remainingDays days left)",
+                                                color = if (remainingDays <= 0) MaterialTheme.colorScheme.error else Color(0xFF65D82F),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            HorizontalDivider(
+                                Modifier.padding(start = 54.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                            )
+                            detailRow("Original Location", originalLocation, Icons.Outlined.FolderOpen)
+                            detailRow("Category", categoryName, Icons.Outlined.FolderOpen)
+                            detailRow("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Description)
+                        }
+                        if (doc.scope != "SHARED" && doc.ownerUid == memberUid) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Button(
+                                modifier = Modifier.weight(1f).height(58.dp),
+                                enabled = !busyDocument && doc.ownerUid == memberUid,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDarkUi) Color(0xFFB86AE8) else documentAccent,
+                                    contentColor = Color(0xFF180F20)
+                                ),
+                                onClick = {
+                                    scope.launch {
+                                        busyDocument = true
+                                        try {
+                                            repository.restore(vaultId, doc.id)
+                                            selectedDocument = null
+                                            message = "Document restored."
+                                        } catch (error: Exception) {
+                                            message = error.localizedMessage ?: error.message ?: "Restore failed."
+                                        } finally { busyDocument = false }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Outlined.Restore, null)
+                                Spacer(Modifier.width(7.dp))
+                                Text("Restore", fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                modifier = Modifier.weight(1.35f).height(58.dp),
+                                enabled = !busyDocument && doc.ownerUid == memberUid,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDarkUi) Color(0xFF5B203B) else Color(0xFFFFE3EA),
+                                    contentColor = if (isDarkUi) Color(0xFFFF9BB2) else Color(0xFFB42345)
+                                ),
+                                onClick = { permanentDeleteTarget = doc }
+                            ) {
+                                Icon(Icons.Outlined.DeleteForever, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(5.dp))
+                                Text(
+                                    "Delete Permanently",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = MaterialTheme.typography.labelMedium.fontSize,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                        }
+                    }
+                } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(doc.title, style = MaterialTheme.typography.titleLarge,
@@ -3436,6 +3816,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     )
                 }
+                }
             }
         }
     }
@@ -3518,7 +3899,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             onDismissRequest = { if (!busyDocument) showEmptyRecycleBinConfirm = false },
             title = { Text("Empty Recycle Bin?") },
             text = {
-                Text("All deleted documents owned by you will be permanently removed, including their stored files. This cannot be undone.")
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("All deleted documents owned by you will be permanently removed, including their stored files. This cannot be undone.")
+                    if (busyDocument) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                        Text("Emptying Recycle Bin…", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
@@ -3552,6 +3939,31 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 TextButton(enabled = !busyDocument, onClick = { showEmptyRecycleBinConfirm = false }) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    if (showBulkPermanentDeleteConfirm) {
+        AlertDialog(
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            onDismissRequest = { if (!busyDocument) showBulkPermanentDeleteConfirm = false },
+            title = { Text("Delete selected documents permanently?") },
+            text = { Text("The selected personal documents owned by you and their stored files will be permanently deleted. This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    enabled = !busyDocument,
+                    onClick = {
+                        showBulkPermanentDeleteConfirm = false
+                        runBulkPermanentDelete()
+                    }
+                ) { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !busyDocument,
+                    onClick = { showBulkPermanentDeleteConfirm = false }
+                ) { Text("Cancel") }
             }
         )
     }
@@ -3644,6 +4056,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                             Spacer(Modifier.height(12.dp))
                             ScopeLabelV2New(doc.scope, palette)
+                            Spacer(Modifier.height(10.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (doc.scope == "SHARED") Color(0xFFEFE4FF) else Color(0xFFE2F5E8)
+                            ) {
+                                Text(
+                                    "Category  ·  ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    color = if (doc.scope == "SHARED") Color(0xFF7136A8) else Color(0xFF237A43),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                             Spacer(Modifier.height(18.dp))
                             HorizontalDivider(color = palette.line)
                             Spacer(Modifier.height(8.dp))
@@ -4147,6 +4572,7 @@ private fun DocumentRowV2New(
     isRecycleBin: Boolean,
     currentMemberUid: String,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onMore: () -> Unit,
     selectionMode: Boolean = false,
     selected: Boolean = false
@@ -4155,7 +4581,12 @@ private fun DocumentRowV2New(
     val palette = documentPaletteV2New(dark)
     val mine = document.ownerUid == currentMemberUid
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).combinedClickable(
+            interactionSource = null,
+            indication = ripple(color = palette.accent),
+            onClick = onClick,
+            onLongClick = if (isRecycleBin) onLongClick else null
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
@@ -4184,20 +4615,42 @@ private fun DocumentRowV2New(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (!isRecycleBin) ScopePillV2New(document, mine, palette)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ScopePillV2New(document, mine, palette)
+                    if (isRecycleBin) {
+                        val remainingDays = document.purgeAt?.toDate()?.time?.let {
+                            kotlin.math.ceil(
+                                (it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0
+                            ).toInt()
+                        }
+                        if (remainingDays != null) {
+                            val retentionBackground = if (dark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+                            val retentionForeground = if (dark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = retentionBackground
+                            ) {
+                                Text(
+                                    if (remainingDays <= 0) "Due" else "$remainingDays days left",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    color = retentionForeground,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                     if (document.favouriteUids[currentMemberUid] == true && !isRecycleBin) {
                         Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
                             tint = Color(0xFFB45BCE), modifier = Modifier.size(15.dp))
                     }
-                    if (isRecycleBin) {
-                        Text("Deleted", color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelSmall)
-                    }
                 }
             }
-            IconButton(onClick = onMore) {
+            if (!isRecycleBin) IconButton(onClick = onMore) {
                 Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
             }
         }
@@ -4219,7 +4672,11 @@ private fun DocumentGridCardV2New(
     val palette = documentPaletteV2New(dark)
     val mine = document.ownerUid == currentMemberUid
     Card(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
+            interactionSource = null,
+            indication = ripple(color = palette.accent),
+            onClick = onClick
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
@@ -4230,7 +4687,7 @@ private fun DocumentGridCardV2New(
                 }
                 DocumentTypeIconNew(document.contentType, Modifier.size(44.dp))
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onMore) {
+                if (!isRecycleBin) IconButton(onClick = onMore) {
                     Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
                 }
             }
@@ -4257,11 +4714,7 @@ private fun DocumentGridCardV2New(
                     Text("Favourite", color = Color(0xFFB45BCE), style = MaterialTheme.typography.labelSmall)
                 }
             }
-            if (isRecycleBin) {
-                Text("Deleted", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-            } else {
-                ScopePillV2New(document, mine, palette)
-            }
+            ScopePillV2New(document, mine, palette)
         }
     }
 }
@@ -4278,7 +4731,11 @@ private fun CategoryCardV2New(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
+            interactionSource = null,
+            indication = ripple(color = palette.accent),
+            onClick = onClick
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
@@ -4309,19 +4766,21 @@ private fun CategoryCardV2New(
 @Composable
 private fun FolderCardV2New(
     folder: DocumentFolderV2,
-    isOwner: Boolean,
     palette: DocPaletteV2New,
     modifier: Modifier,
-    onOpen: () -> Unit,
-    onMore: () -> Unit
+    onOpen: () -> Unit
 ) {
     Card(
-        modifier = modifier.clickable(onClick = onOpen),
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
+            interactionSource = null,
+            indication = ripple(color = palette.accent),
+            onClick = onOpen
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = 12.dp, end = if (isOwner) 0.dp else 12.dp),
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Outlined.FolderOpen, null, tint = palette.accent, modifier = Modifier.size(24.dp))
@@ -4336,12 +4795,7 @@ private fun FolderCardV2New(
                 )
                 ScopeLabelV2New(folder.scope, palette)
             }
-            if (isOwner) {
-                IconButton(onClick = onMore, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Outlined.MoreVert, "Folder actions", tint = palette.muted)
-                }
-            }
-        }
+         }
     }
 }
 
@@ -4351,7 +4805,11 @@ private fun NewFolderCardV2New(palette: DocPaletteV2New, modifier: Modifier, onC
         modifier = modifier
             .heightIn(min = 64.dp)
             .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = null,
+                indication = ripple(color = palette.accent),
+                onClick = onClick
+            )
             .dashedBorderV2New(palette.muted, 18.dp),
         contentAlignment = Alignment.Center
     ) {
