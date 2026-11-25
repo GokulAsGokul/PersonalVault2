@@ -1397,7 +1397,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         else -> Color(0xFF2875D0)
                                     }
                                     Surface(
-                                        modifier = Modifier.weight(1f).height(84.dp).clickable {
+                                        modifier = Modifier.weight(1f)
+                                            .height(84.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .clickable(
+                                                indication = ripple(bounded = true, color = tileAccent),
+                                                interactionSource = remember { MutableInteractionSource() }
+                                            ) {
                                             if (value == "RECYCLE_BIN") {
                                                 recycleBin = true
                                                 category = "all"
@@ -4043,14 +4049,23 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Spacer(Modifier.height(12.dp))
                             ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
                             Spacer(Modifier.height(10.dp))
+                            val isSpouseDocument = doc.scope == "SHARED" && doc.ownerUid != memberUid
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (doc.scope == "SHARED") Color(0xFFEFE4FF) else Color(0xFFE2F5E8)
+                                color = when {
+                                    isSpouseDocument -> Color(0xFFFCE8F5)
+                                    doc.scope == "SHARED" -> Color(0xFFEFE4FF)
+                                    else -> Color(0xFFE2F5E8)
+                                }
                             ) {
                                 Text(
                                     "Category  ·  ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                    color = if (doc.scope == "SHARED") Color(0xFF7136A8) else Color(0xFF237A43),
+                                    color = when {
+                                        isSpouseDocument -> Color(0xFFD63384)
+                                        doc.scope == "SHARED" -> Color(0xFF7136A8)
+                                        else -> Color(0xFF237A43)
+                                    },
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -4556,16 +4571,17 @@ private fun ScopePillV2New(document: DocumentRecordV2, mine: Boolean, palette: D
         mine -> "Shared"
         else -> "Spouse"
     }
-    val shared = document.scope == "SHARED"
-    val background = if (shared) {
-        if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
-    } else {
-        if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+    val spouse = label == "Spouse"
+    val shared = label == "Shared"
+    val background = when {
+        spouse -> if (isDark) Color(0xFF4A203B) else Color(0xFFFCE8F5)
+        shared -> if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
+        else -> if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
     }
-    val foreground = if (shared) {
-        if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
-    } else {
-        if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+    val foreground = when {
+        spouse -> if (isDark) Color(0xFFFF9ACD) else Color(0xFFD63384)
+        shared -> if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
+        else -> if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
     }
     Surface(shape = RoundedCornerShape(10.dp), color = background) {
         Row(
@@ -4576,7 +4592,7 @@ private fun ScopePillV2New(document: DocumentRecordV2, mine: Boolean, palette: D
             Icon(
                 when (label) {
                     "Only Me" -> Icons.Outlined.Person
-                    "Shared" -> Icons.Outlined.People
+                    "Shared", "Spouse" -> Icons.Outlined.People
                     else -> Icons.Outlined.Person
                 },
                 contentDescription = null,
