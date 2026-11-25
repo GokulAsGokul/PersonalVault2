@@ -1427,7 +1427,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } else if (!recycleBin) {
                 if (inCategory) {
                     item(key = "new_folder_quick_action") {
-                        NewFolderCardV2New(palette, Modifier.fillMaxWidth().height(72.dp)) { startCreateFolder() }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            NewFolderCardV2New(palette, Modifier.weight(1f).heightIn(min = 64.dp)) { startCreateFolder() }
+                            Spacer(Modifier.weight(1f))
+                        }
                     }
                     item(key = "folder_filter_spacing") { Spacer(Modifier.height(10.dp)) }
                 }
@@ -1783,18 +1786,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             }
                         }
-                        if (!recycleBin) IconButton(onClick = {
-                            if (selectionMode) {
-                                selectionMode = false
-                                selectedDocumentIds.clear()
-                            } else {
-                                selectionMode = true
-                                selectedDocumentIds.clear()
-                            }
-                        }) {
-                            Icon(if (selectionMode) Icons.Outlined.Close else Icons.Outlined.SelectAll,
-                                if (selectionMode) "Exit selection" else "Select documents")
-                        }
+
                         IconButton(onClick = { grid = !grid }) {
                             Icon(if (grid) Icons.Outlined.List else Icons.Outlined.GridView, "Toggle view")
                         }
