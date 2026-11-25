@@ -3883,7 +3883,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             onDismissRequest = { if (!busyDocument) showEmptyRecycleBinConfirm = false },
             title = { Text("Empty Recycle Bin?") },
             text = {
-                Text("All deleted documents owned by you will be permanently removed, including their stored files. This cannot be undone.")
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("All deleted documents owned by you will be permanently removed, including their stored files. This cannot be undone.")
+                    if (busyDocument) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                        Text("Emptying Recycle Bin…", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
