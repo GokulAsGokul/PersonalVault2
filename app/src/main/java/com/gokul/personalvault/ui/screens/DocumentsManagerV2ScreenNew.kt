@@ -1372,7 +1372,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     }
                                     Surface(
                                         modifier = Modifier.weight(1f)
-                                            .height(84.dp)
+                                            .height(72.dp)
                                             .clip(RoundedCornerShape(16.dp))
                                             .clickable(
                                                 indication = ripple(bounded = true, color = tileAccent),
@@ -1462,7 +1462,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 else -> Color(0xFF2875D0)
                             }
                             Surface(
-                                modifier = Modifier.weight(1f).height(84.dp).clip(RoundedCornerShape(16.dp)).clickable(
+                                modifier = Modifier.weight(1f).height(72.dp).clip(RoundedCornerShape(16.dp)).clickable(
                                     indication = ripple(bounded = true, color = tileAccent),
                                     interactionSource = remember { MutableInteractionSource() }
                                 ) {
@@ -1758,7 +1758,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         folder = folder,
                                         palette = palette,
                                         modifier = Modifier.weight(1f),
-                                        onOpen = { currentFolderId = folder.id }
+                                        onOpen = { currentFolderId = folder.id },
+                                        onMore = { selectedFolder = folder; showFolderActions = true }
                                     )
                             }
                             repeat(2 - slotRow.size) { Spacer(Modifier.weight(1f)) }
@@ -4541,7 +4542,7 @@ private fun DocumentDashboardStatCardV2New(
 ) {
     val textColor = if (cardColor.luminance() > 0.5f) Color(0xFF211536) else Color.White
     Card(
-        modifier = modifier.height(84.dp),
+        modifier = modifier.height(72.dp),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -4936,7 +4937,8 @@ private fun FolderCardV2New(
     folder: DocumentFolderV2,
     palette: DocPaletteV2New,
     modifier: Modifier,
-    onOpen: () -> Unit
+    onOpen: () -> Unit,
+    onMore: () -> Unit
 ) {
     Card(
         modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
@@ -4962,6 +4964,9 @@ private fun FolderCardV2New(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 ScopeLabelV2New(folder.scope, palette)
+            }
+            IconButton(onClick = onMore, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = "Folder actions", tint = palette.muted)
             }
          }
     }
