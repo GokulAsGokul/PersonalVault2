@@ -1397,7 +1397,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         else -> Color(0xFF2875D0)
                                     }
                                     Surface(
-                                        modifier = Modifier.weight(1f).heightIn(min = 76.dp).clickable {
+                                        modifier = Modifier.weight(1f).height(84.dp).clickable {
                                             if (value == "RECYCLE_BIN") {
                                                 recycleBin = true
                                                 category = "all"
@@ -1462,7 +1462,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     val scopes = listOf(
                         Triple("ALL", "All", Icons.Outlined.SelectAll),
                         Triple("PERSONAL", "Personal", Icons.Outlined.Person),
-                        Triple("SHARED", "Shared", Icons.Outlined.Groups),
+                        Triple("SHARED", "Shared", Icons.Outlined.People),
                         Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1561,7 +1561,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         categoryRow.forEach { (id, name) ->
                             val count = active.count {
-                                it.categoryId == id && (visibility == "ALL" || it.scope == visibility)
+                                it.categoryId == id && dashboardScoped(it)
                             }
                             val (tileBg, tileFg) = categoryStyleV2New(id, isDarkUi)
                             CategoryCardV2New(
@@ -4404,13 +4404,13 @@ private fun DocumentDashboardStatCardV2New(
 ) {
     val textColor = if (cardColor.luminance() > 0.5f) Color(0xFF211536) else Color.White
     Card(
-        modifier = modifier.heightIn(min = 104.dp),
+        modifier = modifier.height(84.dp),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 9.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
@@ -4418,13 +4418,13 @@ private fun DocumentDashboardStatCardV2New(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconTint,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(20.dp)
             )
             Text(
                 label,
                 color = textColor.copy(alpha = 0.82f),
                 style = MaterialTheme.typography.labelSmall,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Clip,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
