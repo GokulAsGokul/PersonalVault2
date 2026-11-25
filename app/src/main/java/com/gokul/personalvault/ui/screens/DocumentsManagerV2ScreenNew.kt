@@ -3880,9 +3880,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .border(1.5.dp, downloadAccent.copy(alpha = 0.72f), RoundedCornerShape(34.dp))
                     .drawBehind {
                         val wave = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(0f, size.height * 0.78f)
-                            cubicTo(size.width * 0.22f, size.height * 0.96f, size.width * 0.42f, size.height * 0.86f, size.width * 0.58f, size.height * 0.82f)
-                            cubicTo(size.width * 0.76f, size.height * 0.76f, size.width * 0.88f, size.height * 0.79f, size.width, size.height * 0.88f)
+                            moveTo(0f, size.height * 0.88f)
+                            cubicTo(size.width * 0.22f, size.height * 0.99f, size.width * 0.42f, size.height * 0.94f, size.width * 0.58f, size.height * 0.92f)
+                            cubicTo(size.width * 0.76f, size.height * 0.87f, size.width * 0.88f, size.height * 0.88f, size.width, size.height * 0.93f)
                             lineTo(size.width, size.height)
                             lineTo(0f, size.height)
                             close()
@@ -3980,7 +3980,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Button(
                         onClick = { if (!isSavingDownloadedFile) activeDocumentTransferJob?.cancel() },
                         enabled = !isSavingDownloadedFile && activeDocumentTransferJob?.isActive == true,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 34.dp).height(48.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 52.dp).height(48.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
