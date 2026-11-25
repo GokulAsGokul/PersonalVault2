@@ -1623,7 +1623,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
-                if (inCategory) {
+                if (inCategory && !recycleBin) {
                     val folderPath = mutableListOf<DocumentFolderV2>()
                     var folderCursor = currentFolderId
                     val visitedFolderIds = mutableSetOf<String>()
