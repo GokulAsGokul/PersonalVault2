@@ -1588,7 +1588,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             } else {
                 // ── Category / folder / all / recycle bin ──
-                if (inCategory) {
+                if (inCategory || recycleBin) {
                     val folderPath = mutableListOf<DocumentFolderV2>()
                     var folderCursor = currentFolderId
                     val visitedFolderIds = mutableSetOf<String>()
@@ -1632,7 +1632,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    val folderSlots: List<DocumentFolderV2?> = childFolders + listOf<DocumentFolderV2?>(null)
+                    val folderSlots: List<DocumentFolderV2?> = if (recycleBin) childFolders else childFolders + listOf<DocumentFolderV2?>(null)
                     items(folderSlots.chunked(2)) { slotRow ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             slotRow.forEach { folder ->
@@ -1809,11 +1809,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
-                item(key = "favourites_filter") {
+                if (!recycleBin) item(key = "favourites_filter") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         FilterChip(
                             selected = showFavouritesOnly,
-                            enabled = !recycleBin,
                             onClick = { showFavouritesOnly = !showFavouritesOnly },
                             label = { Text("Favourites") },
                             leadingIcon = { Icon(Icons.Outlined.Favorite, null, modifier = Modifier.size(16.dp)) }
@@ -3336,6 +3335,102 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                if (doc.isDeleted) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            DocumentTypeIconNew(doc.contentType, Modifier.size(52.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(doc.title, style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text("${formatDocumentBytesNew(doc.sizeBytes)} · ${doc.contentType.substringAfter('/').uppercase()}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            IconButton(onClick = { selectedDocument = null }) {
+                                Icon(Icons.Outlined.Close, "Close")
+                            }
+                        }
+                        ScopeLabelV2New(doc.scope, palette)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        DocumentDetailRowV2New(
+                            "Category",
+                            allCategories.firstOrNull { it.first == doc.categoryId }?.second
+                                ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other",
+                            Icons.Outlined.FolderOpen
+                        )
+                        DocumentDetailRowV2New(
+                            "Original location",
+                            buildString {
+                                append("My Documents / ")
+                                append(allCategories.firstOrNull { it.first == doc.categoryId }?.second
+                                    ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other")
+                                doc.folderId?.let { id -> folders.firstOrNull { it.id == id }?.let { append(" / ${it.name}") } }
+                            },
+                            Icons.Outlined.FolderOpen
+                        )
+                        DocumentDetailRowV2New(
+                            "Deleted on",
+                            doc.deletedAt?.toDate()?.let {
+                                SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                            } ?: "—",
+                            Icons.Outlined.Delete
+                        )
+                        DocumentDetailRowV2New(
+                            "Permanently deleted on",
+                            doc.purgeAt?.toDate()?.let {
+                                SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                            } ?: "—",
+                            Icons.Outlined.CalendarToday
+                        )
+                        val remainingDays = doc.purgeAt?.toDate()?.time?.let {
+                            kotlin.math.ceil((it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0).toInt()
+                        }
+                        Text(
+                            if (remainingDays == null) "This item will be automatically deleted after 30 days."
+                            else if (remainingDays <= 0) "This item is due for permanent deletion."
+                            else " $remainingDays day(s) remaining before permanent deletion.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        DocumentDetailRowV2New("File size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !busyDocument && doc.ownerUid == memberUid,
+                                onClick = {
+                                    scope.launch {
+                                        busyDocument = true
+                                        try {
+                                            repository.restore(vaultId, doc.id)
+                                            selectedDocument = null
+                                            message = "Document restored."
+                                        } catch (error: Exception) {
+                                            message = error.localizedMessage ?: error.message ?: "Restore failed."
+                                        } finally { busyDocument = false }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Outlined.Restore, null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("Restore")
+                            }
+                            Button(
+                                modifier = Modifier.weight(1f),
+                                enabled = !busyDocument && doc.ownerUid == memberUid,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                onClick = { permanentDeleteTarget = doc }
+                            ) {
+                                Icon(Icons.Outlined.DeleteForever, null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("Delete")
+                            }
+                        }
+                    }
+                } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(doc.title, style = MaterialTheme.typography.titleLarge,
@@ -3483,6 +3578,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             permanentDeleteTarget = doc
                         }
                     )
+                }
                 }
             }
         }
