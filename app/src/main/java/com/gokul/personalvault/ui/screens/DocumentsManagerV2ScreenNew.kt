@@ -4070,17 +4070,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (darkDownloadUi) Color(0xFF8E45C5) else Color(0xFF5B2FB5),
-                            contentColor = Color.White,
-                            disabledContainerColor = (if (darkDownloadUi) Color(0xFF8E45C5) else Color(0xFF5B2FB5)).copy(alpha = 0.65f),
-                            disabledContentColor = Color.White.copy(alpha = 0.75f)
+                            containerColor = waveColor,
+                            contentColor = if (darkDownloadUi) Color.White else Color(0xFF5B2FB5),
+                            disabledContainerColor = waveColor.copy(alpha = 0.65f),
+                            disabledContentColor = (if (darkDownloadUi) Color.White else Color(0xFF5B2FB5)).copy(alpha = 0.75f)
                         )
                     ) {
                         if (isSavingDownloadedFile) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
-                                color = Color.White
+                                color = if (darkDownloadUi) Color.White else Color(0xFF5B2FB5)
                             )
                             Spacer(Modifier.width(10.dp))
                             Text("Finishing download", fontWeight = FontWeight.Bold)
