@@ -3964,7 +3964,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .widthIn(max = 620.dp)
                     .clip(RoundedCornerShape(34.dp))
                     .background(dialogBackground)
-                    .border(1.5.dp, downloadAccent.copy(alpha = 0.72f), RoundedCornerShape(34.dp))
                     .drawBehind {
                         val wave = androidx.compose.ui.graphics.Path().apply {
                             moveTo(0f, size.height * 0.88f)
@@ -4071,17 +4070,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFB42345),
-                            contentColor = Color.White,
-                            disabledContainerColor = Color(0xFFB42345).copy(alpha = 0.65f),
-                            disabledContentColor = Color.White.copy(alpha = 0.75f)
+                            containerColor = if (darkDownloadUi) Color(0xFF5B203B) else Color(0xFFFFE3EA),
+                            contentColor = if (darkDownloadUi) Color(0xFFFF9BB2) else Color(0xFFB42345),
+                            disabledContainerColor = if (darkDownloadUi) Color(0xFF5B203B).copy(alpha = 0.65f) else Color(0xFFFFE3EA).copy(alpha = 0.65f),
+                            disabledContentColor = if (darkDownloadUi) Color(0xFFFF9BB2).copy(alpha = 0.75f) else Color(0xFFB42345).copy(alpha = 0.75f)
                         )
                     ) {
                         if (isSavingDownloadedFile) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
-                                color = Color.White
+                                color = if (darkDownloadUi) Color(0xFFFF9BB2) else Color(0xFFB42345)
                             )
                             Spacer(Modifier.width(10.dp))
                             Text("Finishing download", fontWeight = FontWeight.Bold)
