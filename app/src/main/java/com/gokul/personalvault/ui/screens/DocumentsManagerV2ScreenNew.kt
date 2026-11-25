@@ -2970,43 +2970,125 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     if (showFolderActions) {
         val folder = selectedFolder
         if (folder != null) {
-            ModalBottomSheet(onDismissRequest = { showFolderActions = false }, containerColor = documentSurface) {
+            ModalBottomSheet(
+                onDismissRequest = { showFolderActions = false },
+                containerColor = documentSurface,
+                dragHandle = null
+            ) {
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 10.dp, bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(folder.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Box(
+                        Modifier.align(Alignment.CenterHorizontally)
+                            .width(40.dp).height(4.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            "FOLDER OPTIONS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = palette.accent,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.2.sp
+                        )
+                        Text(
+                            folder.name,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
-                    ListItem(
-                        headlineContent = { Text("Rename Folder") },
-                        leadingContent = { Icon(Icons.Outlined.Edit, null) },
-                        modifier = Modifier.clickable {
-                            renameFolderName = folder.name
-                            showFolderActions = false
-                            showRenameFolder = true
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                            .background(palette.surface2)
+                            .border(1.dp, palette.line, RoundedCornerShape(18.dp))
+                            .clickable {
+                                renameFolderName = folder.name
+                                showFolderActions = false
+                                showRenameFolder = true
+                            }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(palette.container),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.Edit, null, tint = palette.accent, modifier = Modifier.size(23.dp))
                         }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Move Folder") },
-                        supportingContent = { Text("Move this folder with all its subfolders and files") },
-                        leadingContent = { Icon(Icons.Outlined.DriveFileMove, null) },
-                        modifier = Modifier.clickable {
-                            moveParentFolderId = folder.parentFolderId
-                            moveTargetChosen = false
-                            showFolderActions = false
-                            showMoveFolder = true
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Rename Folder", style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                            Text("Change this folder's name", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Delete Empty Folder", color = MaterialTheme.colorScheme.error) },
-                        supportingContent = { Text("Available only when the folder has no files or subfolders") },
-                        leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                        modifier = Modifier.clickable {
-                            showFolderActions = false
-                            deleteFolderError = null
-                            showDeleteFolderConfirm = true
+                        Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                            .background(palette.surface2)
+                            .border(1.dp, palette.line, RoundedCornerShape(18.dp))
+                            .clickable {
+                                moveParentFolderId = folder.parentFolderId
+                                moveTargetChosen = false
+                                showFolderActions = false
+                                showMoveFolder = true
+                            }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(palette.container),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.DriveFileMove, null, tint = palette.accent, modifier = Modifier.size(23.dp))
                         }
-                    )
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Move Folder", style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                            Text("Move with all subfolders and files", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.42f))
+                            .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.20f), RoundedCornerShape(18.dp))
+                            .clickable {
+                                showFolderActions = false
+                                deleteFolderError = null
+                                showDeleteFolderConfirm = true
+                            }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            Modifier.size(46.dp).clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(23.dp))
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Delete Empty Folder", style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                            Text("Available only when no files or subfolders remain",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }
@@ -4215,109 +4297,142 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val doc = selectedDocument
         if (doc != null) {
             AlertDialog(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.88f),
                 properties = DialogProperties(usePlatformDefaultWidth = false),
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(28.dp),
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp,
                 onDismissRequest = { showDocumentDetails = false },
                 title = {
-                    Text(
-                        "File Details",
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, start = 4.dp),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Normal
-                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("FILE INFORMATION", style = MaterialTheme.typography.labelSmall,
+                                color = palette.accent, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                            Text("File Details", style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                        IconButton(onClick = { showDocumentDetails = false }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Close file details",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 },
                 text = {
                     Column(
                         Modifier.fillMaxWidth().fillMaxHeight(0.94f),
-                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Column(
                             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Spacer(Modifier.height(12.dp))
-                            DocumentTypeIconNew(doc.contentType, Modifier.size(72.dp))
-                            Spacer(Modifier.height(10.dp))
-                            Text(
-                                documentDisplayNameV2New(doc),
-                                modifier = Modifier.fillMaxWidth(),
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                doc.originalFileName,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
-                            Spacer(Modifier.height(10.dp))
-                            val isSpouseDocument = doc.scope == "SHARED" && doc.ownerUid != memberUid
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = when {
-                                    isSpouseDocument -> Color(0xFFFCE8F5)
-                                    doc.scope == "SHARED" -> Color(0xFFEFE4FF)
-                                    else -> Color(0xFFE2F5E8)
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                                    .background(palette.surface2)
+                                    .border(1.dp, palette.line, RoundedCornerShape(20.dp))
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                DocumentTypeIconNew(doc.contentType, Modifier.size(64.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text(
+                                        documentDisplayNameV2New(doc),
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) },
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
+                            }
+
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                                val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
+                                    ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = palette.container
+                                ) {
+                                    Text(
+                                        categoryLabel,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                        color = palette.accent,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Column(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                                    .background(palette.surface2)
+                                    .border(1.dp, palette.line, RoundedCornerShape(20.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Text(
-                                    "Category  ·  ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                    color = when {
-                                        isSpouseDocument -> Color(0xFFD63384)
-                                        doc.scope == "SHARED" -> Color(0xFF7136A8)
-                                        else -> Color(0xFF237A43)
-                                    },
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                    "DETAILS",
+                                    Modifier.padding(start = 12.dp, top = 10.dp, bottom = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = palette.accent,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.1.sp
+                                )
+                                DocumentDetailRowV2New(
+                                    "File type",
+                                    doc.contentType.substringAfter('/').uppercase().ifBlank { "File" },
+                                    Icons.Outlined.Description
+                                )
+                                DocumentDetailRowV2New("File size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
+                                DocumentDetailRowV2New(
+                                    "Location",
+                                    "My Documents / $categoryLabel",
+                                    Icons.Outlined.FolderOpen
+                                )
+                                DocumentDetailRowV2New(
+                                    "Date added",
+                                    doc.uploadedAt?.toDate()?.let {
+                                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                                    } ?: "—",
+                                    Icons.Outlined.CalendarToday
+                                )
+                                DocumentDetailRowV2New(
+                                    "Last modified",
+                                    doc.updatedAt?.toDate()?.let {
+                                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                                    } ?: "—",
+                                    Icons.Outlined.History
                                 )
                             }
-                            Spacer(Modifier.height(18.dp))
-                            HorizontalDivider(color = palette.line)
-                            Spacer(Modifier.height(8.dp))
-                            DocumentDetailRowV2New(
-                                "Type",
-                                doc.contentType.substringAfter('/').uppercase().ifBlank { "File" },
-                                Icons.Outlined.Description
-                            )
-                            DocumentDetailRowV2New("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
-                            DocumentDetailRowV2New(
-                                "Location",
-                                "My Documents / ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
-                                Icons.Outlined.FolderOpen
-                            )
-                            DocumentDetailRowV2New(
-                                "Added",
-                                doc.uploadedAt?.toDate()?.let {
-                                    SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                                } ?: "—",
-                                Icons.Outlined.CalendarToday
-                            )
-                            DocumentDetailRowV2New(
-                                "Modified",
-                                doc.updatedAt?.toDate()?.let {
-                                    SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                                } ?: "—",
-                                Icons.Outlined.History
-                            )
                         }
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 8.dp, end = 8.dp),
-                            horizontalArrangement = Arrangement.End
+                        Button(
+                            onClick = { showDocumentDetails = false },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = palette.accent,
+                                contentColor = palette.onAccent
+                            )
                         ) {
-                            TextButton(onClick = { showDocumentDetails = false }) {
-                                Text("Close", color = palette.accent)
-                            }
+                            Text("Done", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 },
