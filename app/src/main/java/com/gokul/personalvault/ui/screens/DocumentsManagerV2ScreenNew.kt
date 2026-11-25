@@ -4390,6 +4390,7 @@ private fun DocumentDashboardStatCardV2New(
     cardColor: Color,
     iconTint: Color = Color.White
 ) {
+    val textColor = if (cardColor.luminance() > 0.5f) Color(0xFF211536) else Color.White
     Card(
         modifier = modifier.heightIn(min = 104.dp),
         shape = RoundedCornerShape(18.dp),
@@ -4409,7 +4410,7 @@ private fun DocumentDashboardStatCardV2New(
             )
             Text(
                 value,
-                color = Color.White,
+                color = textColor,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -4418,7 +4419,7 @@ private fun DocumentDashboardStatCardV2New(
             )
             Text(
                 label,
-                color = Color.White,
+                color = textColor.copy(alpha = 0.82f),
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 2,
                 overflow = TextOverflow.Clip,
