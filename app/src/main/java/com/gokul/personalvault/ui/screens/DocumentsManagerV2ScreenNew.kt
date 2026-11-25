@@ -4325,22 +4325,22 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 text = {
                     Column(
                         Modifier.fillMaxWidth().fillMaxHeight(0.94f),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Column(
-                            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                            Modifier.fillMaxWidth().weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Row(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
                                     .background(palette.surface2)
                                     .border(1.dp, palette.line, RoundedCornerShape(20.dp))
-                                    .padding(16.dp),
+                                    .padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                DocumentTypeIconNew(doc.contentType, Modifier.size(64.dp))
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                DocumentTypeIconNew(doc.contentType, Modifier.size(58.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(
                                         documentDisplayNameV2New(doc),
                                         fontWeight = FontWeight.Bold,
@@ -4353,7 +4353,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) },
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 2,
+                                        maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
@@ -4368,10 +4368,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = palette.container
-                                ) {
+                                Surface(shape = RoundedCornerShape(50), color = palette.container) {
                                     Text(
                                         categoryLabel,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
@@ -4385,14 +4382,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
 
                             Column(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                                Modifier.fillMaxWidth().weight(1f)
+                                    .clip(RoundedCornerShape(20.dp))
                                     .background(palette.surface2)
                                     .border(1.dp, palette.line, RoundedCornerShape(20.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
                             ) {
                                 Text(
                                     "DETAILS",
-                                    Modifier.padding(start = 12.dp, top = 10.dp, bottom = 2.dp),
+                                    Modifier.padding(start = 12.dp, top = 6.dp, bottom = 2.dp),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = palette.accent,
                                     fontWeight = FontWeight.Bold,
@@ -4425,6 +4424,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 )
                             }
                         }
+
                         Button(
                             onClick = { showDocumentDetails = false },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -4437,7 +4437,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Text("Done", fontWeight = FontWeight.SemiBold)
                         }
                     }
-                },
+                }                },
                 confirmButton = {}
             )
         }
@@ -4873,23 +4873,36 @@ private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
 
 @Composable
 private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVector) {
-    ListItem(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp),
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        headlineContent = {
-            Text(label, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        },
-        supportingContent = {
-            Text(value, style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface)
-        },
-        leadingContent = {
-            Icon(icon, contentDescription = null,
-                tint = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
-                    Color(0xFFD2A8FF) else Color(0xFF7136B8))
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+                Color(0xFFD2A8FF) else Color(0xFF7136B8)
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
-    )
+    }
 }
 
 @Composable
