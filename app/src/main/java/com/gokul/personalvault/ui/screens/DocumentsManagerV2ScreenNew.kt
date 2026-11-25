@@ -4437,7 +4437,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Text("Done", fontWeight = FontWeight.SemiBold)
                         }
                     }
-                }                },
+                },
                 confirmButton = {}
             )
         }
