@@ -1683,7 +1683,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
                     }
-                    item(key = "folders_header") {
+                    if (childFolders.isNotEmpty()) item(key = "folders_header") {
                         Text(
                             "Folders",
                             Modifier.padding(top = 4.dp),
@@ -1700,11 +1700,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 } else {
                                     FolderCardV2New(
                                         folder = folder,
-                                        isOwner = folder.ownerUid == memberUid,
                                         palette = palette,
                                         modifier = Modifier.weight(1f),
-                                        onOpen = { currentFolderId = folder.id },
-                                        onMore = { selectedFolder = folder; showFolderActions = true }
+                                        onOpen = { currentFolderId = folder.id }
                                     )
                                 }
                             }
@@ -1848,7 +1846,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     item(key = "empty") {
                         EmptyStateV2New(
                             palette,
-                            if (recycleBin) "Recycle Bin is empty" else if (search.isNotBlank()) "No matching documents" else "No documents found",
+                            if (recycleBin) {
+                                if (currentFolderId == null) "No deleted files" else "No deleted files in this folder"
+                            } else if (search.isNotBlank()) "No matching documents" else "No documents found",
                             if (recycleBin) "Deleted files will appear here."
                             else if (search.isNotBlank()) "Try another name or clear your search."
                             else "Upload a file to get started.",
@@ -4460,11 +4460,9 @@ private fun CategoryCardV2New(
 @Composable
 private fun FolderCardV2New(
     folder: DocumentFolderV2,
-    isOwner: Boolean,
     palette: DocPaletteV2New,
     modifier: Modifier,
-    onOpen: () -> Unit,
-    onMore: () -> Unit
+    onOpen: () -> Unit
 ) {
     Card(
         modifier = modifier.clickable(onClick = onOpen),
@@ -4472,7 +4470,7 @@ private fun FolderCardV2New(
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = 12.dp, end = if (isOwner) 0.dp else 12.dp),
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Outlined.FolderOpen, null, tint = palette.accent, modifier = Modifier.size(24.dp))
