@@ -1115,6 +1115,31 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
     }
 
+    fun runBulkPermanentDelete() {
+        val targets = visible.filter {
+            it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
+        }
+        val skipped = selectedDocumentIds.size - targets.size
+        scope.launch {
+            busyDocument = true
+            var succeeded = 0
+            try {
+                targets.forEach { doc ->
+                    repository.permanentlyDelete(vaultId, doc.id)
+                    succeeded++
+                }
+                message = "$succeeded document(s) permanently deleted." +
+                    if (skipped > 0) " $skipped skipped: only personal documents owned by you can be permanently deleted." else ""
+            } catch (error: Exception) {
+                message = "$succeeded deleted. ${error.localizedMessage ?: "Some documents could not be permanently deleted."}"
+            } finally {
+                selectedDocumentIds.clear()
+                selectionMode = false
+                busyDocument = false
+            }
+        }
+    }
+
     fun runBulkRestore() {
         val targets = visible.filter {
             it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
