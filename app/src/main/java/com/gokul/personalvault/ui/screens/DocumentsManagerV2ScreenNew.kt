@@ -1922,6 +1922,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         if (selectionMode) toggleSelection(doc)
                                         else if (recycleBin) selectedDocument = doc else openDocument(doc)
                                     },
+                                    onLongClick = {
+                                        if (!selectionMode) selectionMode = true
+                                        toggleSelection(doc)
+                                    },
                                     onMore = { selectedDocument = doc },
                                     selectionMode = selectionMode,
                                     selected = doc.id in selectedDocumentIds
@@ -4830,6 +4834,7 @@ private fun DocumentGridCardV2New(
     currentMemberUid: String,
     modifier: Modifier,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onMore: () -> Unit,
     selectionMode: Boolean = false,
     selected: Boolean = false
@@ -4838,10 +4843,11 @@ private fun DocumentGridCardV2New(
     val palette = documentPaletteV2New(dark)
     val mine = document.ownerUid == currentMemberUid
     Card(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).combinedClickable(
             interactionSource = null,
             indication = ripple(color = palette.accent),
-            onClick = onClick
+            onClick = onClick,
+            onLongClick = onLongClick
         ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
