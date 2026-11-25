@@ -234,7 +234,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var category by remember { mutableStateOf("all") }
     var visibility by remember { mutableStateOf("ALL") }
     var dashboardFilter by remember { mutableStateOf("ALL") }
-    var fileType by remember { mutableStateOf("ALL") }
     var sort by remember { mutableStateOf(DocumentSortV2New.NEWEST) }
     var sortMenu by remember { mutableStateOf(false) }
     var grid by remember { mutableStateOf(false) }
@@ -828,19 +827,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
         }
         .filter { recycleBin || !showFavouritesOnly || it.favouriteUids[memberUid] == true }
-        .filter {
-            when (fileType) {
-                "PDF" -> it.contentType.contains("pdf", true)
-                "IMAGE" -> it.contentType.startsWith("image/")
-                "OFFICE" -> listOf("msword", "wordprocessing", "spreadsheet", "presentation", "excel", "powerpoint")
-                    .any { token -> it.contentType.contains(token, true) }
-                "OTHER" -> !it.contentType.contains("pdf", true) &&
-                    !it.contentType.startsWith("image/") &&
-                    !listOf("msword", "wordprocessing", "spreadsheet", "presentation", "excel", "powerpoint")
-                        .any { token -> it.contentType.contains(token, true) }
-                else -> true
-            }
-        }.let { list ->
+.let { list ->
             when (sort) {
                 DocumentSortV2New.NAME_ASC -> list.sortedBy { it.title.lowercase(Locale.ROOT) }
                 DocumentSortV2New.NAME_DESC -> list.sortedByDescending { it.title.lowercase(Locale.ROOT) }
@@ -1326,56 +1313,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             }
 
-            // Search is available in All Files and deeper views, not on the Documents dashboard.
-            if (!isHome && !recycleBin) item(key = "search") {
-                TextField(
-                    value = search,
-                    onValueChange = { search = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    placeholder = { Text("Search documents") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                    trailingIcon = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { advancedSearchExpanded = !advancedSearchExpanded }) {
-                                Icon(Icons.Outlined.Tune, "Advanced search")
-                            }
-                            if (search.isNotEmpty()) {
-                                IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Close, "Clear search") }
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(28.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = palette.surface,
-                        unfocusedContainerColor = palette.surface,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent,
-                        errorIndicatorColor = Color.Transparent
-                    )
-                )
-            }
-
-            if (advancedSearchExpanded && !isHome) {
-                item(key = "advanced_search_options") {
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = palette.surface)
-                    ) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Advanced Search", fontWeight = FontWeight.SemiBold)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = searchFileNameOnly, onCheckedChange = { searchFileNameOnly = it })
-                                Text("Search filename only", style = MaterialTheme.typography.bodySmall)
-                            }
-                            Text("Search matches title, filename, notes and category.",
-                                color = palette.muted, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
             // Unified Documents Overview: scope filters and live statistics.
             if (isHome) {
                 item(key = "documents_overview") {
@@ -1538,6 +1475,42 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     Text(label, color = Color(0xFF211536), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                                 }
                             }
+                        }
+                    }
+                }
+            }
+            if (showDocumentSearch && !recycleBin) item(key = "search") {
+                TextField(
+                    value = search,
+                    onValueChange = { search = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Search documents") },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { advancedSearchExpanded = !advancedSearchExpanded }) { Icon(Icons.Outlined.Tune, "Advanced search") }
+                            if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Close, "Clear search") }
+                        }
+                    },
+                    shape = RoundedCornerShape(28.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = palette.surface, unfocusedContainerColor = palette.surface,
+                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent, errorIndicatorColor = Color.Transparent
+                    )
+                )
+            }
+            if (advancedSearchExpanded && showDocumentSearch && !recycleBin) {
+                item(key = "advanced_search_options") {
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = palette.surface)) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Advanced Search", fontWeight = FontWeight.SemiBold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = searchFileNameOnly, onCheckedChange = { searchFileNameOnly = it })
+                                Text("Search filename only", style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text("Search matches title, filename, notes and category.", color = palette.muted, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -1922,29 +1895,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             label = { Text("Favourites") },
                             leadingIcon = { Icon(Icons.Outlined.Favorite, null, modifier = Modifier.size(16.dp)) }
                         )
-                    }
-                }
-                item(key = "type_chips") {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("ALL" to "All", "PDF" to "Pdf", "IMAGE" to "Image", "OFFICE" to "Office", "OTHER" to "Other")
-                            .forEach { (value, label) ->
-                                FilterChip(
-                                    selected = fileType == value,
-                                    onClick = { fileType = value },
-                                    label = { Text(label) },
-                                    shape = RoundedCornerShape(50),
-                                    border = null,
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = documentAccent,
-                                        selectedLabelColor = palette.onAccent,
-                                        containerColor = palette.container,
-                                        labelColor = MaterialTheme.colorScheme.onSurface
-                                    )
-                                )
-                            }
                     }
                 }
                 if (visible.isEmpty()) {
