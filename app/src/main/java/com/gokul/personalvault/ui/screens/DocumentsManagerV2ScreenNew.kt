@@ -216,6 +216,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
+    var showRecycleBinSearch by remember { mutableStateOf(false) }
     var advancedSearchExpanded by remember { mutableStateOf(false) }
     var searchFileNameOnly by remember { mutableStateOf(false) }
     var showFavouritesOnly by remember { mutableStateOf(false) }
@@ -1179,7 +1180,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         showAllDocuments -> "All files"
         else -> "Documents"
     }
-    val headerSubtitle = if (recycleBin) "Deleted files are kept for 30 days" else null
+    val headerSubtitle = null
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
     val mutedColor = palette.muted
@@ -1194,19 +1195,26 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 onBack = if (canGoBack) ({ goBack() }) else null,
                 titleIcon = if (headerTitle == "Documents") Icons.Outlined.Description else null,
                 actions = {
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
+                    if (recycleBin) {
+                        IconButton(onClick = {
+                            showRecycleBinSearch = !showRecycleBinSearch
+                            if (!showRecycleBinSearch) search = ""
+                        }) {
+                            Icon(if (showRecycleBinSearch) Icons.Outlined.Close else Icons.Outlined.Search,
+                                contentDescription = if (showRecycleBinSearch) "Close search" else "Search Recycle Bin")
                         }
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Manage Categories") },
-                                leadingIcon = { Icon(Icons.Outlined.Edit, null) },
-                                onClick = { manageCategories = true; menuExpanded = false }
-                            )
+                    } else {
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Manage Categories") },
+                                    leadingIcon = { Icon(Icons.Outlined.Edit, null) },
+                                    onClick = { manageCategories = true; menuExpanded = false }
+                                )
+                            }
                         }
                     }
                 }
@@ -1247,7 +1255,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
 
             // Search is available in All Files and deeper views, not on the Documents dashboard.
-            if (!isHome) item(key = "search") {
+            if (!isHome && (!recycleBin || showRecycleBinSearch)) item(key = "search") {
                 TextField(
                     value = search,
                     onValueChange = { search = it },
@@ -1427,7 +1435,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
-            } else {
+            } else if (!recycleBin) {
                 // Scope selector remains available in non-dashboard document views.
                 item(key = "scope") {
                     val scopes = listOf(
@@ -1649,15 +1657,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 item(key = "files_header") {
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(
-                                when {
-                                    recycleBin -> "Deleted Documents"
-                                    category == "all" -> "All files"
-                                    else -> "Files"
-                                },
+                            if (!recycleBin) Text(
+                                if (category == "all") "All files" else "Files",
                                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
                             )
-                            Text("${visible.size} files", color = mutedColor, style = MaterialTheme.typography.bodySmall)
+                            Text("${visible.size} ${if (recycleBin) "items" else "files"}",
+                                color = mutedColor, style = MaterialTheme.typography.bodySmall)
                         }
                         Box {
                             TextButton(onClick = { sortMenu = true }) {
@@ -1690,6 +1695,49 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
                 if (recycleBin) {
+                    item(key = "recycle_bin_overview") {
+                        val totalBytes = deleted.sumOf { it.sizeBytes }
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                            shape = RoundedCornerShape(26.dp),
+                            colors = CardDefaults.cardColors(containerColor = palette.surface),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, documentAccent.copy(alpha = 0.22f))
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(Modifier.size(58.dp), shape = RoundedCornerShape(18.dp),
+                                        color = if (isDarkUi) Color(0xFF40252D) else Color(0xFFFFE8E8)) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Outlined.Delete, null, tint = Color(0xFFE36A75),
+                                                modifier = Modifier.size(30.dp))
+                                        }
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Recycle Bin", style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold)
+                                        Text("Deleted files stay here for 30 days",
+                                            color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(deleted.size.toString(), style = MaterialTheme.typography.headlineSmall,
+                                            fontWeight = FontWeight.Bold)
+                                        Text("Deleted items", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(formatDocumentBytesNew(totalBytes), style = MaterialTheme.typography.headlineSmall,
+                                            fontWeight = FontWeight.Bold)
+                                        Text("Storage used", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                Text("Items are automatically and permanently deleted 30 days after they were moved here.",
+                                    color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
                     item(key = "empty_recycle_bin") {
                         OutlinedButton(
                             onClick = { showEmptyRecycleBinConfirm = true },
@@ -3644,6 +3692,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                             Spacer(Modifier.height(12.dp))
                             ScopeLabelV2New(doc.scope, palette)
+                            Spacer(Modifier.height(10.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (doc.scope == "SHARED") Color(0xFFEFE4FF) else Color(0xFFE2F5E8)
+                            ) {
+                                Text(
+                                    "Category  ·  ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    color = if (doc.scope == "SHARED") Color(0xFF7136A8) else Color(0xFF237A43),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                             Spacer(Modifier.height(18.dp))
                             HorizontalDivider(color = palette.line)
                             Spacer(Modifier.height(8.dp))
@@ -4186,18 +4247,14 @@ private fun DocumentRowV2New(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (!isRecycleBin) ScopePillV2New(document, mine, palette)
+                    ScopePillV2New(document, mine, palette)
                     if (document.favouriteUids[currentMemberUid] == true && !isRecycleBin) {
                         Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
                             tint = Color(0xFFB45BCE), modifier = Modifier.size(15.dp))
                     }
-                    if (isRecycleBin) {
-                        Text("Deleted", color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelSmall)
-                    }
-                }
+                 }
             }
-            IconButton(onClick = onMore) {
+            if (!isRecycleBin) IconButton(onClick = onMore) {
                 Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
             }
         }
@@ -4230,7 +4287,7 @@ private fun DocumentGridCardV2New(
                 }
                 DocumentTypeIconNew(document.contentType, Modifier.size(44.dp))
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onMore) {
+                if (!isRecycleBin) IconButton(onClick = onMore) {
                     Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
                 }
             }
@@ -4257,11 +4314,7 @@ private fun DocumentGridCardV2New(
                     Text("Favourite", color = Color(0xFFB45BCE), style = MaterialTheme.typography.labelSmall)
                 }
             }
-            if (isRecycleBin) {
-                Text("Deleted", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-            } else {
-                ScopePillV2New(document, mine, palette)
-            }
+            ScopePillV2New(document, mine, palette)
         }
     }
 }
@@ -4336,12 +4389,7 @@ private fun FolderCardV2New(
                 )
                 ScopeLabelV2New(folder.scope, palette)
             }
-            if (isOwner) {
-                IconButton(onClick = onMore, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Outlined.MoreVert, "Folder actions", tint = palette.muted)
-                }
-            }
-        }
+         }
     }
 }
 
