@@ -1282,7 +1282,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Box {
                             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "More options") }
                             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                DropdownMenuItem(text = { Text("New folder") }, leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, null) }, onClick = { menuExpanded = false; startCreateFolder() })
+                                DropdownMenuItem(text = { Text("New folder") }, leadingIcon = { Icon(Icons.Outlined.FolderOpen, null) }, onClick = { menuExpanded = false; startCreateFolder() })
                             }
                         }
                     }
