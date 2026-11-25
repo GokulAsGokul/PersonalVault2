@@ -4581,6 +4581,8 @@ private fun DocumentRowV2New(
     val mine = document.ownerUid == currentMemberUid
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(
+            interactionSource = null,
+            indication = null,
             onClick = onClick,
             onLongClick = if (isRecycleBin) onLongClick else null
         ),
@@ -4669,7 +4671,11 @@ private fun DocumentGridCardV2New(
     val palette = documentPaletteV2New(dark)
     val mine = document.ownerUid == currentMemberUid
     Card(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clickable(
+            interactionSource = null,
+            indication = null,
+            onClick = onClick
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
@@ -4724,7 +4730,11 @@ private fun CategoryCardV2New(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clickable(
+            interactionSource = null,
+            indication = null,
+            onClick = onClick
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
@@ -4760,7 +4770,11 @@ private fun FolderCardV2New(
     onOpen: () -> Unit
 ) {
     Card(
-        modifier = modifier.clickable(onClick = onOpen),
+        modifier = modifier.clickable(
+            interactionSource = null,
+            indication = null,
+            onClick = onOpen
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
@@ -4790,7 +4804,11 @@ private fun NewFolderCardV2New(palette: DocPaletteV2New, modifier: Modifier, onC
         modifier = modifier
             .heightIn(min = 64.dp)
             .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = null,
+                indication = null,
+                onClick = onClick
+            )
             .dashedBorderV2New(palette.muted, 18.dp),
         contentAlignment = Alignment.Center
     ) {
