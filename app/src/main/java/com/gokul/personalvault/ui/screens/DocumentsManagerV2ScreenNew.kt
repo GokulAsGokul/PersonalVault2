@@ -1464,7 +1464,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     indication = ripple(bounded = true, color = tileAccent),
                                     interactionSource = remember { MutableInteractionSource() }
                                 ) {
-                                    if (value == "RECYCLE_BIN") { recycleBin = true } else { recycleBin = false; dashboardFilter = value }
+                                    if (value == "RECYCLE_BIN") {
+                                        recycleBin = true
+                                        category = "all"
+                                        currentFolderId = null
+                                        showAllDocuments = false
+                                    } else {
+                                        recycleBin = false
+                                        dashboardFilter = value
+                                    }
                                     visibility = "ALL"
                                     selectionMode = false; selectedDocumentIds.clear()
                                 },
