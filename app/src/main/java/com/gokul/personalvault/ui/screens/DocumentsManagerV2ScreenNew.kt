@@ -1444,7 +1444,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     }
                                 }
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
                             val personalCount = dashboardOverviewDocs.count { it.scope != "SHARED" && it.ownerUid == memberUid }
                             val sharedCount = dashboardOverviewDocs.count { it.scope == "SHARED" && it.ownerUid == memberUid }
                             val spouseCount = dashboardOverviewDocs.count { it.scope == "SHARED" && it.ownerUid != memberUid }
