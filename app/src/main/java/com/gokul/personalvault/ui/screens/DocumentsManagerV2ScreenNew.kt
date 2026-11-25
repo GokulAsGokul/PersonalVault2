@@ -3641,154 +3641,226 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(doc.title, style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold, maxLines = 2)
-                        Text(
-                            "${formatDocumentBytesNew(doc.sizeBytes)} · ${doc.contentType.substringAfter('/') .uppercase()}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    val fileName = doc.originalFileName.ifBlank { doc.title }
+                    val fileIcon = when {
+                        doc.contentType.contains("pdf", true) -> Icons.Outlined.PictureAsPdf
+                        doc.contentType.startsWith("image/") -> Icons.Outlined.Image
+                        else -> Icons.Outlined.InsertDriveFile
                     }
-                    IconButton(onClick = { selectedDocument = null }) {
-                        Icon(Icons.Outlined.Close, "Close")
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Visibility, null, tint = documentAccent) },
-                        label = "Preview",
-                        enabled = !busyDocument && !doc.isDeleted &&
-                            (doc.contentType.startsWith("image/") || doc.contentType.contains("pdf", true) ||
-                                doc.originalFileName.endsWith(".pdf", true)),
-                        onClick = { previewDocument(doc) }
-                    )
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Download, null, tint = documentAccent) },
-                        label = "Download",
-                        enabled = !busyDocument && !doc.isDeleted,
-                        onClick = { downloadDocument(doc) }
-                    )
-                    if (doc.ownerUid == memberUid && !doc.isDeleted) {
-                        DocumentActionIconNew(
-                            icon = { Icon(Icons.Outlined.Edit, null, tint = documentAccent) },
-                            label = "Edit",
-                            enabled = !busyDocument,
-                            onClick = {
-                                editTitle = doc.title
-                                editDescription = doc.description
-                                editCategory = doc.categoryId
-                                editScope = doc.scope
-                                editingDocument = doc
-                                selectedDocument = null
-                            }
-                        )
-                    }
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Share, null, tint = documentAccent) },
-                        label = "Share",
-                        enabled = !busyDocument && !doc.isDeleted,
-                        onClick = { shareDocument(doc) }
-                    )
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Info, null, tint = documentAccent) },
-                        label = "Details",
-                        enabled = !busyDocument,
-                        onClick = { showDocumentDetails = true }
-                    )
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                if (!doc.isDeleted) {
-                    ListItem(
-                        headlineContent = { Text(if (doc.favouriteUids[memberUid] == true) "Remove from Favourites" else "Add to Favourites") },
-                        supportingContent = { Text("Only your account's Favourite list is changed") },
-                        leadingContent = {
-                            Icon(
-                                Icons.Outlined.Favorite,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        },
-                        modifier = Modifier.clickable(enabled = !busyDocument) {
-                            toggleFavourite(doc)
-                            selectedDocument = null
+                    val favourite = doc.favouriteUids[memberUid] == true
+                    val sheetBackground = if (isDarkUi) Color(0xFF1D1725) else Color(0xFFF7F1FC)
+                    val actionCard = if (isDarkUi) Color(0xFF2B2135) else Color(0xFFFFFFFF)
+                    val accent = if (isDarkUi) Color(0xFFD4A1FF) else documentAccent
+                    val muted = if (isDarkUi) Color(0xFFD0C4D9) else MaterialTheme.colorScheme.onSurfaceVariant
+                    val danger = if (isDarkUi) Color(0xFFFF9BB2) else MaterialTheme.colorScheme.error
+
+                    @Composable
+                    fun quickAction(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
+                        Column(
+                            modifier = Modifier.weight(1f).clip(RoundedCornerShape(18.dp))
+                                .background(if (isDarkUi) Color(0xFF34263F) else Color(0xFFECE1F8))
+                                .clickable(enabled = enabled, onClick = onClick)
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Icon(icon, contentDescription = null, tint = if (enabled) accent else muted.copy(alpha = 0.45f),
+                                modifier = Modifier.size(25.dp))
+                            Text(label, color = if (enabled) MaterialTheme.colorScheme.onSurface else muted,
+                                style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                         }
-                    )
-                    if (doc.ownerUid == memberUid) {
-                        ListItem(
-                            headlineContent = { Text("Change Access") },
-                            supportingContent = { Text(if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document") },
-                            leadingContent = { Icon(Icons.Outlined.People, null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
-                            modifier = Modifier.clickable {
-                                editTitle = doc.title
-                                editDescription = doc.description
-                                editCategory = doc.categoryId
-                                editScope = doc.scope
-                                editingDocument = doc
-                                selectedDocument = null
-                            }
-                        )
-                        ListItem(
-                            headlineContent = { Text("Move to Folder") },
-                            supportingContent = { Text("Organise this file inside a folder in the same category") },
-                            leadingContent = { Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
-                            modifier = Modifier.clickable {
-                                documentToMove = doc
-                                moveDocumentTargetId = doc.folderId
-                                moveDocumentTargetChosen = false
-                                selectedDocument = null
-                                showMoveDocument = true
-                            }
-                        )
                     }
-                    if (doc.ownerUid == memberUid) {
-                        ListItem(
-                            headlineContent = { Text("Move to Recycle Bin", color = MaterialTheme.colorScheme.error) },
-                            supportingContent = { Text("Keep it recoverable for 30 days") },
-                            leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                            modifier = Modifier.clickable(enabled = !busyDocument) {
-                                scope.launch {
-                                    busyDocument = true
-                                    try {
-                                        repository.moveToRecycleBin(vaultId, doc)
-                                        selectedDocument = null
-                                        message = "Moved to Recycle Bin. Retained for 30 days."
-                                    } catch (error: Exception) {
-                                        message = error.localizedMessage ?: error.message ?: "Delete failed."
-                                    } finally { busyDocument = false }
+
+                    @Composable
+                    fun actionCard(icon: ImageVector, title: String, subtitle: String, tint: Color = accent,
+                                   trailing: Boolean = false, onClick: () -> Unit) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                                .background(actionCard)
+                                .clickable(enabled = !busyDocument, onClick = onClick)
+                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(26.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(title, color = if (tint == danger) danger else MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(subtitle, color = muted, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (trailing) Icon(Icons.Outlined.ChevronRight, null, tint = muted)
+                        }
+                    }
+
+                    Box(
+                        Modifier.fillMaxWidth()
+                            .background(sheetBackground)
+                            .drawBehind {
+                                val wave = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, size.height * 0.965f)
+                                    cubicTo(size.width * 0.24f, size.height, size.width * 0.38f, size.height * 0.975f,
+                                        size.width * 0.58f, size.height * 0.965f)
+                                    cubicTo(size.width * 0.78f, size.height * 0.94f, size.width * 0.88f,
+                                        size.height * 0.95f, size.width, size.height * 0.975f)
+                                    lineTo(size.width, size.height)
+                                    lineTo(0f, size.height)
+                                    close()
+                                }
+                                drawPath(wave, if (isDarkUi) Color(0xFF563273) else Color(0xFFE5D1F7))
+                            }
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                                .padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 42.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                Modifier.align(Alignment.CenterHorizontally).width(42.dp).height(4.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(if (isDarkUi) Color(0xFFD7B9EB) else Color(0xFFB69ACB))
+                            )
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    Modifier.size(76.dp).clip(RoundedCornerShape(22.dp))
+                                        .background(if (isDarkUi) Color(0xFF243C5C) else Color(0xFFDCEBFF)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(fileIcon, null, tint = if (isDarkUi) Color(0xFF9CC4FF) else Color(0xFF2468C5),
+                                        modifier = Modifier.size(38.dp))
+                                }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text(
+                                        fileName,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "${formatDocumentBytesNew(doc.sizeBytes)}  •  ${doc.contentType.substringAfter('/').uppercase()}",
+                                        color = muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1
+                                    )
                                 }
                             }
-                        )
-                    }
-                } else if (doc.ownerUid == memberUid) {
-                    ListItem(
-                        headlineContent = { Text("Restore Document") },
-                        leadingContent = { Icon(Icons.Outlined.Restore, null, tint = MaterialTheme.colorScheme.primary) },
-                        modifier = Modifier.clickable(enabled = !busyDocument) {
-                            scope.launch {
-                                busyDocument = true
-                                try {
-                                    repository.restore(vaultId, doc.id)
-                                    selectedDocument = null
-                                    message = "Document restored."
-                                } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Restore failed."
-                                } finally { busyDocument = false }
+
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                quickAction(Icons.Outlined.Visibility, "Preview",
+                                    enabled = !busyDocument && !doc.isDeleted &&
+                                        (doc.contentType.startsWith("image/") || doc.contentType.contains("pdf", true) ||
+                                            doc.originalFileName.endsWith(".pdf", true))) { previewDocument(doc) }
+                                quickAction(Icons.Outlined.Download, "Download", !busyDocument && !doc.isDeleted) {
+                                    downloadDocument(doc)
+                                }
+                                if (doc.ownerUid == memberUid && !doc.isDeleted) {
+                                    quickAction(Icons.Outlined.Edit, "Edit", !busyDocument) {
+                                        editTitle = doc.title
+                                        editDescription = doc.description
+                                        editCategory = doc.categoryId
+                                        editScope = doc.scope
+                                        editingDocument = doc
+                                        selectedDocument = null
+                                    }
+                                }
+                                quickAction(Icons.Outlined.Share, "Share", !busyDocument && !doc.isDeleted) {
+                                    shareDocument(doc)
+                                }
+                                quickAction(Icons.Outlined.Info, "Details", !busyDocument) { showDocumentDetails = true }
+                            }
+
+                            if (!doc.isDeleted) {
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                                        .background(actionCard)
+                                        .clickable(enabled = !busyDocument) {
+                                            toggleFavourite(doc)
+                                            selectedDocument = null
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 17.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Icon(Icons.Outlined.Favorite, null,
+                                        tint = if (favourite) Color(0xFFFF83B5) else accent,
+                                        modifier = Modifier.size(27.dp))
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(if (favourite) "Remove from Favourites" else "Add to Favourites",
+                                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                                        Text("Only your account's Favourite list is changed", color = muted,
+                                            style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    if (favourite) Icon(Icons.Outlined.CheckCircle, null, tint = Color(0xFFFF83B5))
+                                }
+                                if (doc.ownerUid == memberUid) {
+                                    actionCard(
+                                        Icons.Outlined.People,
+                                        "Change Access",
+                                        if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document",
+                                        trailing = true
+                                    ) {
+                                        editTitle = doc.title
+                                        editDescription = doc.description
+                                        editCategory = doc.categoryId
+                                        editScope = doc.scope
+                                        editingDocument = doc
+                                        selectedDocument = null
+                                    }
+                                    actionCard(
+                                        Icons.Outlined.FolderOpen,
+                                        "Move to Folder",
+                                        "Organise this file inside a folder in the same category",
+                                        trailing = true
+                                    ) {
+                                        documentToMove = doc
+                                        moveDocumentTargetId = doc.folderId
+                                        moveDocumentTargetChosen = false
+                                        selectedDocument = null
+                                        showMoveDocument = true
+                                    }
+                                    actionCard(
+                                        Icons.Outlined.Delete,
+                                        "Move to Recycle Bin",
+                                        "Keep it recoverable for 30 days",
+                                        tint = danger
+                                    ) {
+                                        scope.launch {
+                                            busyDocument = true
+                                            try {
+                                                repository.moveToRecycleBin(vaultId, doc)
+                                                selectedDocument = null
+                                                message = "Moved to Recycle Bin. Retained for 30 days."
+                                            } catch (error: Exception) {
+                                                message = error.localizedMessage ?: error.message ?: "Delete failed."
+                                            } finally { busyDocument = false }
+                                        }
+                                    }
+                                }
+                            } else if (doc.ownerUid == memberUid) {
+                                actionCard(Icons.Outlined.Restore, "Restore Document", "Return this document to its original location") {
+                                    scope.launch {
+                                        busyDocument = true
+                                        try {
+                                            repository.restore(vaultId, doc.id)
+                                            selectedDocument = null
+                                            message = "Document restored."
+                                        } catch (error: Exception) {
+                                            message = error.localizedMessage ?: error.message ?: "Restore failed."
+                                        } finally { busyDocument = false }
+                                    }
+                                }
+                                actionCard(Icons.Outlined.DeleteForever, "Delete Permanently", "This action cannot be undone", tint = danger) {
+                                    permanentDeleteTarget = doc
+                                }
                             }
                         }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) },
-                        supportingContent = { Text("This action cannot be undone") },
-                        leadingContent = { Icon(Icons.Outlined.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
-                        modifier = Modifier.clickable(enabled = !busyDocument) {
-                            permanentDeleteTarget = doc
-                        }
-                    )
-                }
+                    }
                 }
             }
         }
