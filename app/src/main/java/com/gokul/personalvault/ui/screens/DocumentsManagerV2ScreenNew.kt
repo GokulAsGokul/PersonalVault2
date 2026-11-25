@@ -229,6 +229,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val selectedDocumentIds = remember { mutableStateListOf<String>() }
     var category by remember { mutableStateOf("all") }
     var visibility by remember { mutableStateOf("ALL") }
+    var dashboardFilter by remember { mutableStateOf("ALL") }
     var fileType by remember { mutableStateOf("ALL") }
     var sort by remember { mutableStateOf(DocumentSortV2New.NEWEST) }
     var sortMenu by remember { mutableStateOf(false) }
@@ -794,11 +795,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     val active = documents.filter { !it.isDeleted }
+    val dashboardScoped: (DocumentRecordV2) -> Boolean = { doc ->
+        when (dashboardFilter) {
+            "ONLY_ME" -> doc.scope != "SHARED" && doc.ownerUid == memberUid
+            "SHARED" -> doc.scope == "SHARED" && doc.ownerUid == memberUid
+            "SPOUSE" -> doc.scope == "SHARED" && doc.ownerUid != memberUid
+            else -> true
+        }
+    }
     val scopedActive = active.filter { visibility == "ALL" || it.scope == visibility }
     val deleted = documents.filter { it.isDeleted }
     val source = if (recycleBin) deleted else active
     val visible = source
-        .filter { visibility == "ALL" || it.scope == visibility }
+        .filter { if (!recycleBin && category == "all" && currentFolderId == null && !showAllDocuments) dashboardScoped(it) else visibility == "ALL" || it.scope == visibility }
         .filter { category == "all" || it.categoryId == category }
         .filter { it.folderId == currentFolderId }
         .filter {
@@ -1360,21 +1369,22 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            val scopes = listOf(
+                            val filters = listOf(
                                 Triple("ALL", "All", Icons.Outlined.SelectAll),
-                                Triple("PERSONAL", "Personal", Icons.Outlined.Person),
-                                Triple("SHARED", "Shared", Icons.Outlined.Groups),
+                                Triple("ONLY_ME", "Only Me", Icons.Outlined.Person),
+                                Triple("SHARED", "Shared", Icons.Outlined.Share),
+                                Triple("SPOUSE", "Spouse", Icons.Outlined.Groups),
                                 Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
                             )
                             Row(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                scopes.forEach { (value, label, icon) ->
+                                filters.forEach { (value, label, icon) ->
                                     val selected = if (value == "RECYCLE_BIN") recycleBin
-                                        else !recycleBin && visibility == value
+                                        else !recycleBin && dashboardFilter == value
                                     Surface(
-                                        modifier = Modifier.weight(1f).heightIn(min = 62.dp).clickable {
+                                        modifier = Modifier.weight(1f).heightIn(min = 76.dp).clickable {
                                             if (value == "RECYCLE_BIN") {
                                                 recycleBin = true
                                                 category = "all"
@@ -1383,7 +1393,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                                 visibility = "ALL"
                                             } else {
                                                 recycleBin = false
-                                                visibility = value
+                                                dashboardFilter = value
+                                                visibility = "ALL"
                                                 category = "all"
                                                 currentFolderId = null
                                                 showAllDocuments = false
@@ -1398,74 +1409,37 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         )
                                     ) {
                                         Column(
-                                            Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 7.dp),
+                                            Modifier.fillMaxWidth().padding(horizontal = 1.dp, vertical = 9.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                            verticalArrangement = Arrangement.spacedBy(7.dp)
                                         ) {
-                                            Icon(
-                                                icon,
-                                                contentDescription = null,
-                                                tint = if (selected) palette.onAccent
-                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(19.dp)
-                                            )
-                                            Text(
-                                                label,
-                                                color = if (selected) palette.onAccent
-                                                    else MaterialTheme.colorScheme.onSurface,
+                                            Icon(icon, contentDescription = null,
+                                                tint = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(23.dp))
+                                            Text(label,
+                                                color = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurface,
                                                 style = MaterialTheme.typography.labelSmall,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
+                                                maxLines = 1, softWrap = false)
                                         }
                                     }
                                 }
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                DocumentDashboardStatCardV2New(
-                                    label = "Documents",
-                                    value = overviewDocuments.size.toString(),
-                                    icon = Icons.Outlined.Description,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF352347),
-                                    iconTint = Color(0xFFD2A8FF)
-                                )
-                                DocumentDashboardStatCardV2New(
-                                    label = "Storage",
-                                    value = formatDocumentBytesNew(overviewDocuments.sumOf { it.sizeBytes }),
-                                    icon = Icons.Outlined.Storage,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF252D4A),
-                                    iconTint = Color(0xFF58B8FF)
-                                )
-                                DocumentDashboardStatCardV2New(
-                                    label = "Personal",
-                                    value = overviewDocuments.count { it.scope == "PERSONAL" }.toString(),
-                                    icon = Icons.Outlined.Person,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF1D3A2C),
-                                    iconTint = Color(0xFF8FE0A7)
-                                )
-                                DocumentDashboardStatCardV2New(
-                                    label = "Shared",
-                                    value = overviewDocuments.count { it.scope == "SHARED" }.toString(),
-                                    icon = Icons.Outlined.Groups,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF352347),
-                                    iconTint = Color(0xFFD2A8FF)
-                                )
-                                DocumentDashboardStatCardV2New(
-                                    label = "Folders",
-                                    value = overviewFolders.size.toString(),
-                                    icon = Icons.Outlined.FolderOpen,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF3A2D28),
-                                    iconTint = Color(0xFFFFD34D)
-                                )
+                            val allDashboardDocs = active
+                            val personalCount = allDashboardDocs.count { it.scope != "SHARED" && it.ownerUid == memberUid }
+                            val sharedCount = allDashboardDocs.count { it.scope == "SHARED" && it.ownerUid == memberUid }
+                            val spouseCount = allDashboardDocs.count { it.scope == "SHARED" && it.ownerUid != memberUid }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                DocumentDashboardStatCardV2New("Documents", allDashboardDocs.size.toString(),
+                                    Icons.Outlined.Description, Modifier.weight(1f), Color(0xFFF0E5FF), Color(0xFF7136B8))
+                                DocumentDashboardStatCardV2New("Storage", formatDocumentBytesNew(allDashboardDocs.sumOf { it.sizeBytes }),
+                                    Icons.Outlined.Storage, Modifier.weight(1f), Color(0xFFE3F0FF), Color(0xFF2875D0))
+                                DocumentDashboardStatCardV2New("Only Me", personalCount.toString(),
+                                    Icons.Outlined.Person, Modifier.weight(1f), Color(0xFFE7F7E9), Color(0xFF269B52))
+                                DocumentDashboardStatCardV2New("Shared", sharedCount.toString(),
+                                    Icons.Outlined.Share, Modifier.weight(1f), Color(0xFFFFEEE5), Color(0xFFEF7B35))
+                                DocumentDashboardStatCardV2New("Spouse", spouseCount.toString(),
+                                    Icons.Outlined.Groups, Modifier.weight(1f), Color(0xFFFCE8F5), Color(0xFFD63384))
                             }
                         }
                     }
@@ -1544,7 +1518,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             } else if (isHome) {
                 // ── Home: summary, recent documents and categories ──
-                val recent = active.filter { visibility == "ALL" || it.scope == visibility }
+                val recent = active.filter(dashboardScoped)
                     .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(5)
                 item(key = "cat_header") {
                     Row(
