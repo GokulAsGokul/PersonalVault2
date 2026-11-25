@@ -584,8 +584,8 @@ class DocumentRepositoryV2(
         val localFile = File(targetDirectory, document.id + suffix)
         val partialFile = File(targetDirectory, document.id + suffix + ".part")
         partialFile.delete()
+        val downloadTask = storage.reference.child(expectedPath).getFile(partialFile)
         try {
-            val downloadTask = storage.reference.child(expectedPath).getFile(partialFile)
             downloadTask.addOnProgressListener { snapshot ->
                 onProgress(snapshot.bytesTransferred, snapshot.totalByteCount)
             }
@@ -607,6 +607,10 @@ class DocumentRepositoryV2(
             }
             onProgress(localFile.length(), localFile.length())
             return localFile
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            downloadTask.cancel()
+            partialFile.delete()
+            throw error
         } catch (error: Exception) {
             partialFile.delete()
             throw error
