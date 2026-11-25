@@ -270,6 +270,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var busyDocument by remember { mutableStateOf(false) }
     var isDownloadingFile by remember { mutableStateOf(false) }
     var downloadingFileName by remember { mutableStateOf("") }
+    var downloadingFileType by remember { mutableStateOf("DOCUMENT") }
     var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
     var downloadTotalBytes by remember { mutableLongStateOf(0L) }
     var isSavingDownloadedFile by remember { mutableStateOf(false) }
@@ -864,6 +865,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             busyDocument = true
             isDownloadingFile = true
             downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileType = doc.originalFileName.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
+                ?: when {
+                    doc.contentType.contains("pdf", true) -> "PDF"
+                    doc.contentType.startsWith("image/jpeg", true) -> "JPG"
+                    doc.contentType.startsWith("image/png", true) -> "PNG"
+                    doc.contentType.startsWith("image/", true) -> "IMAGE"
+                    doc.contentType.contains("spreadsheet", true) || doc.contentType.contains("excel", true) -> "XLSX"
+                    doc.contentType.contains("word", true) -> "DOCX"
+                    else -> "DOCUMENT"
+                }
             downloadTransferredBytes = 0L
             downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
@@ -3873,9 +3884,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val downloadAccent = if (darkDownloadUi) Color(0xFFD6A5FF) else Color(0xFF7438B8)
         val downloadTrack = if (darkDownloadUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
         val waveColor = if (darkDownloadUi) Color(0xFF573477).copy(alpha = 0.52f) else Color(0xFFDCC4F5)
-        val fileExtension = downloadingFileName.substringAfterLast('.', "").uppercase(Locale.ROOT)
-            .ifBlank { "FILE" }
-        val isPdfFile = fileExtension == "PDF"
+        val fileTypeLabel = downloadingFileType
+        val downloadFileIcon = when {
+            fileTypeLabel == "PDF" -> Icons.Outlined.PictureAsPdf
+            fileTypeLabel in setOf("JPG", "JPEG", "PNG", "GIF", "WEBP", "IMAGE") -> Icons.Outlined.Image
+            fileTypeLabel in setOf("XLS", "XLSX", "CSV") -> Icons.Outlined.Description
+            else -> Icons.Outlined.InsertDriveFile
+        }
 
         Dialog(
             onDismissRequest = { },
@@ -3922,9 +3937,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    if (isPdfFile) Icons.Outlined.PictureAsPdf else Icons.Outlined.InsertDriveFile,
-                                    contentDescription = "$fileExtension document",
-                                    tint = downloadAccent,
+                                    downloadFileIcon,
+                                    contentDescription = "$fileTypeLabel document",
+                                    tint = if (darkDownloadUi) Color(0xFFE2B8FF) else Color(0xFF7438B8),
                                     modifier = Modifier.size(48.dp)
                                 )
                             }
@@ -3935,10 +3950,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         ) {
                             Text(
                                 "Downloading Document",
-                                style = MaterialTheme.typography.headlineSmall,
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Clip
                             )
                             Text(
                                 downloadingFileName,
@@ -3948,7 +3965,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                "$fileExtension  •  ${if (total > 0L) formatDocumentBytesNew(total) else "Calculating size…"}",
+                                "$fileTypeLabel  •  ${if (total > 0L) formatDocumentBytesNew(total) else "Calculating size…"}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -3974,7 +3991,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                if (total > 0L) "${(progressValue * 100).toInt()}% downloaded" else "Downloading…",
+                                if (total > 0L) "${(progressValue * 100).toInt()}% Downloaded" else "Downloading…",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = downloadAccent
