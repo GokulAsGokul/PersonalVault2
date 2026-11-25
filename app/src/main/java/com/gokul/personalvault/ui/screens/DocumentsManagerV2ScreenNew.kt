@@ -812,7 +812,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val deleted = documents.filter { it.isDeleted }
     val source = if (recycleBin) deleted else active
     val visible = source
-        .filter { if (!recycleBin && category == "all" && currentFolderId == null && !showAllDocuments) dashboardScoped(it) else visibility == "ALL" || it.scope == visibility }
+        .filter { recycleBin || dashboardScoped(it) }
         .filter { category == "all" || it.categoryId == category }
         .filter { it.folderId == currentFolderId }
         .filter {
@@ -1217,7 +1217,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 currentFolderId = folders.firstOrNull { it.id == currentFolderId }?.parentFolderId
             category != "all" -> {
                 category = "all"
-                fileType = "ALL"
             }
             showAllDocuments -> showAllDocuments = false
         }
@@ -1744,20 +1743,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    val folderSlots: List<DocumentFolderV2?> = childFolders + listOf<DocumentFolderV2?>(null)
+                    val folderSlots = childFolders
                     items(folderSlots.chunked(2)) { slotRow ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             slotRow.forEach { folder ->
-                                if (folder == null) {
-                                    NewFolderCardV2New(palette, Modifier.weight(1f)) { startCreateFolder() }
-                                } else {
-                                    FolderCardV2New(
+                                FolderCardV2New(
                                         folder = folder,
                                         palette = palette,
                                         modifier = Modifier.weight(1f),
                                         onOpen = { currentFolderId = folder.id }
                                     )
-                                }
                             }
                             repeat(2 - slotRow.size) { Spacer(Modifier.weight(1f)) }
                         }
@@ -1944,10 +1939,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 else if (recycleBin) selectedDocument = doc else openDocument(doc)
                             },
                             onLongClick = {
-                                if (recycleBin) {
-                                    if (!selectionMode) selectionMode = true
-                                    toggleSelection(doc)
-                                }
+                                if (!selectionMode) selectionMode = true
+                                toggleSelection(doc)
                             },
                             onMore = { selectedDocument = doc },
                             selectionMode = selectionMode,
@@ -4758,7 +4751,7 @@ private fun DocumentRowV2New(
             interactionSource = null,
             indication = ripple(color = palette.accent),
             onClick = onClick,
-            onLongClick = if (isRecycleBin) onLongClick else null
+            onLongClick = onLongClick
         ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
