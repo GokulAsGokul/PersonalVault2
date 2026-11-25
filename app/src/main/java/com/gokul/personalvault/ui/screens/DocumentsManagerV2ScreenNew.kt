@@ -3397,11 +3397,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     selectedDocument?.let { doc ->
         ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = if (isDarkUi) Color(0xFF1D1725) else Color(0xFFF7F1FC),
             dragHandle = null
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                Modifier.fillMaxWidth().then(
+                    if (doc.isDeleted) Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)
+                    else Modifier
+                ),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 if (doc.isDeleted) {
