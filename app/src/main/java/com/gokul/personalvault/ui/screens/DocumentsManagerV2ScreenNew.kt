@@ -942,7 +942,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             selectedDocument = doc
             return
         }
-        scope.launch {
+        activeDocumentTransferJob = scope.launch {
             busyDocument = true
             isDownloadingFile = true
             downloadingFileName = doc.title.ifBlank { doc.originalFileName }
@@ -966,12 +966,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
                 VaultExternalActivityState.documentViewerActive = true
                 context.startActivity(Intent.createChooser(viewIntent, "Open document"))
+            } catch (error: CancellationException) {
+                message = "Download cancelled."
+                VaultExternalActivityState.documentViewerActive = false
             } catch (error: Exception) {
                 VaultExternalActivityState.documentViewerActive = false
                 message = error.localizedMessage ?: error.message ?: "Unable to open document."
             } finally {
                 busyDocument = false
                 isDownloadingFile = false
+                activeDocumentTransferJob = null
             }
         }
     }
@@ -1014,7 +1018,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
 
     fun previewDocument(doc: DocumentRecordV2, pageIndex: Int = 0) {
-        scope.launch {
+        activeDocumentTransferJob = scope.launch {
             busyDocument = true
             val cachedPreview = previewFile?.takeIf { previewFileDocumentId == doc.id }
             isDownloadingFile = cachedPreview == null
@@ -1035,11 +1039,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 previewPageIndex = pageIndex.coerceIn(0, count - 1)
                 previewTitle = doc.title.ifBlank { doc.originalFileName }
                 showDocumentPreview = true
+            } catch (error: CancellationException) {
+                message = "Download cancelled."
             } catch (error: Exception) {
                 message = error.localizedMessage ?: error.message ?: "Unable to preview this document."
             } finally {
                 isDownloadingFile = false
                 busyDocument = false
+                activeDocumentTransferJob = null
             }
         }
     }
