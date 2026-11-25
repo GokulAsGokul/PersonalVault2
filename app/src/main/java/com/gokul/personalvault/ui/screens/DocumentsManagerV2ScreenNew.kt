@@ -24,6 +24,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
@@ -1091,6 +1092,29 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
     }
 
+    fun runBulkPermanentDelete() {
+        val targets = visible.filter {
+            it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
+        }
+        scope.launch {
+            busyDocument = true
+            var succeeded = 0
+            try {
+                targets.forEach { doc ->
+                    repository.permanentlyDelete(vaultId, doc.id)
+                    succeeded++
+                }
+                message = "$succeeded document(s) permanently deleted."
+            } catch (error: Exception) {
+                message = "$succeeded deleted. ${error.localizedMessage ?: "Some documents could not be permanently deleted."}"
+            } finally {
+                selectedDocumentIds.clear()
+                selectionMode = false
+                busyDocument = false
+            }
+        }
+    }
+
     fun runBulkRestore() {
         val targets = visible.filter {
             it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
@@ -1829,14 +1853,26 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 if (recycleBin && visible.any {
                                     it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
                                 }) {
-                                    Button(
-                                        onClick = { runBulkRestore() },
-                                        enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Icon(Icons.Outlined.Restore, null)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Restore")
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(
+                                            onClick = { runBulkRestore() },
+                                            enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(Icons.Outlined.Restore, null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Restore")
+                                        }
+                                        Button(
+                                            onClick = { runBulkPermanentDelete() },
+                                            enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
+                                            modifier = Modifier.weight(1.35f),
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                        ) {
+                                            Icon(Icons.Outlined.DeleteForever, null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Delete Permanently", maxLines = 1)
+                                        }
                                     }
                                 }
                             }
@@ -1922,8 +1958,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 if (selectionMode) toggleSelection(doc)
                                 else if (recycleBin) selectedDocument = doc else openDocument(doc)
                             },
+                            onLongClick = {
+                                if (recycleBin && doc.ownerUid == memberUid && doc.scope != "SHARED") {
+                                    if (!selectionMode) selectionMode = true
+                                    toggleSelection(doc)
+                                }
+                            },
                             onMore = { selectedDocument = doc },
-                            selectionMode = selectionMode,
+                            selectionMode = selectionMode && !recycleBin,
                             selected = doc.id in selectedDocumentIds
                         )
                     }
@@ -4483,6 +4525,7 @@ private fun DocumentRowV2New(
     isRecycleBin: Boolean,
     currentMemberUid: String,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onMore: () -> Unit,
     selectionMode: Boolean = false,
     selected: Boolean = false
@@ -4491,7 +4534,10 @@ private fun DocumentRowV2New(
     val palette = documentPaletteV2New(dark)
     val mine = document.ownerUid == currentMemberUid
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().combinedClickable(
+            onClick = onClick,
+            onLongClick = if (isRecycleBin) onLongClick else null
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
@@ -4499,7 +4545,7 @@ private fun DocumentRowV2New(
             Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (selectionMode) {
+            if (selectionMode && !isRecycleBin) {
                 Checkbox(checked = selected, onCheckedChange = { onClick() })
             }
             DocumentTypeIconNew(document.contentType, Modifier.size(46.dp))
