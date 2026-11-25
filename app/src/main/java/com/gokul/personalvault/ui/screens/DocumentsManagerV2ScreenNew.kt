@@ -25,6 +25,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
@@ -4582,7 +4583,7 @@ private fun DocumentRowV2New(
     Card(
         modifier = Modifier.fillMaxWidth().combinedClickable(
             interactionSource = null,
-            indication = null,
+            indication = rememberRipple(bounded = true, color = palette.accent),
             onClick = onClick,
             onLongClick = if (isRecycleBin) onLongClick else null
         ),
@@ -4673,7 +4674,7 @@ private fun DocumentGridCardV2New(
     Card(
         modifier = modifier.clickable(
             interactionSource = null,
-            indication = null,
+            indication = rememberRipple(bounded = true, color = palette.accent),
             onClick = onClick
         ),
         shape = RoundedCornerShape(18.dp),
@@ -4732,7 +4733,7 @@ private fun CategoryCardV2New(
     Card(
         modifier = modifier.clickable(
             interactionSource = null,
-            indication = null,
+            indication = rememberRipple(bounded = true, color = palette.accent),
             onClick = onClick
         ),
         shape = RoundedCornerShape(18.dp),
@@ -4772,7 +4773,7 @@ private fun FolderCardV2New(
     Card(
         modifier = modifier.clickable(
             interactionSource = null,
-            indication = null,
+            indication = rememberRipple(bounded = true, color = palette.accent),
             onClick = onOpen
         ),
         shape = RoundedCornerShape(18.dp),
@@ -4806,7 +4807,7 @@ private fun NewFolderCardV2New(palette: DocPaletteV2New, modifier: Modifier, onC
             .clip(RoundedCornerShape(18.dp))
             .clickable(
                 interactionSource = null,
-                indication = null,
+                indication = rememberRipple(bounded = true, color = palette.accent),
                 onClick = onClick
             )
             .dashedBorderV2New(palette.muted, 18.dp),
