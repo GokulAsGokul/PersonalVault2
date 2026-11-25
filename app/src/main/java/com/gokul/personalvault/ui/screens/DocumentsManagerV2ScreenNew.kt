@@ -1656,46 +1656,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
 
-                item(key = "files_header") {
-                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            if (!recycleBin) Text(
-                                if (category == "all") "All files" else "Files",
-                                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
-                            )
-                            Text("${visible.size} ${if (recycleBin) "items" else "files"}",
-                                color = mutedColor, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Box {
-                            TextButton(onClick = { sortMenu = true }) {
-                                Text(sortLabelV2New(sort), color = documentAccent)
-                            }
-                            DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                                DocumentSortV2New.values().forEach { value ->
-                                    DropdownMenuItem(
-                                        text = { Text(sortLabelV2New(value)) },
-                                        onClick = { sort = value; sortMenu = false }
-                                    )
-                                }
-                            }
-                        }
-                        IconButton(onClick = {
-                            if (selectionMode) {
-                                selectionMode = false
-                                selectedDocumentIds.clear()
-                            } else {
-                                selectionMode = true
-                                selectedDocumentIds.clear()
-                            }
-                        }) {
-                            Icon(if (selectionMode) Icons.Outlined.Close else Icons.Outlined.SelectAll,
-                                if (selectionMode) "Exit selection" else "Select documents")
-                        }
-                        IconButton(onClick = { grid = !grid }) {
-                            Icon(if (grid) Icons.Outlined.List else Icons.Outlined.GridView, "Toggle view")
-                        }
-                    }
-                }
                 if (recycleBin) {
                     item(key = "recycle_bin_overview") {
                         val totalBytes = deleted.sumOf { it.sizeBytes }
@@ -1750,6 +1710,46 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Icon(Icons.Outlined.DeleteForever, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text("Empty Recycle Bin")
+                        }
+                    }
+                }
+                item(key = "files_header") {
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            if (!recycleBin) Text(
+                                if (category == "all") "All files" else "Files",
+                                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
+                            )
+                            Text("${visible.size} ${if (recycleBin) "items" else "files"}",
+                                color = mutedColor, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Box {
+                            TextButton(onClick = { sortMenu = true }) {
+                                Text(sortLabelV2New(sort), color = documentAccent)
+                            }
+                            DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                                DocumentSortV2New.values().forEach { value ->
+                                    DropdownMenuItem(
+                                        text = { Text(sortLabelV2New(value)) },
+                                        onClick = { sort = value; sortMenu = false }
+                                    )
+                                }
+                            }
+                        }
+                        IconButton(onClick = {
+                            if (selectionMode) {
+                                selectionMode = false
+                                selectedDocumentIds.clear()
+                            } else {
+                                selectionMode = true
+                                selectedDocumentIds.clear()
+                            }
+                        }) {
+                            Icon(if (selectionMode) Icons.Outlined.Close else Icons.Outlined.SelectAll,
+                                if (selectionMode) "Exit selection" else "Select documents")
+                        }
+                        IconButton(onClick = { grid = !grid }) {
+                            Icon(if (grid) Icons.Outlined.List else Icons.Outlined.GridView, "Toggle view")
                         }
                     }
                 }
