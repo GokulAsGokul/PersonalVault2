@@ -61,6 +61,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
@@ -1351,10 +1352,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             // Unified Documents Overview: scope filters and live statistics.
             if (isHome) {
                 item(key = "documents_overview") {
-                    val overviewDocuments = if (recycleBin) deleted else scopedActive
-                    val overviewFolders = folders.filter {
-                        visibility == "ALL" || it.scope == visibility
-                    }
+                    val dashboardOverviewDocs = if (recycleBin) deleted else active.filter(dashboardScoped)
+
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         shape = RoundedCornerShape(24.dp),
@@ -1372,8 +1371,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             val filters = listOf(
                                 Triple("ALL", "All", Icons.Outlined.SelectAll),
                                 Triple("ONLY_ME", "Only Me", Icons.Outlined.Person),
-                                Triple("SHARED", "Shared", Icons.Outlined.Share),
-                                Triple("SPOUSE", "Spouse", Icons.Outlined.Groups),
+                                Triple("SHARED", "Shared", Icons.Outlined.People),
+                                Triple("SPOUSE", "Spouse", Icons.Outlined.People),
                                 Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
                             )
                             Row(
@@ -1383,6 +1382,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 filters.forEach { (value, label, icon) ->
                                     val selected = if (value == "RECYCLE_BIN") recycleBin
                                         else !recycleBin && dashboardFilter == value
+                                    val tileBackground = when (value) {
+                                        "ALL" -> Color(0xFFF0E5FF)
+                                        "ONLY_ME" -> Color(0xFFE7F7E9)
+                                        "SHARED" -> Color(0xFFFFEEE5)
+                                        "SPOUSE" -> Color(0xFFFCE8F5)
+                                        else -> Color(0xFFE3F0FF)
+                                    }
+                                    val tileAccent = when (value) {
+                                        "ALL" -> Color(0xFF7136B8)
+                                        "ONLY_ME" -> Color(0xFF269B52)
+                                        "SHARED" -> Color(0xFFEF7B35)
+                                        "SPOUSE" -> Color(0xFFD63384)
+                                        else -> Color(0xFF2875D0)
+                                    }
                                     Surface(
                                         modifier = Modifier.weight(1f).heightIn(min = 76.dp).clickable {
                                             if (value == "RECYCLE_BIN") {
@@ -1401,12 +1414,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             }
                                         },
                                         shape = RoundedCornerShape(16.dp),
-                                        color = if (selected) documentAccent else palette.container,
+                                        color = tileBackground,
                                         border = androidx.compose.foundation.BorderStroke(
-                                            1.dp,
-                                            if (selected) documentAccent
-                                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
-                                        )
+                                            if (selected) 2.dp else 1.dp,
+                                            if (selected) tileAccent else tileAccent.copy(alpha = 0.18f)
+                                        ),
+                                        shadowElevation = if (selected) 3.dp else 0.dp
                                     ) {
                                         Column(
                                             Modifier.fillMaxWidth().padding(horizontal = 1.dp, vertical = 9.dp),
@@ -1414,10 +1427,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             verticalArrangement = Arrangement.spacedBy(7.dp)
                                         ) {
                                             Icon(icon, contentDescription = null,
-                                                tint = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                tint = tileAccent,
                                                 modifier = Modifier.size(23.dp))
                                             Text(label,
-                                                color = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurface,
+                                                color = Color(0xFF211536),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 maxLines = 1, softWrap = false)
                                         }
@@ -1425,21 +1438,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
-                            val allDashboardDocs = active
-                            val personalCount = allDashboardDocs.count { it.scope != "SHARED" && it.ownerUid == memberUid }
-                            val sharedCount = allDashboardDocs.count { it.scope == "SHARED" && it.ownerUid == memberUid }
-                            val spouseCount = allDashboardDocs.count { it.scope == "SHARED" && it.ownerUid != memberUid }
+                            val personalCount = dashboardOverviewDocs.count { it.scope != "SHARED" && it.ownerUid == memberUid }
+                            val sharedCount = dashboardOverviewDocs.count { it.scope == "SHARED" && it.ownerUid == memberUid }
+                            val spouseCount = dashboardOverviewDocs.count { it.scope == "SHARED" && it.ownerUid != memberUid }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                DocumentDashboardStatCardV2New("Documents", allDashboardDocs.size.toString(),
+                                DocumentDashboardStatCardV2New("Document", dashboardOverviewDocs.size.toString(),
                                     Icons.Outlined.Description, Modifier.weight(1f), Color(0xFFF0E5FF), Color(0xFF7136B8))
-                                DocumentDashboardStatCardV2New("Storage", formatDocumentBytesNew(allDashboardDocs.sumOf { it.sizeBytes }),
+                                DocumentDashboardStatCardV2New("Storage", formatDocumentBytesNew(dashboardOverviewDocs.sumOf { it.sizeBytes }),
                                     Icons.Outlined.Storage, Modifier.weight(1f), Color(0xFFE3F0FF), Color(0xFF2875D0))
                                 DocumentDashboardStatCardV2New("Only Me", personalCount.toString(),
                                     Icons.Outlined.Person, Modifier.weight(1f), Color(0xFFE7F7E9), Color(0xFF269B52))
                                 DocumentDashboardStatCardV2New("Shared", sharedCount.toString(),
-                                    Icons.Outlined.Share, Modifier.weight(1f), Color(0xFFFFEEE5), Color(0xFFEF7B35))
+                                    Icons.Outlined.People, Modifier.weight(1f), Color(0xFFFFEEE5), Color(0xFFEF7B35))
                                 DocumentDashboardStatCardV2New("Spouse", spouseCount.toString(),
-                                    Icons.Outlined.Groups, Modifier.weight(1f), Color(0xFFFCE8F5), Color(0xFFD63384))
+                                    Icons.Outlined.People, Modifier.weight(1f), Color(0xFFFCE8F5), Color(0xFFD63384))
                             }
                         }
                     }
