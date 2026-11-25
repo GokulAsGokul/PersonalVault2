@@ -4515,13 +4515,21 @@ private fun DocumentRowV2New(
                             ).toInt()
                         }
                         if (remainingDays != null) {
-                            Text(
-                                if (remainingDays <= 0) "Due" else "$remainingDays days left",
-                                color = Color(0xFF65D82F),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1
-                            )
+                            val retentionBackground = if (dark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+                            val retentionForeground = if (dark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = retentionBackground
+                            ) {
+                                Text(
+                                    if (remainingDays <= 0) "Due" else "$remainingDays days left",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    color = retentionForeground,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                     if (document.favouriteUids[currentMemberUid] == true && !isRecycleBin) {
