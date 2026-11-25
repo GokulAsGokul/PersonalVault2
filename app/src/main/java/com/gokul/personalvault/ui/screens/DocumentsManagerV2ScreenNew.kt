@@ -2966,7 +2966,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(folder.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Folder actions", color = MaterialTheme.colorScheme.onSurfaceVariant)
+
                     ListItem(
                         headlineContent = { Text("Rename Folder") },
                         leadingContent = { Icon(Icons.Outlined.Edit, null) },
@@ -4648,19 +4648,19 @@ private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
     }
     Surface(shape = RoundedCornerShape(10.dp), color = background) {
         Row(
-            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
                 if (shared) Icons.Outlined.People else Icons.Outlined.Person,
                 contentDescription = null,
                 tint = foreground,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(12.dp)
             )
             Text(if (shared) "Shared" else "Personal",
                 style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold, color = foreground, maxLines = 1)
+                fontWeight = FontWeight.SemiBold, color = foreground, maxLines = 1, softWrap = false)
         }
     }
 }
@@ -4909,7 +4909,7 @@ private fun CategoryCardV2New(
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(Modifier.size(36.dp), shape = RoundedCornerShape(11.dp), color = tileBg) {
@@ -4954,8 +4954,8 @@ private fun FolderCardV2New(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Outlined.FolderOpen, null, tint = palette.accent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
+            Spacer(Modifier.width(7.dp))
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
                 Text(
                     folder.name,
                     fontWeight = FontWeight.SemiBold,
@@ -4965,7 +4965,7 @@ private fun FolderCardV2New(
                 )
                 ScopeLabelV2New(folder.scope, palette)
             }
-            IconButton(onClick = onMore, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onMore, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Outlined.MoreVert, contentDescription = "Folder actions", tint = palette.muted)
             }
          }
