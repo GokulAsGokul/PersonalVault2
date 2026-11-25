@@ -3364,13 +3364,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     selectedDocument?.let { doc ->
+        val detailsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
+            sheetState = detailsSheetState,
             containerColor = MaterialTheme.colorScheme.surface,
             dragHandle = null
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                Modifier.fillMaxWidth()
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 if (doc.isDeleted) {
