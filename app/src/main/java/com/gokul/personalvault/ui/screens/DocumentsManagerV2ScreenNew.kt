@@ -3365,7 +3365,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             DocumentTypeIconNew(doc.contentType, Modifier.size(52.dp))
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(doc.title, style = MaterialTheme.typography.titleLarge,
+                                Text(documentDisplayNameV2New(doc), style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 Text("${formatDocumentBytesNew(doc.sizeBytes)} · ${doc.contentType.substringAfter('/').uppercase()}",
                                     style = MaterialTheme.typography.bodySmall,
