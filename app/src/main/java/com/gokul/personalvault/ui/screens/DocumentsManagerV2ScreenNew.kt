@@ -1217,8 +1217,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 currentFolderId = folders.firstOrNull { it.id == currentFolderId }?.parentFolderId
             category != "all" -> {
                 category = "all"
+                dashboardFilter = "ALL"
             }
-            showAllDocuments -> showAllDocuments = false
+            showAllDocuments -> {
+                showAllDocuments = false
+                dashboardFilter = "ALL"
+            }
         }
     }
     BackHandler(enabled = canGoBack) { goBack() }
@@ -1247,6 +1251,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val headerSubtitle = null
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    LaunchedEffect(category, currentFolderId, showAllDocuments, recycleBin) { listState.scrollToItem(0) }
     val mutedColor = palette.muted
 
     Scaffold(
@@ -1273,6 +1278,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         IconButton(onClick = { showDocumentSearch = !showDocumentSearch; if (!showDocumentSearch) { search = ""; advancedSearchExpanded = false } }) {
                             Icon(if (showDocumentSearch) Icons.Outlined.Close else Icons.Outlined.Search,
                                 contentDescription = if (showDocumentSearch) "Close search" else "Search documents")
+                        }
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "More options") }
+                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                                DropdownMenuItem(text = { Text("New folder") }, leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, null) }, onClick = { menuExpanded = false; startCreateFolder() })
+                            }
                         }
                     }
                 }
@@ -1425,26 +1436,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             } else if (!recycleBin) {
-                if (inCategory) {
-                    item(key = "new_folder_quick_action") {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            NewFolderCardV2New(palette, Modifier.weight(1f).heightIn(min = 64.dp)) { startCreateFolder() }
-                            Spacer(Modifier.weight(1f))
-                        }
-                    }
-                    item(key = "folder_filter_spacing") { Spacer(Modifier.height(10.dp)) }
-                }
+
                 item(key = "ownership_filters") {
                     val filters = listOf(
                         Triple("ALL", "All", Icons.Outlined.SelectAll),
                         Triple("ONLY_ME", "Only Me", Icons.Outlined.Person),
                         Triple("SHARED", "Shared", Icons.Outlined.People),
-                        Triple("SPOUSE", "Spouse", Icons.Outlined.People),
-                        Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
+                        Triple("SPOUSE", "Spouse", Icons.Outlined.People)
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         filters.forEach { (value, label, icon) ->
-                            val selected = if (value == "RECYCLE_BIN") recycleBin else dashboardFilter == value
+                            val selected = dashboardFilter == value
                             val tileBackground = when (value) {
                                 "ALL" -> Color(0xFFF0E5FF)
                                 "ONLY_ME" -> Color(0xFFE7F7E9)
@@ -1464,15 +1466,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     indication = ripple(bounded = true, color = tileAccent),
                                     interactionSource = remember { MutableInteractionSource() }
                                 ) {
-                                    if (value == "RECYCLE_BIN") {
-                                        recycleBin = true
-                                        category = "all"
-                                        currentFolderId = null
-                                        showAllDocuments = false
-                                    } else {
-                                        recycleBin = false
-                                        dashboardFilter = value
-                                    }
+                                    recycleBin = false
+                                    dashboardFilter = value
                                     visibility = "ALL"
                                     selectionMode = false; selectedDocumentIds.clear()
                                 },
@@ -1489,6 +1484,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             }
+            if (showDocumentSearch && !recycleBin) item(key = "search_spacing") { Spacer(Modifier.height(12.dp)) }
             if (showDocumentSearch && !recycleBin) item(key = "search") {
                 TextField(
                     value = search,
