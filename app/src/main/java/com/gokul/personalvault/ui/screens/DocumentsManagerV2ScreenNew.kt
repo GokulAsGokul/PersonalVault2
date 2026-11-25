@@ -3833,7 +3833,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val dialogBackground = if (darkDownloadUi) Color(0xFF211B2B) else Color(0xFFF8F3FF)
         val downloadAccent = if (darkDownloadUi) Color(0xFFD6A5FF) else Color(0xFF7438B8)
         val downloadTrack = if (darkDownloadUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
-        val waveColor = if (darkDownloadUi) Color(0xFF573477).copy(alpha = 0.52f) else Color(0xFFDCC4F5)
+        val waveColor = if (darkDownloadUi) Color(0xFF68408D).copy(alpha = 0.78f) else Color(0xFFDCC4F5)
         val fileTypeLabel = downloadingFileType
         val (fileIconBackground, fileIconTint, downloadFileIcon) = when {
             fileTypeLabel == "PDF" -> Triple(
@@ -3880,9 +3880,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .border(1.5.dp, downloadAccent.copy(alpha = 0.72f), RoundedCornerShape(34.dp))
                     .drawBehind {
                         val wave = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(0f, size.height * 0.84f)
-                            cubicTo(size.width * 0.22f, size.height * 0.98f, size.width * 0.42f, size.height * 0.91f, size.width * 0.58f, size.height * 0.87f)
-                            cubicTo(size.width * 0.76f, size.height * 0.82f, size.width * 0.88f, size.height * 0.83f, size.width, size.height * 0.91f)
+                            moveTo(0f, size.height * 0.78f)
+                            cubicTo(size.width * 0.22f, size.height * 0.96f, size.width * 0.42f, size.height * 0.86f, size.width * 0.58f, size.height * 0.82f)
+                            cubicTo(size.width * 0.76f, size.height * 0.76f, size.width * 0.88f, size.height * 0.79f, size.width, size.height * 0.88f)
                             lineTo(size.width, size.height)
                             lineTo(0f, size.height)
                             close()
@@ -3893,8 +3893,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                        .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 34.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -3980,8 +3980,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Button(
                         onClick = { if (!isSavingDownloadedFile) activeDocumentTransferJob?.cancel() },
                         enabled = !isSavingDownloadedFile && activeDocumentTransferJob?.isActive == true,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(60.dp),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 34.dp).height(48.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (darkDownloadUi) Color(0xFFF0D6FF) else Color(0xFFEAD0FF),
@@ -3999,9 +3999,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Spacer(Modifier.width(10.dp))
                             Text("Finishing download", fontWeight = FontWeight.Bold)
                         } else {
-                            Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(28.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text("Cancel Download", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Cancel Download", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
