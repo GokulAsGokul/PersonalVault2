@@ -1173,6 +1173,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val categoryTitle = allCategories.firstOrNull { it.first == category }?.second ?: "Documents"
     val childFolders = folders.filter {
         it.parentFolderId == currentFolderId && (visibility == "ALL" || it.scope == visibility)
+    }.filter {
+        !recycleBin || search.isBlank() || it.name.contains(search.trim(), ignoreCase = true)
     }.sortedBy { it.name.lowercase(Locale.ROOT) }
     val headerTitle = when {
         recycleBin -> "Recycle Bin"
@@ -1261,7 +1263,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     onValueChange = { search = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("Search documents") },
+                    placeholder = { Text(if (recycleBin) "Search deleted files & folders" else "Search documents") },
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3337,7 +3339,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             ) {
                 if (doc.isDeleted) {
                     Column(
-                        Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                        Modifier.fillMaxWidth().padding(bottom = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
