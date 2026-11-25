@@ -115,6 +115,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.gokul.personalvault.VaultExternalActivityState
 import com.gokul.personalvault.DocumentUploadForegroundService
@@ -3871,108 +3872,155 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val dialogBackground = if (darkDownloadUi) Color(0xFF211B2B) else Color(0xFFF8F3FF)
         val downloadAccent = if (darkDownloadUi) Color(0xFFD6A5FF) else Color(0xFF7438B8)
         val downloadTrack = if (darkDownloadUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
-        AlertDialog(
+        val fileExtension = downloadingFileName.substringAfterLast('.', "").uppercase(Locale.ROOT)
+            .ifBlank { "FILE" }
+
+        Dialog(
             onDismissRequest = { },
-            shape = RoundedCornerShape(30.dp),
-            containerColor = dialogBackground,
-            tonalElevation = 12.dp,
-            title = null,
-            text = {
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.86f).widthIn(max = 360.dp),
+                shape = RoundedCornerShape(32.dp),
+                color = dialogBackground,
+                tonalElevation = 0.dp
+            ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Surface(
-                        modifier = Modifier.size(88.dp),
-                        shape = RoundedCornerShape(26.dp),
+                        modifier = Modifier.size(96.dp),
+                        shape = RoundedCornerShape(28.dp),
                         color = if (darkDownloadUi) Color(0xFF493064) else Color(0xFFE9D8FF)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                Icons.Outlined.PictureAsPdf,
-                                contentDescription = "PDF document",
+                                Icons.Outlined.Description,
+                                contentDescription = null,
                                 tint = downloadAccent,
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(54.dp)
                             )
+                            Surface(
+                                modifier = Modifier.size(width = 34.dp, height = 28.dp),
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (darkDownloadUi) Color(0xFF493064) else Color(0xFFE9D8FF),
+                                border = androidx.compose.foundation.BorderStroke(2.dp, downloadAccent)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        fileExtension.take(4),
+                                        color = downloadAccent,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            "Downloading Document",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            downloadingFileName,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        "Downloading Document",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        downloadingFileName.substringBeforeLast('.', downloadingFileName),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(Modifier.height(20.dp))
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(17.dp),
                         color = if (darkDownloadUi) Color(0xFF30263D) else Color(0xFFEFE6F8)
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                            modifier = Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 18.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Outlined.Description, null, tint = downloadAccent, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
+                            Icon(
+                                Icons.Outlined.Description,
+                                contentDescription = null,
+                                tint = downloadAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(9.dp))
                             Text(
-                                downloadingFileName.substringAfterLast('.', "Document").uppercase(Locale.ROOT),
+                                fileExtension,
                                 style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
                             )
                             Spacer(Modifier.width(18.dp))
-                            Box(Modifier.width(1.dp).height(20.dp).background(downloadAccent.copy(alpha = 0.45f)))
+                            Box(
+                                Modifier.width(1.dp).height(22.dp)
+                                    .background(downloadAccent.copy(alpha = 0.55f))
+                            )
                             Spacer(Modifier.width(18.dp))
-                            Icon(Icons.Outlined.Storage, null, tint = downloadAccent, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
+                            Icon(
+                                Icons.Outlined.Storage,
+                                contentDescription = null,
+                                tint = downloadAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(9.dp))
                             Text(
                                 if (total > 0L) formatDocumentBytesNew(total) else "Calculating",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
                             )
                         }
                     }
-                    Column(
+
+                    Spacer(Modifier.height(20.dp))
+                    LinearProgressIndicator(
+                        progress = { progressValue },
+                        modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)),
+                        color = downloadAccent,
+                        trackColor = downloadTrack
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        LinearProgressIndicator(
-                            progress = { progressValue },
-                            modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)),
-                            color = downloadAccent,
-                            trackColor = downloadTrack
+                        Text(
+                            if (total > 0L) "${(progressValue * 100).toInt()}% downloaded" else "Downloading…",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = downloadAccent
                         )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(
-                                if (total > 0L) "${(progressValue * 100).toInt()}% downloaded" else "Downloading…",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                color = downloadAccent
-                            )
-                            Text(
-                                "${formatDocumentBytesNew(downloadTransferredBytes)} of ${if (total > 0L) formatDocumentBytesNew(total) else "—"}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            "${formatDocumentBytesNew(downloadTransferredBytes)} of ${if (total > 0L) formatDocumentBytesNew(total) else "—"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
                     }
+
+                    Spacer(Modifier.height(22.dp))
                     Button(
                         onClick = { if (!isSavingDownloadedFile) activeDocumentTransferJob?.cancel() },
                         enabled = !isSavingDownloadedFile && activeDocumentTransferJob?.isActive == true,
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(18.dp),
+                        modifier = Modifier.fillMaxWidth().height(62.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (darkDownloadUi) Color(0xFFD9B5FF) else Color(0xFFE4C8FF),
                             contentColor = Color(0xFF32134F),
@@ -3982,7 +4030,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     ) {
                         if (isSavingDownloadedFile) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(19.dp),
                                 strokeWidth = 2.dp,
                                 color = Color(0xFF32134F)
                             )
@@ -3991,13 +4039,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         } else {
                             Icon(Icons.Outlined.Close, contentDescription = null)
                             Spacer(Modifier.width(10.dp))
-                            Text("Cancel Download", fontWeight = FontWeight.Bold)
+                            Text("Cancel Download", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
-            },
-            confirmButton = {}
-        )
+            }
+        }
     }
 
     if (showEmptyRecycleBinConfirm) {
