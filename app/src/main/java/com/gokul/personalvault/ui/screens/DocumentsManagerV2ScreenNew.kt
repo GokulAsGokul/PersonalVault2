@@ -3980,8 +3980,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Button(
                         onClick = { if (!isSavingDownloadedFile) activeDocumentTransferJob?.cancel() },
                         enabled = !isSavingDownloadedFile && activeDocumentTransferJob?.isActive == true,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (darkDownloadUi) Color(0xFFF0D6FF) else Color(0xFFEAD0FF),
@@ -3999,9 +3999,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Spacer(Modifier.width(10.dp))
                             Text("Finishing download", fontWeight = FontWeight.Bold)
                         } else {
-                            Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(21.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Cancel Download", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Cancel Download", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
