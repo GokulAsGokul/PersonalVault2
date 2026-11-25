@@ -215,6 +215,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var deleteFolderError by remember { mutableStateOf<String?>(null) }
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
+    var showRecycleBinSearch by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var advancedSearchExpanded by remember { mutableStateOf(false) }
     var searchFileNameOnly by remember { mutableStateOf(false) }
@@ -1195,15 +1196,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 onBack = if (canGoBack) ({ goBack() }) else null,
                 titleIcon = if (headerTitle == "Documents") Icons.Outlined.Description else null,
                 actions = {
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
-                        }
-                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Manage Categories") },
-                                leadingIcon = { Icon(Icons.Outlined.Edit, null) },
-                                onClick = { manageCategories = true; menuExpanded = false }
+                    if (recycleBin) {
+                        IconButton(onClick = {
+                            showRecycleBinSearch = !showRecycleBinSearch
+                            if (!showRecycleBinSearch) search = ""
+                        }) {
+                            Icon(
+                                if (showRecycleBinSearch) Icons.Outlined.Close else Icons.Outlined.Search,
+                                contentDescription = if (showRecycleBinSearch) "Close Recycle Bin search" else "Search Recycle Bin"
                             )
                         }
                     }
@@ -1623,6 +1623,46 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
+                if (recycleBin) {
+                    item(key = "empty_recycle_bin") {
+                        OutlinedButton(
+                            onClick = { showEmptyRecycleBinConfirm = true },
+                            enabled = !busyDocument,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Empty Recycle Bin")
+                        }
+                    }
+                    if (showRecycleBinSearch) item(key = "recycle_bin_search") {
+                        TextField(
+                            value = search,
+                            onValueChange = { search = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            placeholder = { Text("Search deleted files") },
+                            leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                            trailingIcon = {
+                                if (search.isNotEmpty()) {
+                                    IconButton(onClick = { search = "" }) {
+                                        Icon(Icons.Outlined.Close, "Clear search")
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(28.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = palette.surface,
+                                unfocusedContainerColor = palette.surface,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                                errorIndicatorColor = Color.Transparent
+                            )
+                        )
+                    }
+                }
                 if (inCategory && !recycleBin) {
                     val folderPath = mutableListOf<DocumentFolderV2>()
                     var folderCursor = currentFolderId
@@ -1888,48 +1928,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
 
-                // Recycle Bin search is deliberately placed at the bottom,
-                // immediately above the destructive Empty Recycle Bin action.
-                if (recycleBin) {
-                    item(key = "recycle_bin_search") {
-                        TextField(
-                            value = search,
-                            onValueChange = { search = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            placeholder = { Text("Search deleted files") },
-                            leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                            trailingIcon = {
-                                if (search.isNotEmpty()) {
-                                    IconButton(onClick = { search = "" }) {
-                                        Icon(Icons.Outlined.Close, "Clear search")
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(28.dp),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = palette.surface,
-                                unfocusedContainerColor = palette.surface,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                disabledIndicatorColor = Color.Transparent,
-                                errorIndicatorColor = Color.Transparent
-                            )
-                        )
-                    }
-                    item(key = "empty_recycle_bin") {
-                        OutlinedButton(
-                            onClick = { showEmptyRecycleBinConfirm = true },
-                            enabled = !busyDocument,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Empty Recycle Bin")
-                        }
-                    }
-                }
             }
         }
     }
@@ -3357,71 +3355,117 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 if (doc.isDeleted) {
+                    val categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second
+                        ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+                    val originalLocation = buildString {
+                        append("Documents / ")
+                        append(if (doc.scope == "SHARED") "Shared" else "Personal")
+                        append(" / ")
+                        append(doc.folderId?.let { id -> folders.firstOrNull { it.id == id }?.name } ?: categoryName)
+                    }
+                    val deletedAtText = doc.deletedAt?.toDate()?.let {
+                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                    } ?: "—"
+                    val purgeAtText = doc.purgeAt?.toDate()?.let {
+                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                    } ?: "—"
+                    val remainingDays = doc.purgeAt?.toDate()?.time?.let {
+                        kotlin.math.ceil((it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0).toInt()
+                    }
+                    val typeLabel = when {
+                        doc.contentType.contains("pdf", true) -> "PDF Document"
+                        doc.contentType.startsWith("image/") -> "${doc.contentType.substringAfter('/').uppercase()} Image"
+                        doc.contentType.contains("word", true) -> "Word Document"
+                        doc.contentType.contains("sheet", true) || doc.contentType.contains("excel", true) -> "Spreadsheet"
+                        else -> doc.contentType.substringAfter('/').replace('-', ' ').replace('_', ' ')
+                            .replaceFirstChar { it.uppercase() } + " File"
+                    }
                     Column(
-                        Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        Modifier.fillMaxWidth().padding(horizontal = 4.dp).padding(bottom = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            DocumentTypeIconNew(doc.contentType, Modifier.size(52.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Surface(
+                                Modifier.width(42.dp).height(5.dp),
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                            ) {}
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            DocumentTypeIconNew(doc.contentType, Modifier.size(64.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(documentDisplayNameV2New(doc), style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text("${formatDocumentBytesNew(doc.sizeBytes)} · ${doc.contentType.substringAfter('/').uppercase()}",
-                                    style = MaterialTheme.typography.bodySmall,
+                                Text(typeLabel, style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = if (doc.scope == "SHARED") Color(0xFF352347) else Color(0xFF1D3A2C)
+                            ) {
+                                Text(if (doc.scope == "SHARED") "Shared" else "Personal",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    color = if (doc.scope == "SHARED") Color(0xFFD2A8FF) else Color(0xFF8FE0A7),
+                                    style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                             }
                             IconButton(onClick = { selectedDocument = null }) {
                                 Icon(Icons.Outlined.Close, "Close")
                             }
                         }
-                        ScopeLabelV2New(doc.scope, palette)
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        DocumentDetailRowV2New(
-                            "Category",
-                            allCategories.firstOrNull { it.first == doc.categoryId }?.second
-                                ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other",
-                            Icons.Outlined.FolderOpen
-                        )
-                        DocumentDetailRowV2New(
-                            "Original location",
-                            buildString {
-                                append("My Documents / ")
-                                append(allCategories.firstOrNull { it.first == doc.categoryId }?.second
-                                    ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other")
-                                doc.folderId?.let { id -> folders.firstOrNull { it.id == id }?.let { append(" / ${it.name}") } }
-                            },
-                            Icons.Outlined.FolderOpen
-                        )
-                        DocumentDetailRowV2New(
-                            "Deleted on",
-                            doc.deletedAt?.toDate()?.let {
-                                SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                            } ?: "—",
-                            Icons.Outlined.Delete
-                        )
-                        DocumentDetailRowV2New(
-                            "Permanently deleted on",
-                            doc.purgeAt?.toDate()?.let {
-                                SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                            } ?: "—",
-                            Icons.Outlined.CalendarToday
-                        )
-                        val remainingDays = doc.purgeAt?.toDate()?.time?.let {
-                            kotlin.math.ceil((it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0).toInt()
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isDarkUi) Color(0xFF241C30) else palette.surface)
+                                .then(Modifier),
+                            verticalArrangement = Arrangement.spacedBy(0.dp)
+                        ) {
+                            @Composable
+                            fun detailRow(label: String, value: String, icon: ImageVector, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                ) {
+                                    Icon(icon, null, tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
+                                        modifier = Modifier.size(24.dp))
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(label, style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(value, style = MaterialTheme.typography.bodyLarge,
+                                            color = valueColor, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                                if (label != "Size") HorizontalDivider(
+                                    Modifier.padding(start = 54.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                                )
+                            }
+                            detailRow("Deleted On", deletedAtText, Icons.Outlined.CalendarToday)
+                            detailRow("Auto Delete On", purgeAtText, Icons.Outlined.History)
+                            if (remainingDays != null) {
+                                Row(Modifier.fillMaxWidth().padding(start = 54.dp, end = 16.dp, bottom = 12.dp)) {
+                                    Text(
+                                        if (remainingDays <= 0) "Due for permanent deletion"
+                                        else "($remainingDays days left)",
+                                        color = if (remainingDays <= 0) MaterialTheme.colorScheme.error else Color(0xFF65D82F),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                            detailRow("Original Location", originalLocation, Icons.Outlined.FolderOpen)
+                            detailRow("Category", categoryName, Icons.Outlined.FavoriteBorder)
+                            detailRow("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Description)
                         }
-                        Text(
-                            if (remainingDays == null) "This item will be automatically deleted after 30 days."
-                            else if (remainingDays <= 0) "This item is due for permanent deletion."
-                            else " $remainingDays day(s) remaining before permanent deletion.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        DocumentDetailRowV2New("File size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Button(
+                                modifier = Modifier.weight(1f).height(58.dp),
                                 enabled = !busyDocument && doc.ownerUid == memberUid,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDarkUi) Color(0xFFB86AE8) else documentAccent,
+                                    contentColor = Color(0xFF180F20)
+                                ),
                                 onClick = {
                                     scope.launch {
                                         busyDocument = true
@@ -3436,18 +3480,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             ) {
                                 Icon(Icons.Outlined.Restore, null)
-                                Spacer(Modifier.width(6.dp))
-                                Text("Restore")
+                                Spacer(Modifier.width(7.dp))
+                                Text("Restore", fontWeight = FontWeight.Bold)
                             }
                             Button(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1.2f).height(58.dp),
                                 enabled = !busyDocument && doc.ownerUid == memberUid,
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDarkUi) Color(0xFF5B203B) else Color(0xFFFFE3EA),
+                                    contentColor = if (isDarkUi) Color(0xFFFF9BB2) else Color(0xFFB42345)
+                                ),
                                 onClick = { permanentDeleteTarget = doc }
                             ) {
                                 Icon(Icons.Outlined.DeleteForever, null)
-                                Spacer(Modifier.width(6.dp))
-                                Text("Delete")
+                                Spacer(Modifier.width(7.dp))
+                                Text("Delete Permanently", fontWeight = FontWeight.Bold, maxLines = 1)
                             }
                         }
                     }
