@@ -3413,23 +3413,41 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                             ) {}
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
                             DocumentTypeIconNew(doc.contentType, Modifier.size(64.dp))
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(documentDisplayNameV2New(doc), style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(typeLabel, style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = if (doc.scope == "SHARED") Color(0xFF352347) else Color(0xFF1D3A2C)
+                            Column(
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                Text(if (doc.scope == "SHARED") "Shared" else "Personal",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    color = if (doc.scope == "SHARED") Color(0xFFD2A8FF) else Color(0xFF8FE0A7),
-                                    style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    documentDisplayNameV2New(doc),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Clip,
+                                    softWrap = true
+                                )
+                                Text(
+                                    typeLabel,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = if (doc.scope == "SHARED") Color(0xFF352347) else Color(0xFF1D3A2C)
+                                ) {
+                                    Text(
+                                        if (doc.scope == "SHARED") "Shared" else "Personal",
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        color = if (doc.scope == "SHARED") Color(0xFFD2A8FF) else Color(0xFF8FE0A7),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                             IconButton(onClick = { selectedDocument = null }) {
                                 Icon(Icons.Outlined.Close, "Close")
@@ -3468,18 +3486,55 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 )
                             }
                             detailRow("Deleted On", deletedAtText, Icons.Outlined.CalendarToday)
-                            detailRow("Auto Delete On", purgeAtText, Icons.Outlined.History)
-                            if (remainingDays != null) {
-                                Row(Modifier.fillMaxWidth().padding(start = 54.dp, end = 16.dp, bottom = 12.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.History,
+                                    null,
+                                    tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(
-                                        if (remainingDays <= 0) "Due for permanent deletion"
-                                        else "($remainingDays days left)",
-                                        color = if (remainingDays <= 0) MaterialTheme.colorScheme.error else Color(0xFF65D82F),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold
+                                        "Auto Delete On",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            purgeAtText,
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        if (remainingDays != null) {
+                                            Spacer(Modifier.width(6.dp))
+                                            Text(
+                                                if (remainingDays <= 0) "Due" else "($remainingDays days left)",
+                                                color = if (remainingDays <= 0) MaterialTheme.colorScheme.error else Color(0xFF65D82F),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
                                 }
                             }
+                            HorizontalDivider(
+                                Modifier.padding(start = 54.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                            )
                             detailRow("Original Location", originalLocation, Icons.Outlined.FolderOpen)
                             detailRow("Category", categoryName, Icons.Outlined.FolderOpen)
                             detailRow("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Description)
@@ -3510,17 +3565,24 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Text("Restore", fontWeight = FontWeight.Bold)
                             }
                             Button(
-                                modifier = Modifier.weight(1.2f).height(58.dp),
+                                modifier = Modifier.weight(1.35f).height(58.dp),
                                 enabled = !busyDocument && doc.ownerUid == memberUid,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = if (isDarkUi) Color(0xFF5B203B) else Color(0xFFFFE3EA),
                                     contentColor = if (isDarkUi) Color(0xFFFF9BB2) else Color(0xFFB42345)
                                 ),
                                 onClick = { permanentDeleteTarget = doc }
                             ) {
-                                Icon(Icons.Outlined.DeleteForever, null)
-                                Spacer(Modifier.width(7.dp))
-                                Text("Delete Permanently", fontWeight = FontWeight.Bold, maxLines = 1)
+                                Icon(Icons.Outlined.DeleteForever, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(5.dp))
+                                Text(
+                                    "Delete Permanently",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = MaterialTheme.typography.labelMedium.fontSize,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
                             }
                         }
                     }
