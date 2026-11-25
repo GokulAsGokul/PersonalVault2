@@ -4359,14 +4359,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             }
 
+                            val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
+                                ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+
                             Row(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
-                                val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
-                                    ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
                                 Surface(
                                     shape = RoundedCornerShape(50),
                                     color = palette.container
