@@ -4070,24 +4070,24 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (darkDownloadUi) Color(0xFF5B203B) else Color(0xFFFFE3EA),
-                            contentColor = if (darkDownloadUi) Color(0xFFFF9BB2) else Color(0xFFB42345),
-                            disabledContainerColor = if (darkDownloadUi) Color(0xFF5B203B).copy(alpha = 0.65f) else Color(0xFFFFE3EA).copy(alpha = 0.65f),
-                            disabledContentColor = if (darkDownloadUi) Color(0xFFFF9BB2).copy(alpha = 0.75f) else Color(0xFFB42345).copy(alpha = 0.75f)
+                            containerColor = if (darkDownloadUi) Color(0xFFB86AE8) else documentAccent,
+                            contentColor = if (darkDownloadUi) Color(0xFF180F20) else Color.White,
+                            disabledContainerColor = (if (darkDownloadUi) Color(0xFFB86AE8) else documentAccent).copy(alpha = 0.65f),
+                            disabledContentColor = (if (darkDownloadUi) Color(0xFF180F20) else Color.White).copy(alpha = 0.75f)
                         )
                     ) {
                         if (isSavingDownloadedFile) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
-                                color = if (darkDownloadUi) Color(0xFFFF9BB2) else Color(0xFFB42345)
+                                color = if (darkDownloadUi) Color(0xFF180F20) else Color.White
                             )
                             Spacer(Modifier.width(10.dp))
                             Text("Finishing download", fontWeight = FontWeight.Bold)
                         } else {
                             Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(22.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Cancel Download", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Cancel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
