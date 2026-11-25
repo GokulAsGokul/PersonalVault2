@@ -3913,7 +3913,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
-                                        fileExtension.take(4),
+                                        "PDF",
                                         color = downloadAccent,
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold
@@ -3961,7 +3961,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                             Spacer(Modifier.width(9.dp))
                             Text(
-                                fileExtension,
+                                "DOCUMENT",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1
