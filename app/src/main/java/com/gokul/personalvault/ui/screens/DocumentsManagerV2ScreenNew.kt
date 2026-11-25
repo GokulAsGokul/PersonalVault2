@@ -1092,7 +1092,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     fun runBulkRestore() {
-        val targets = visible.filter { it.id in selectedDocumentIds && it.ownerUid == memberUid }
+        val targets = visible.filter {
+            it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
+        }
         val skipped = selectedDocumentIds.size - targets.size
         scope.launch {
             busyDocument = true
@@ -1824,7 +1826,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         }
                                     }
                                 }
-                                if (recycleBin && visible.any { it.id in selectedDocumentIds && it.ownerUid == memberUid }) {
+                                if (recycleBin && visible.any {
+                                    it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
+                                }) {
                                     Button(
                                         onClick = { runBulkRestore() },
                                         enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
@@ -3539,6 +3543,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             detailRow("Category", categoryName, Icons.Outlined.FolderOpen)
                             detailRow("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Description)
                         }
+                        if (doc.scope != "SHARED" && doc.ownerUid == memberUid) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Button(
                                 modifier = Modifier.weight(1f).height(58.dp),
@@ -3584,6 +3589,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     softWrap = false
                                 )
                             }
+                        }
                         }
                     }
                 } else {
@@ -4497,14 +4503,32 @@ private fun DocumentRowV2New(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     ScopePillV2New(document, mine, palette)
+                    if (isRecycleBin) {
+                        val remainingDays = document.purgeAt?.toDate()?.time?.let {
+                            kotlin.math.ceil(
+                                (it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0
+                            ).toInt()
+                        }
+                        if (remainingDays != null) {
+                            Text(
+                                if (remainingDays <= 0) "Due" else "$remainingDays days left",
+                                color = Color(0xFF65D82F),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1
+                            )
+                        }
+                    }
                     if (document.favouriteUids[currentMemberUid] == true && !isRecycleBin) {
                         Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
                             tint = Color(0xFFB45BCE), modifier = Modifier.size(15.dp))
                     }
-                 }
+                }
             }
             if (!isRecycleBin) IconButton(onClick = onMore) {
                 Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
