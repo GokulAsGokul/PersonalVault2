@@ -1790,7 +1790,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             }
                         }
-                        IconButton(onClick = {
+                        if (!recycleBin) IconButton(onClick = {
                             if (selectionMode) {
                                 selectionMode = false
                                 selectedDocumentIds.clear()
@@ -1817,6 +1817,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("${selectedDocumentIds.size} selected", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                                    if (recycleBin) {
+                                        TextButton(onClick = {
+                                            selectionMode = false
+                                            selectedDocumentIds.clear()
+                                        }) { Text("Done") }
+                                    }
                                     TextButton(onClick = {
                                         if (selectedDocumentIds.size == visible.size) selectedDocumentIds.clear()
                                         else {
@@ -1959,7 +1965,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 else if (recycleBin) selectedDocument = doc else openDocument(doc)
                             },
                             onLongClick = {
-                                if (recycleBin && doc.ownerUid == memberUid && doc.scope != "SHARED") {
+                                if (recycleBin) {
                                     if (!selectionMode) selectionMode = true
                                     toggleSelection(doc)
                                 }
