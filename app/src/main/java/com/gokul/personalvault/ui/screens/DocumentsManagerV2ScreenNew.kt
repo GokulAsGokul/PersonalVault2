@@ -807,7 +807,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     it.categoryId.replace('_', ' ').lowercase(Locale.ROOT).contains(q)
             }
         }
-        .filter { !showFavouritesOnly || it.favouriteUids[memberUid] == true }
+        .filter { recycleBin || !showFavouritesOnly || it.favouriteUids[memberUid] == true }
         .filter {
             when (fileType) {
                 "PDF" -> it.contentType.contains("pdf", true)
@@ -1590,6 +1590,63 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             } else {
                 // ── Category / folder / all / recycle bin ──
+                if (recycleBin) {
+                    item(key = "recycle_bin_overview") {
+                        val totalBytes = deleted.sumOf { it.sizeBytes }
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                            shape = RoundedCornerShape(26.dp),
+                            colors = CardDefaults.cardColors(containerColor = palette.surface),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, documentAccent.copy(alpha = 0.22f))
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(Modifier.size(58.dp), shape = RoundedCornerShape(18.dp),
+                                        color = if (isDarkUi) Color(0xFF40252D) else Color(0xFFFFE8E8)) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Outlined.Delete, null, tint = Color(0xFFE36A75),
+                                                modifier = Modifier.size(30.dp))
+                                        }
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Recycle Bin", style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold)
+                                        Text("Deleted files stay here for 30 days",
+                                            color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(deleted.size.toString(), style = MaterialTheme.typography.headlineSmall,
+                                            fontWeight = FontWeight.Bold)
+                                        Text("Deleted items", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(formatDocumentBytesNew(totalBytes), style = MaterialTheme.typography.headlineSmall,
+                                            fontWeight = FontWeight.Bold)
+                                        Text("Storage used", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                Text("Items are automatically and permanently deleted 30 days after they were moved here.",
+                                    color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    item(key = "empty_recycle_bin") {
+                        OutlinedButton(
+                            onClick = { showEmptyRecycleBinConfirm = true },
+                            enabled = !busyDocument,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Empty Recycle Bin")
+                        }
+                    }
+                }
                 if (inCategory || recycleBin) {
                     val folderPath = mutableListOf<DocumentFolderV2>()
                     var folderCursor = currentFolderId
@@ -1656,63 +1713,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
 
-                if (recycleBin) {
-                    item(key = "recycle_bin_overview") {
-                        val totalBytes = deleted.sumOf { it.sizeBytes }
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                            shape = RoundedCornerShape(26.dp),
-                            colors = CardDefaults.cardColors(containerColor = palette.surface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, documentAccent.copy(alpha = 0.22f))
-                        ) {
-                            Column(Modifier.fillMaxWidth().padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(Modifier.size(58.dp), shape = RoundedCornerShape(18.dp),
-                                        color = if (isDarkUi) Color(0xFF40252D) else Color(0xFFFFE8E8)) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Outlined.Delete, null, tint = Color(0xFFE36A75),
-                                                modifier = Modifier.size(30.dp))
-                                        }
-                                    }
-                                    Spacer(Modifier.width(14.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text("Recycle Bin", style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold)
-                                        Text("Deleted files stay here for 30 days",
-                                            color = palette.muted, style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(deleted.size.toString(), style = MaterialTheme.typography.headlineSmall,
-                                            fontWeight = FontWeight.Bold)
-                                        Text("Deleted items", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-                                    }
-                                    Column(Modifier.weight(1f)) {
-                                        Text(formatDocumentBytesNew(totalBytes), style = MaterialTheme.typography.headlineSmall,
-                                            fontWeight = FontWeight.Bold)
-                                        Text("Storage used", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-                                    }
-                                }
-                                Text("Items are automatically and permanently deleted 30 days after they were moved here.",
-                                    color = palette.muted, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                    item(key = "empty_recycle_bin") {
-                        OutlinedButton(
-                            onClick = { showEmptyRecycleBinConfirm = true },
-                            enabled = !busyDocument,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Icon(Icons.Outlined.DeleteForever, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Empty Recycle Bin")
-                        }
-                    }
-                }
                 item(key = "files_header") {
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
