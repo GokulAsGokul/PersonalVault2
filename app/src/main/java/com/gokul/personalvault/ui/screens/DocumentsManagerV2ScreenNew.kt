@@ -1098,29 +1098,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val targets = visible.filter {
             it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
         }
-        scope.launch {
-            busyDocument = true
-            var succeeded = 0
-            try {
-                targets.forEach { doc ->
-                    repository.permanentlyDelete(vaultId, doc.id)
-                    succeeded++
-                }
-                message = "$succeeded document(s) permanently deleted."
-            } catch (error: Exception) {
-                message = "$succeeded deleted. ${error.localizedMessage ?: "Some documents could not be permanently deleted."}"
-            } finally {
-                selectedDocumentIds.clear()
-                selectionMode = false
-                busyDocument = false
-            }
-        }
-    }
-
-    fun runBulkPermanentDelete() {
-        val targets = visible.filter {
-            it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
-        }
         val skipped = selectedDocumentIds.size - targets.size
         scope.launch {
             busyDocument = true
