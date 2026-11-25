@@ -3732,7 +3732,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         ListItem(
                             headlineContent = { Text("Change Access") },
                             supportingContent = { Text(if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document") },
-                            leadingContent = { Icon(Icons.Outlined.Groups, null, tint = MaterialTheme.colorScheme.primary) },
+                            leadingContent = { Icon(Icons.Outlined.People, null, tint = MaterialTheme.colorScheme.primary) },
                             trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
                             modifier = Modifier.clickable {
                                 editTitle = doc.title
@@ -4515,7 +4515,7 @@ private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
-                if (shared) Icons.Outlined.Groups else Icons.Outlined.Person,
+                if (shared) Icons.Outlined.People else Icons.Outlined.Person,
                 contentDescription = null,
                 tint = foreground,
                 modifier = Modifier.size(14.dp)
@@ -4576,7 +4576,7 @@ private fun ScopePillV2New(document: DocumentRecordV2, mine: Boolean, palette: D
             Icon(
                 when (label) {
                     "Only Me" -> Icons.Outlined.Person
-                    "Shared" -> Icons.Outlined.Groups
+                    "Shared" -> Icons.Outlined.People
                     else -> Icons.Outlined.Person
                 },
                 contentDescription = null,
