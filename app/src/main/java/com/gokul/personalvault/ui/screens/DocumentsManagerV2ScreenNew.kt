@@ -224,6 +224,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var showBulkPermanentDeleteConfirm by remember { mutableStateOf(false) }
     var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
     var showRecycleBinSearch by remember { mutableStateOf(false) }
+    var showDocumentSearch by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var advancedSearchExpanded by remember { mutableStateOf(false) }
     var searchFileNameOnly by remember { mutableStateOf(false) }
@@ -1283,17 +1284,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                         }
                     } else {
-                        Box {
-                            IconButton(onClick = { menuExpanded = true }) {
-                                Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
-                            }
-                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                DropdownMenuItem(
-                                    text = { Text("Manage Categories") },
-                                    leadingIcon = { Icon(Icons.Outlined.Edit, null) },
-                                    onClick = { manageCategories = true; menuExpanded = false }
-                                )
-                            }
+                        IconButton(onClick = { showDocumentSearch = !showDocumentSearch; if (!showDocumentSearch) { search = ""; advancedSearchExpanded = false } }) {
+                            Icon(if (showDocumentSearch) Icons.Outlined.Close else Icons.Outlined.Search,
+                                contentDescription = if (showDocumentSearch) "Close search" else "Search documents")
                         }
                     }
                 }
