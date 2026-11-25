@@ -3364,19 +3364,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     selectedDocument?.let { doc ->
-        val detailsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
-            sheetState = detailsSheetState,
             containerColor = MaterialTheme.colorScheme.surface,
             dragHandle = null
         ) {
             Column(
-                Modifier.fillMaxWidth()
-                    .fillMaxHeight()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 28.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 if (doc.isDeleted) {
@@ -3431,7 +3425,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             DocumentTypeIconNew(doc.contentType, Modifier.size(64.dp))
                             Column(
                                 Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
                                 Text(
                                     documentDisplayNameV2New(doc),
@@ -3441,22 +3435,39 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     overflow = TextOverflow.Clip,
                                     softWrap = true
                                 )
-                                Text(
-                                    typeLabel,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = if (doc.scope == "SHARED") Color(0xFF352347) else Color(0xFF1D3A2C)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        if (doc.scope == "SHARED") "Shared" else "Personal",
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                        color = if (doc.scope == "SHARED") Color(0xFFD2A8FF) else Color(0xFF8FE0A7),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                                    ScopePillV2New(doc, doc.ownerUid == memberUid, documentPaletteV2New(isDarkUi))
+                                    val typeBadgeColors = when {
+                                        doc.contentType.contains("pdf", true) ->
+                                            (if (isDarkUi) Color(0xFF4A2020) else Color(0xFFFFE3E3)) to
+                                                (if (isDarkUi) Color(0xFFFF9A9A) else Color(0xFFC42020))
+                                        doc.contentType.startsWith("image/") ->
+                                            (if (isDarkUi) Color(0xFF1E3350) else Color(0xFFDDEBFF)) to
+                                                (if (isDarkUi) Color(0xFF9CC4FF) else Color(0xFF1D63C2))
+                                        doc.contentType.contains("spreadsheet", true) ||
+                                            doc.contentType.contains("excel", true) || doc.contentType.contains("sheet", true) ->
+                                            (if (isDarkUi) Color(0xFF1B3A2A) else Color(0xFFDDF4E5)) to
+                                                (if (isDarkUi) Color(0xFF9BE3BA) else Color(0xFF13733F))
+                                        else ->
+                                            (if (isDarkUi) Color(0xFF302447) else Color(0xFFEBE2FF)) to
+                                                (if (isDarkUi) Color(0xFFCDB5FF) else Color(0xFF5B2FB5))
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = typeBadgeColors.first
+                                    ) {
+                                        Text(
+                                            typeLabel,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = typeBadgeColors.second,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                             }
                             IconButton(onClick = { selectedDocument = null }) {
