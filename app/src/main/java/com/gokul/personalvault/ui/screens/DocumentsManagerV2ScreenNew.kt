@@ -4066,21 +4066,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Button(
                         onClick = { if (!isSavingDownloadedFile) activeDocumentTransferJob?.cancel() },
                         enabled = !isSavingDownloadedFile && activeDocumentTransferJob?.isActive == true,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 52.dp).height(48.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 72.dp).height(48.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (darkDownloadUi) Color(0xFFB86AE8) else documentAccent,
-                            contentColor = if (darkDownloadUi) Color(0xFF180F20) else Color.White,
-                            disabledContainerColor = (if (darkDownloadUi) Color(0xFFB86AE8) else documentAccent).copy(alpha = 0.65f),
-                            disabledContentColor = (if (darkDownloadUi) Color(0xFF180F20) else Color.White).copy(alpha = 0.75f)
+                            containerColor = if (darkDownloadUi) Color(0xFF8E45C5) else Color(0xFF5B2FB5),
+                            contentColor = Color.White,
+                            disabledContainerColor = (if (darkDownloadUi) Color(0xFF8E45C5) else Color(0xFF5B2FB5)).copy(alpha = 0.65f),
+                            disabledContentColor = Color.White.copy(alpha = 0.75f)
                         )
                     ) {
                         if (isSavingDownloadedFile) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
-                                color = if (darkDownloadUi) Color(0xFF180F20) else Color.White
+                                color = Color.White
                             )
                             Spacer(Modifier.width(10.dp))
                             Text("Finishing download", fontWeight = FontWeight.Bold)
