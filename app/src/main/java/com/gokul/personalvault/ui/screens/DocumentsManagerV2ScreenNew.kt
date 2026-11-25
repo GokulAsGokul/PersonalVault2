@@ -1462,9 +1462,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         shadowElevation = if (selected) 3.dp else 0.dp
                                     ) {
                                         Column(
-                                            Modifier.fillMaxWidth().padding(horizontal = 1.dp, vertical = 9.dp),
+                                            modifier = Modifier.fillMaxSize().padding(horizontal = 1.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(7.dp)
+                                            verticalArrangement = Arrangement.Center
                                         ) {
                                             Icon(icon, contentDescription = null,
                                                 tint = tileAccent,
