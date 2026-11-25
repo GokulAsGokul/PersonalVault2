@@ -1205,6 +1205,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val inCategory = !recycleBin && category != "all"
     val canGoBack = !isHome
 
+    // Return to the default, unselected state whenever the Documents dashboard is shown.
+    LaunchedEffect(isHome) {
+        if (isHome) {
+            selectedDocumentIds.clear()
+            selectionMode = false
+        }
+    }
+
     fun goBack() {
         when {
             recycleBin -> {
