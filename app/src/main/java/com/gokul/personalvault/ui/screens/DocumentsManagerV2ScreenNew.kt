@@ -4409,20 +4409,20 @@ private fun DocumentDashboardStatCardV2New(
                 modifier = Modifier.size(22.dp)
             )
             Text(
+                label,
+                color = textColor.copy(alpha = 0.82f),
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Clip,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Text(
                 value,
                 color = textColor,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 softWrap = false,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Text(
-                label,
-                color = textColor.copy(alpha = 0.82f),
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 2,
-                overflow = TextOverflow.Clip,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
