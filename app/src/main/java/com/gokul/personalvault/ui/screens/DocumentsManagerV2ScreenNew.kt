@@ -1780,6 +1780,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Box {
                             TextButton(onClick = { sortMenu = true }) {
                                 Text(sortLabelV2New(sort), color = documentAccent)
+                                Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Show sorting options", tint = documentAccent)
                             }
                             DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                                 DocumentSortV2New.values().forEach { value ->
@@ -1859,25 +1860,29 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 if (recycleBin && visible.any {
                                     it.id in selectedDocumentIds && it.ownerUid == memberUid && it.scope != "SHARED"
                                 }) {
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Button(
                                             onClick = { runBulkRestore() },
                                             enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
-                                            modifier = Modifier.weight(1f)
+                                            modifier = Modifier.weight(1f).heightIn(min = 58.dp)
                                         ) {
                                             Icon(Icons.Outlined.Restore, null)
-                                            Spacer(Modifier.width(6.dp))
-                                            Text("Restore")
+                                            Spacer(Modifier.width(7.dp))
+                                            Text("Restore", fontWeight = FontWeight.Bold)
                                         }
                                         Button(
                                             onClick = { runBulkPermanentDelete() },
                                             enabled = selectedDocumentIds.isNotEmpty() && !busyDocument,
-                                            modifier = Modifier.weight(1.35f),
-                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                            modifier = Modifier.weight(1.35f).heightIn(min = 58.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (isDarkUi) Color(0xFF5B203B) else Color(0xFFFFE3EA),
+                                                contentColor = if (isDarkUi) Color(0xFFFF9BB2) else Color(0xFFB42345)
+                                            )
                                         ) {
                                             Icon(Icons.Outlined.DeleteForever, null)
-                                            Spacer(Modifier.width(6.dp))
-                                            Text("Delete Permanently", maxLines = 1)
+                                            Spacer(Modifier.width(7.dp))
+                                            Text("Delete Permanently", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
                                         }
                                     }
                                 }
@@ -1971,7 +1976,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             },
                             onMore = { selectedDocument = doc },
-                            selectionMode = selectionMode && !recycleBin,
+                            selectionMode = selectionMode,
                             selected = doc.id in selectedDocumentIds
                         )
                     }
@@ -4557,7 +4562,7 @@ private fun DocumentRowV2New(
             Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (selectionMode && !isRecycleBin) {
+            if (selectionMode) {
                 Checkbox(checked = selected, onCheckedChange = { onClick() })
             }
             DocumentTypeIconNew(document.contentType, Modifier.size(46.dp))
