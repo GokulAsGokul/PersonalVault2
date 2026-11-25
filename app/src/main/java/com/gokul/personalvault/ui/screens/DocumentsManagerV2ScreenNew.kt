@@ -1496,58 +1496,59 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             } else if (!recycleBin) {
-                // Scope selector remains available in non-dashboard document views.
-                item(key = "scope") {
-                    val scopes = listOf(
+                if (inCategory) {
+                    item(key = "new_folder_quick_action") {
+                        NewFolderCardV2New(palette, Modifier.fillMaxWidth().height(72.dp)) { startCreateFolder() }
+                    }
+                    item(key = "folder_filter_spacing") { Spacer(Modifier.height(10.dp)) }
+                }
+                item(key = "ownership_filters") {
+                    val filters = listOf(
                         Triple("ALL", "All", Icons.Outlined.SelectAll),
-                        Triple("PERSONAL", "Personal", Icons.Outlined.Person),
+                        Triple("ONLY_ME", "Only Me", Icons.Outlined.Person),
                         Triple("SHARED", "Shared", Icons.Outlined.People),
+                        Triple("SPOUSE", "Spouse", Icons.Outlined.People),
                         Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
                     )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        scopes.forEach { (value, label, icon) ->
-                            val selected = if (value == "RECYCLE_BIN") recycleBin
-                                else !recycleBin && visibility == value
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        filters.forEach { (value, label, icon) ->
+                            val selected = if (value == "RECYCLE_BIN") recycleBin else dashboardFilter == value
+                            val tileBackground = when (value) {
+                                "ALL" -> Color(0xFFF0E5FF)
+                                "ONLY_ME" -> Color(0xFFE7F7E9)
+                                "SHARED" -> Color(0xFFFFEEE5)
+                                "SPOUSE" -> Color(0xFFFCE8F5)
+                                else -> Color(0xFFE3F0FF)
+                            }
+                            val tileAccent = when (value) {
+                                "ALL" -> Color(0xFF7136B8)
+                                "ONLY_ME" -> Color(0xFF269B52)
+                                "SHARED" -> Color(0xFFEF7B35)
+                                "SPOUSE" -> Color(0xFFD63384)
+                                else -> Color(0xFF2875D0)
+                            }
                             Surface(
-                                modifier = Modifier.weight(1f).heightIn(min = 52.dp).clickable {
-                                    if (value == "RECYCLE_BIN") {
-                                        recycleBin = true
-                                        category = "all"
-                                        currentFolderId = null
-                                        showAllDocuments = false
-                                        visibility = "ALL"
-                                    } else {
-                                        recycleBin = false
-                                        visibility = value
-                                        category = "all"
-                                        currentFolderId = null
-                                        showAllDocuments = false
-                                    }
-                                },
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (selected) documentAccent else palette.container,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (selected) documentAccent else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                                )
-                            ) {
-                                Column(
-                                    Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                modifier = Modifier.weight(1f).height(84.dp).clip(RoundedCornerShape(16.dp)).clickable(
+                                    indication = ripple(bounded = true, color = tileAccent),
+                                    interactionSource = remember { MutableInteractionSource() }
                                 ) {
-                                    Icon(icon, contentDescription = null,
-                                        tint = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(17.dp))
-                                    Text(label, color = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurface,
-                                        style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                                    if (value == "RECYCLE_BIN") { recycleBin = true } else { recycleBin = false; dashboardFilter = value }
+                                    category = "all"; currentFolderId = null; showAllDocuments = false; visibility = "ALL"
+                                    selectionMode = false; selectedDocumentIds.clear()
+                                },
+                                shape = RoundedCornerShape(16.dp), color = tileBackground,
+                                border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) tileAccent else tileAccent.copy(alpha = 0.18f)),
+                                shadowElevation = if (selected) 3.dp else 0.dp
+                            ) {
+                                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                    Icon(icon, null, tint = tileAccent, modifier = Modifier.size(23.dp))
+                                    Text(label, color = Color(0xFF211536), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                                 }
                             }
                         }
                     }
                 }
             }
-
             if (!documentsLoaded) {
                 item(key = "documents_initial_loading") {
                     Card(
