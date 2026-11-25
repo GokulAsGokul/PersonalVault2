@@ -864,7 +864,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         activeDocumentTransferJob = scope.launch {
             busyDocument = true
             isDownloadingFile = true
-            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileName = doc.originalFileName.ifBlank { doc.title }
             downloadingFileType = doc.originalFileName.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
                 ?: when {
                     doc.contentType.contains("pdf", true) -> "PDF"
@@ -957,7 +957,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         activeDocumentTransferJob = scope.launch {
             busyDocument = true
             isDownloadingFile = true
-            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileName = doc.originalFileName.ifBlank { doc.title }
             downloadingFileType = doc.originalFileName.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
                 ?: when {
                     doc.contentType.contains("pdf", true) -> "PDF"
@@ -1044,7 +1044,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             busyDocument = true
             val cachedPreview = previewFile?.takeIf { previewFileDocumentId == doc.id }
             isDownloadingFile = cachedPreview == null
-            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileName = doc.originalFileName.ifBlank { doc.title }
             downloadTransferredBytes = 0L
             downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
@@ -3895,11 +3895,32 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val downloadTrack = if (darkDownloadUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
         val waveColor = if (darkDownloadUi) Color(0xFF573477).copy(alpha = 0.52f) else Color(0xFFDCC4F5)
         val fileTypeLabel = downloadingFileType
-        val downloadFileIcon = when {
-            fileTypeLabel == "PDF" -> Icons.Outlined.PictureAsPdf
-            fileTypeLabel in setOf("JPG", "JPEG", "PNG", "GIF", "WEBP", "IMAGE") -> Icons.Outlined.Image
-            fileTypeLabel in setOf("XLS", "XLSX", "CSV") -> Icons.Outlined.Description
-            else -> Icons.Outlined.InsertDriveFile
+        val (fileIconBackground, fileIconTint, downloadFileIcon) = when {
+            fileTypeLabel == "PDF" -> Triple(
+                if (darkDownloadUi) Color(0xFF4A2020) else Color(0xFFFFE3E3),
+                if (darkDownloadUi) Color(0xFFFF9A9A) else Color(0xFFC42020),
+                Icons.Outlined.PictureAsPdf
+            )
+            fileTypeLabel in setOf("JPG", "JPEG", "PNG", "GIF", "WEBP", "IMAGE") -> Triple(
+                if (darkDownloadUi) Color(0xFF1E3350) else Color(0xFFDDEBFF),
+                if (darkDownloadUi) Color(0xFF9CC4FF) else Color(0xFF1D63C2),
+                Icons.Outlined.Image
+            )
+            fileTypeLabel in setOf("XLS", "XLSX", "CSV") -> Triple(
+                if (darkDownloadUi) Color(0xFF1B3A2A) else Color(0xFFDDF4E5),
+                if (darkDownloadUi) Color(0xFF9BE3BA) else Color(0xFF13733F),
+                Icons.Outlined.Description
+            )
+            fileTypeLabel in setOf("DOC", "DOCX", "RTF") -> Triple(
+                if (darkDownloadUi) Color(0xFF1E3350) else Color(0xFFDDEBFF),
+                if (darkDownloadUi) Color(0xFF9CC4FF) else Color(0xFF1D63C2),
+                Icons.Outlined.Description
+            )
+            else -> Triple(
+                if (darkDownloadUi) Color(0xFF302447) else Color(0xFFEBE2FF),
+                if (darkDownloadUi) Color(0xFFCDB5FF) else Color(0xFF5B2FB5),
+                Icons.Outlined.InsertDriveFile
+            )
         }
 
         Dialog(
@@ -3932,25 +3953,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 22.dp, vertical = 26.dp),
-                    verticalArrangement = Arrangement.spacedBy(22.dp)
+                        .padding(horizontal = 20.dp, vertical = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(18.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Surface(
-                            modifier = Modifier.size(82.dp),
-                            shape = RoundedCornerShape(24.dp),
-                            color = if (darkDownloadUi) Color(0xFF493064) else Color(0xFFE9D8FF)
+                            modifier = Modifier.size(64.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            color = fileIconBackground
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     downloadFileIcon,
                                     contentDescription = "$fileTypeLabel document",
-                                    tint = if (darkDownloadUi) Color(0xFFE2B8FF) else Color(0xFF7438B8),
-                                    modifier = Modifier.size(48.dp)
+                                    tint = fileIconTint,
+                                    modifier = Modifier.size(38.dp)
                                 )
                             }
                         }
@@ -3960,18 +3981,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         ) {
                             Text(
                                 "Downloading Document",
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 softWrap = false,
-                                overflow = TextOverflow.Clip
+                                overflow = TextOverflow.Visible
                             )
                             Text(
                                 downloadingFileName,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
+                                maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
