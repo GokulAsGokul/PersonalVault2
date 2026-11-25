@@ -3920,7 +3920,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val dialogBackground = if (darkDownloadUi) Color(0xFF211B2B) else Color(0xFFF8F3FF)
         val downloadAccent = if (darkDownloadUi) Color(0xFFD6A5FF) else Color(0xFF7438B8)
         val downloadTrack = if (darkDownloadUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
-        val waveColor = if (darkDownloadUi) Color(0xFF68408D).copy(alpha = 0.78f) else Color(0xFFDCC4F5)
+        val waveColor = if (darkDownloadUi) Color(0xFF563273) else Color(0xFFE5D1F7)
         val fileTypeLabel = downloadingFileType
         val (fileIconBackground, fileIconTint, downloadFileIcon) = when {
             fileTypeLabel == "PDF" -> Triple(
@@ -4071,17 +4071,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (darkDownloadUi) Color(0xFFF0D6FF) else Color(0xFFEAD0FF),
-                            contentColor = Color(0xFFB00020),
-                            disabledContainerColor = downloadTrack,
-                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            containerColor = Color(0xFFB42345),
+                            contentColor = Color.White,
+                            disabledContainerColor = Color(0xFFB42345).copy(alpha = 0.65f),
+                            disabledContentColor = Color.White.copy(alpha = 0.75f)
                         )
                     ) {
                         if (isSavingDownloadedFile) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
-                                color = Color(0xFFB00020)
+                                color = Color.White
                             )
                             Spacer(Modifier.width(10.dp))
                             Text("Finishing download", fontWeight = FontWeight.Bold)
