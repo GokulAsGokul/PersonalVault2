@@ -3796,7 +3796,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         Text("Only your account's Favourite list is changed", color = muted,
                                             style = MaterialTheme.typography.bodySmall)
                                     }
-                                    if (favourite) Icon(Icons.Outlined.CheckCircle, null, tint = Color(0xFFFF83B5))
+                                    if (favourite) Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFFFF83B5))
                                 }
                                 if (doc.ownerUid == memberUid) {
                                     actionCard(
