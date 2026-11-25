@@ -272,6 +272,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
     var downloadTotalBytes by remember { mutableLongStateOf(0L) }
     var isSavingDownloadedFile by remember { mutableStateOf(false) }
+    var activeDocumentTransferJob by remember { mutableStateOf<Job?>(null) }
     var showDocumentPreview by remember { mutableStateOf(false) }
     var previewBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var previewFile by remember { mutableStateOf<File?>(null) }
@@ -858,7 +859,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     fun downloadDocument(doc: DocumentRecordV2) {
-        scope.launch {
+        activeDocumentTransferJob = scope.launch {
             busyDocument = true
             isDownloadingFile = true
             downloadingFileName = doc.title.ifBlank { doc.originalFileName }
@@ -884,12 +885,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     "Downloaded to the app's Downloads folder."
                 }
                 selectedDocument = null
+            } catch (error: CancellationException) {
+                message = "Download cancelled."
             } catch (error: Exception) {
                 message = error.localizedMessage ?: error.message ?: "Download failed."
             } finally {
                 busyDocument = false
                 isSavingDownloadedFile = false
                 isDownloadingFile = false
+                activeDocumentTransferJob = null
             }
         }
     }
@@ -3856,27 +3860,133 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val progressValue = if (total > 0L) {
             (downloadTransferredBytes.toFloat() / total.toFloat()).coerceIn(0f, 1f)
         } else 0f
+        val darkDownloadUi = MaterialTheme.colorScheme.background.luminance() < 0.5f
+        val dialogBackground = if (darkDownloadUi) Color(0xFF211B2B) else Color(0xFFF8F3FF)
+        val downloadAccent = if (darkDownloadUi) Color(0xFFD6A5FF) else Color(0xFF7438B8)
+        val downloadTrack = if (darkDownloadUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
         AlertDialog(
             onDismissRequest = { },
-            title = { Text("Downloading document", fontWeight = FontWeight.Bold) },
+            shape = RoundedCornerShape(30.dp),
+            containerColor = dialogBackground,
+            tonalElevation = 12.dp,
+            title = null,
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(downloadingFileName, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    LinearProgressIndicator(progress = { progressValue }, modifier = Modifier.fillMaxWidth(),
-                        color = documentAccent)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(formatDocumentBytesNew(downloadTransferredBytes), style = MaterialTheme.typography.bodySmall)
-                        Text(if (total > 0L) "of ${formatDocumentBytesNew(total)}" else "Calculating total…",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.size(88.dp),
+                        shape = RoundedCornerShape(26.dp),
+                        color = if (darkDownloadUi) Color(0xFF493064) else Color(0xFFE9D8FF)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Outlined.PictureAsPdf,
+                                contentDescription = "PDF document",
+                                tint = downloadAccent,
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
                     }
-                    Text(
-                        when {
-                            isSavingDownloadedFile -> "Saving to Downloads/Personal Vault…"
-                            total > 0L -> "${(progressValue * 100).toInt()}% downloaded"
-                            else -> "Downloading…"
-                        },
-                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            "Downloading Document",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            downloadingFileName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (darkDownloadUi) Color(0xFF30263D) else Color(0xFFEFE6F8)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Outlined.Description, null, tint = downloadAccent, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                downloadingFileName.substringAfterLast('.', "Document").uppercase(Locale.ROOT),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.width(18.dp))
+                            Box(Modifier.width(1.dp).height(20.dp).background(downloadAccent.copy(alpha = 0.45f)))
+                            Spacer(Modifier.width(18.dp))
+                            Icon(Icons.Outlined.Storage, null, tint = downloadAccent, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (total > 0L) formatDocumentBytesNew(total) else "Calculating",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { progressValue },
+                            modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)),
+                            color = downloadAccent,
+                            trackColor = downloadTrack
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(
+                                if (total > 0L) "${(progressValue * 100).toInt()}% downloaded" else "Downloading…",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = downloadAccent
+                            )
+                            Text(
+                                "${formatDocumentBytesNew(downloadTransferredBytes)} of ${if (total > 0L) formatDocumentBytesNew(total) else "—"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = { if (!isSavingDownloadedFile) activeDocumentTransferJob?.cancel() },
+                        enabled = !isSavingDownloadedFile && activeDocumentTransferJob?.isActive == true,
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (darkDownloadUi) Color(0xFFD9B5FF) else Color(0xFFE4C8FF),
+                            contentColor = Color(0xFF32134F),
+                            disabledContainerColor = downloadTrack,
+                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        if (isSavingDownloadedFile) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFF32134F)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text("Finishing download")
+                        } else {
+                            Icon(Icons.Outlined.Close, contentDescription = null)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Cancel Download", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             },
             confirmButton = {}
