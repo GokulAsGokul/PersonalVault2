@@ -3649,15 +3649,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                     val favourite = doc.favouriteUids[memberUid] == true
                     val sheetBackground = if (isDarkUi) Color(0xFF1D1725) else Color(0xFFF7F1FC)
-                    val actionCard = if (isDarkUi) Color(0xFF2B2135) else Color(0xFFFFFFFF)
+                    val actionCardBackground = if (isDarkUi) Color(0xFF2B2135) else Color(0xFFFFFFFF)
                     val accent = if (isDarkUi) Color(0xFFD4A1FF) else documentAccent
                     val muted = if (isDarkUi) Color(0xFFD0C4D9) else MaterialTheme.colorScheme.onSurfaceVariant
                     val danger = if (isDarkUi) Color(0xFFFF9BB2) else MaterialTheme.colorScheme.error
 
                     @Composable
-                    fun quickAction(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
+                    fun quickAction(modifier: Modifier, icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
                         Column(
-                            modifier = Modifier.weight(1f).clip(RoundedCornerShape(18.dp))
+                            modifier = modifier.clip(RoundedCornerShape(18.dp))
                                 .background(if (isDarkUi) Color(0xFF34263F) else Color(0xFFECE1F8))
                                 .clickable(enabled = enabled, onClick = onClick)
                                 .padding(vertical = 10.dp),
@@ -3676,7 +3676,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                    trailing: Boolean = false, onClick: () -> Unit) {
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                                .background(actionCard)
+                                .background(actionCardBackground)
                                 .clickable(enabled = !busyDocument, onClick = onClick)
                                 .padding(horizontal = 16.dp, vertical = 16.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -3752,15 +3752,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
 
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                quickAction(Icons.Outlined.Visibility, "Preview",
+                                quickAction(Modifier.weight(1f), Icons.Outlined.Visibility, "Preview",
                                     enabled = !busyDocument && !doc.isDeleted &&
                                         (doc.contentType.startsWith("image/") || doc.contentType.contains("pdf", true) ||
                                             doc.originalFileName.endsWith(".pdf", true))) { previewDocument(doc) }
-                                quickAction(Icons.Outlined.Download, "Download", !busyDocument && !doc.isDeleted) {
+                                quickAction(Modifier.weight(1f), Icons.Outlined.Download, "Download", !busyDocument && !doc.isDeleted) {
                                     downloadDocument(doc)
                                 }
                                 if (doc.ownerUid == memberUid && !doc.isDeleted) {
-                                    quickAction(Icons.Outlined.Edit, "Edit", !busyDocument) {
+                                    quickAction(Modifier.weight(1f), Icons.Outlined.Edit, "Edit", !busyDocument) {
                                         editTitle = doc.title
                                         editDescription = doc.description
                                         editCategory = doc.categoryId
@@ -3769,10 +3769,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         selectedDocument = null
                                     }
                                 }
-                                quickAction(Icons.Outlined.Share, "Share", !busyDocument && !doc.isDeleted) {
+                                quickAction(Modifier.weight(1f), Icons.Outlined.Share, "Share", !busyDocument && !doc.isDeleted) {
                                     shareDocument(doc)
                                 }
-                                quickAction(Icons.Outlined.Info, "Details", !busyDocument) { showDocumentDetails = true }
+                                quickAction(Modifier.weight(1f), Icons.Outlined.Info, "Details", !busyDocument) { showDocumentDetails = true }
                             }
 
                             if (!doc.isDeleted) {
