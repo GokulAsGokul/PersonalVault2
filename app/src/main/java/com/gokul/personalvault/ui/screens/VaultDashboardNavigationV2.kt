@@ -71,6 +71,13 @@ fun VaultDashboardNavigationV2(
         VaultSnackbarController.clear(notice.id)
     }
 
+    val documentsSurface = Color(0xFF17121D)
+    val dashboardBackground = if (selected == VaultV2Destination.DOCUMENTS) {
+        documentsSurface
+    } else {
+        MaterialTheme.colorScheme.background
+    }
+
     Scaffold(
         snackbarHost = {
             VaultSnackbarHost(
@@ -78,12 +85,12 @@ fun VaultDashboardNavigationV2(
                 type = activeNotice?.type ?: VaultSnackbarType.INFO
             )
         },
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = dashboardBackground,
         bottomBar = {
             NavigationBar(
                 modifier = Modifier.height(80.dp),
-                // Match the app background visible behind the transparent status bar.
-                containerColor = MaterialTheme.colorScheme.background,
+                // Keep the Documents screen and its bottom navigation on one continuous surface.
+                containerColor = dashboardBackground,
                 contentColor = MaterialTheme.colorScheme.onBackground,
                 tonalElevation = 0.dp
             ) {
@@ -114,7 +121,12 @@ fun VaultDashboardNavigationV2(
             }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(dashboardBackground)
+        ) {
             when {
                 selected == VaultV2Destination.HOME -> DashboardOverviewV2(
                     email = email,
