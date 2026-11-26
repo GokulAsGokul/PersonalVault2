@@ -4837,7 +4837,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         .clip(RoundedCornerShape(30.dp))
                         .background(detailsSurface)
                         .drawBehind {
-                                .drawBehind {
                                     val width = size.width
                                     val height = size.height
     
@@ -4882,8 +4881,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         frontWave,
                                         if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
                                     )
-                                }
-    
                         }
                         .padding(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
