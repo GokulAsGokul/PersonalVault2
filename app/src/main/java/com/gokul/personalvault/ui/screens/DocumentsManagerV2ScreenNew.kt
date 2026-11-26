@@ -4584,7 +4584,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .clip(RoundedCornerShape(30.dp))
                     .background(accessDialogBackground)
                     .padding(horizontal = 24.dp, vertical = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -4688,21 +4688,23 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(
-                        enabled = !busyDocument,
+                    Button(
                         onClick = { accessDocument = null },
-                        modifier = Modifier.height(54.dp)
-                    ) {
-                        Text(
-                            "Cancel",
-                            color = accessAccent,
-                            style = MaterialTheme.typography.titleMedium
+                        enabled = !busyDocument,
+                        modifier = Modifier.weight(1f).height(54.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isDarkUi) Color(0xFFD8B5E9) else Color(0xFFE5D2F2),
+                            contentColor = Color(0xFF2A1935),
+                            disabledContainerColor = Color(0xFF4B3A53),
+                            disabledContentColor = Color(0xFFBDAFC4)
                         )
+                    ) {
+                        Text("Cancel", fontWeight = FontWeight.Medium)
                     }
-                    Spacer(Modifier.width(10.dp))
                     Button(
                         enabled = !busyDocument && accessScope != doc.scope,
                         onClick = {
@@ -4731,13 +4733,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             }
                         },
-                        modifier = Modifier.height(54.dp).widthIn(min = 112.dp),
+                        modifier = Modifier.weight(1f).height(54.dp),
                         shape = RoundedCornerShape(18.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = accessAccent,
-                            contentColor = if (isDarkUi) Color(0xFF24142F) else Color.White,
-                            disabledContainerColor = accessAccent.copy(alpha = 0.22f),
-                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            containerColor = Color(0xFF8D2BD0),
+                            contentColor = Color.White,
+                            disabledContainerColor = Color(0xFF4C285D),
+                            disabledContentColor = Color(0xFFC7B3D1)
                         )
                     ) {
                         if (busyDocument) {
@@ -4754,28 +4756,50 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(18.dp)
+                        .height(38.dp)
                         .drawBehind {
-                            val wave = androidx.compose.ui.graphics.Path().apply {
-                                val waveTop = size.height - 8.dp.toPx()
-                                moveTo(0f, waveTop)
+                            val baseWave = androidx.compose.ui.graphics.Path().apply {
+                                val crest = size.height - 15.dp.toPx()
+                                moveTo(0f, crest)
                                 cubicTo(
-                                    size.width * 0.22f, waveTop - 8.dp.toPx(),
-                                    size.width * 0.38f, size.height + 1.dp.toPx(),
-                                    size.width * 0.58f, waveTop + 1.dp.toPx()
+                                    size.width * 0.2f, crest - 8.dp.toPx(),
+                                    size.width * 0.34f, size.height + 1.dp.toPx(),
+                                    size.width * 0.55f, crest + 1.dp.toPx()
                                 )
                                 cubicTo(
-                                    size.width * 0.78f, waveTop - 5.dp.toPx(),
-                                    size.width * 0.9f, waveTop - 7.dp.toPx(),
-                                    size.width, waveTop
+                                    size.width * 0.76f, crest - 7.dp.toPx(),
+                                    size.width * 0.9f, crest - 9.dp.toPx(),
+                                    size.width, crest
                                 )
                                 lineTo(size.width, size.height)
                                 lineTo(0f, size.height)
                                 close()
                             }
                             drawPath(
-                                wave,
-                                if (isDarkUi) Color(0xFF573078) else Color(0xFFE3C8FA)
+                                baseWave,
+                                if (isDarkUi) Color(0xFF4B2468) else Color(0xFFD7B8EF)
+                            )
+
+                            val highlightWave = androidx.compose.ui.graphics.Path().apply {
+                                val crest = size.height - 8.dp.toPx()
+                                moveTo(0f, crest)
+                                cubicTo(
+                                    size.width * 0.2f, crest - 5.dp.toPx(),
+                                    size.width * 0.4f, size.height + 1.dp.toPx(),
+                                    size.width * 0.58f, crest
+                                )
+                                cubicTo(
+                                    size.width * 0.8f, crest - 5.dp.toPx(),
+                                    size.width * 0.9f, crest - 6.dp.toPx(),
+                                    size.width, crest
+                                )
+                                lineTo(size.width, size.height)
+                                lineTo(0f, size.height)
+                                close()
+                            }
+                            drawPath(
+                                highlightWave,
+                                if (isDarkUi) Color(0xFF8542A8) else Color(0xFFE8D1F8)
                             )
                         }
                 )
