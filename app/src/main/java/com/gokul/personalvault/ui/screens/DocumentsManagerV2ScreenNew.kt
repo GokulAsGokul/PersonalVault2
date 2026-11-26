@@ -4583,7 +4583,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Column(
                     Modifier.fillMaxWidth(0.94f)
                         .wrapContentHeight()
-                        .heightIn(max = 760.dp)
                         .clip(RoundedCornerShape(30.dp))
                         .background(detailsSurface)
                         .padding(horizontal = 20.dp, vertical = 18.dp),
