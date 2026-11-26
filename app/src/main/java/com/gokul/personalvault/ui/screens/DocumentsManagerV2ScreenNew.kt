@@ -4801,7 +4801,7 @@ listOf("PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) 
                             }
                             editingDocument = null
                         } catch (error: CancellationException) {
-                            message = "Replacement cancelled because the app was closed."
+                            message = "Document replacement cancelled."
                             throw error
                         } catch (error: Exception) {
                             editingDocument = null
