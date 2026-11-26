@@ -4095,9 +4095,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         color = MaterialTheme.colorScheme.onSurface,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Ellipsis
+                                        maxLines = 3,
+                                        softWrap = true,
+                                        overflow = TextOverflow.Clip
                                     )
                                     Text(
                                         "${formatDocumentBytesNew(doc.sizeBytes)}  •  ${doc.contentType.substringAfter('/').uppercase()}",
