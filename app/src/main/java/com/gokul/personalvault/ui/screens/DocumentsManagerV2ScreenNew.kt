@@ -4583,32 +4583,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .wrapContentHeight()
                     .clip(RoundedCornerShape(30.dp))
                     .background(accessDialogBackground)
-                    .drawBehind {
-                        val wave = androidx.compose.ui.graphics.Path().apply {
-                            val waveTop = size.height - 34.dp.toPx()
-                            moveTo(0f, waveTop)
-                            cubicTo(
-                                size.width * 0.2f, waveTop - 15.dp.toPx(),
-                                size.width * 0.36f, size.height + 2.dp.toPx(),
-                                size.width * 0.56f, waveTop + 2.dp.toPx()
-                            )
-                            cubicTo(
-                                size.width * 0.76f, waveTop - 10.dp.toPx(),
-                                size.width * 0.88f, waveTop - 12.dp.toPx(),
-                                size.width, waveTop
-                            )
-                            lineTo(size.width, size.height)
-                            lineTo(0f, size.height)
-                            close()
-                        }
-                        drawPath(
-                            wave,
-                            if (isDarkUi) Color(0xFF573078) else Color(0xFFE3C8FA)
-                        )
-                    }
-                    .padding(horizontal = 24.dp, vertical = 26.dp)
-                    .padding(bottom = 26.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                    .padding(horizontal = 24.dp, vertical = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -4774,6 +4750,35 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(18.dp)
+                        .drawBehind {
+                            val wave = androidx.compose.ui.graphics.Path().apply {
+                                val waveTop = size.height - 8.dp.toPx()
+                                moveTo(0f, waveTop)
+                                cubicTo(
+                                    size.width * 0.22f, waveTop - 8.dp.toPx(),
+                                    size.width * 0.38f, size.height + 1.dp.toPx(),
+                                    size.width * 0.58f, waveTop + 1.dp.toPx()
+                                )
+                                cubicTo(
+                                    size.width * 0.78f, waveTop - 5.dp.toPx(),
+                                    size.width * 0.9f, waveTop - 7.dp.toPx(),
+                                    size.width, waveTop
+                                )
+                                lineTo(size.width, size.height)
+                                lineTo(0f, size.height)
+                                close()
+                            }
+                            drawPath(
+                                wave,
+                                if (isDarkUi) Color(0xFF573078) else Color(0xFFE3C8FA)
+                            )
+                        }
+                )
             }
         }
     }
