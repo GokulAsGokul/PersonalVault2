@@ -4582,10 +4582,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .fillMaxWidth(0.94f)
                     .wrapContentHeight()
                     .clip(RoundedCornerShape(30.dp))
-                    .background(accessDialogBackground)
-                    .padding(horizontal = 24.dp, vertical = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .background(accessDialogBackground),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -4751,6 +4756,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Text("Save", fontWeight = FontWeight.Bold)
                         }
                     }
+                }
                 }
 
                 Box(
