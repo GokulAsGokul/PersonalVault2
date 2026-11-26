@@ -1371,7 +1371,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 ) {
                                     Text(
                                         title,
-                                        modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+                                        modifier = Modifier.height(48.dp).padding(horizontal = 16.dp),
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1
