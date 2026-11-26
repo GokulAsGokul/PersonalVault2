@@ -3504,7 +3504,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         value = newFolderName,
                         onValueChange = { newFolderName = it.take(30); createFolderError = null },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Folder Name") },
+                        label = { Text("Folder Name") },
+                        placeholder = { Text("Enter folder name") },
+                        trailingIcon = {
+                            if (newFolderName.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    newFolderName = ""
+                                    createFolderError = null
+                                }) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear folder name")
+                                }
+                            }
+                        },
                         supportingText = { Text("${newFolderName.length}/30") },
                         singleLine = true, shape = RoundedCornerShape(16.dp)
                     )
