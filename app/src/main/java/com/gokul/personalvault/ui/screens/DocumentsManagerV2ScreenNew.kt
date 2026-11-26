@@ -2169,28 +2169,47 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     title = "Add Documents",
                     subtitle = null,
                     onBack = {
-                        if (!uploading && pendingUploads.isNotEmpty() &&
-                        pendingUploads.size < MAX_DOCUMENT_BATCH_COUNT_NEW) {
-                        OutlinedButton(
-                            onClick = {
-                                VaultExternalActivityState.documentPickerActive = true
-                                picker.launch(arrayOf("*/*"))
-                            },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.accent),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line)
-                        ) {
-                            Icon(Icons.Outlined.Add, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Add New File")
+                        if (!uploading) {
+                            showAddDocuments = false
+                            pendingUploads.clear()
+                            pendingPhotoFile?.delete()
+                            pendingPhotoFile = null
+                            pendingPhotoUri = null
+                            capturedPhotoUri = null
+                            pendingScanFile?.delete()
+                            pendingScanFile = null
                         }
-                    }
-                    if (!uploading && pendingUploads.isEmpty()) {
-                        Box(
-                            Modifier.fillMaxWidth().weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
+                    },
+                    titleIcon = null,
+                    actions = {}
+                )
+            },
+            contentFillsSpace = pendingUploads.isNotEmpty() || uploading,
+            content = {
+                if (pendingUploads.isEmpty() && !uploading) {
+                    Column(
+                        Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        val addPalette = documentPaletteV2New(isDarkUi)
+                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = addPalette.container)) {
+                            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Icon(Icons.Outlined.Info, null, tint = addPalette.accent, modifier = Modifier.size(26.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("0 of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected", fontWeight = FontWeight.SemiBold,
+                                        color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
+                                    Text("Limits: 50 MB per file · 200 MB per batch", style = MaterialTheme.typography.labelSmall,
+                                        color = addPalette.muted)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("Total", style = MaterialTheme.typography.labelSmall, color = addPalette.muted)
+                                    Text("0 B", color = addPalette.accent, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                             OutlinedButton(
                                 onClick = {
                                     VaultExternalActivityState.documentPickerActive = true
@@ -2207,7 +2226,46 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
                     }
-                    if (!uploading && pendingUploads.isNotEmpty()) {
+                } else {
+                Column(Modifier.fillMaxWidth().fillMaxHeight().verticalScroll(uploadFormScrollState),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val addPalette = documentPaletteV2New(isDarkUi)
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = addPalette.container)) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Outlined.Info, null, tint = addPalette.accent, modifier = Modifier.size(26.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected", fontWeight = FontWeight.SemiBold,
+                                    color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
+                                Text("Limits: 50 MB per file · 200 MB per batch", style = MaterialTheme.typography.labelSmall,
+                                    color = addPalette.muted)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Total", style = MaterialTheme.typography.labelSmall, color = addPalette.muted)
+                                Text(formatDocumentBytesNew(pendingUploads.sumOf { it.sizeBytes }),
+                                    color = addPalette.accent, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    if (!uploading) {
+                    if (pendingUploads.size < MAX_DOCUMENT_BATCH_COUNT_NEW) {
+                        OutlinedButton(
+                            onClick = {
+                                VaultExternalActivityState.documentPickerActive = true
+                                picker.launch(arrayOf("*/*"))
+                            },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.accent),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line)
+                        ) {
+                            Icon(Icons.Outlined.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (pendingUploads.isEmpty()) "Add Files" else "Add New File")
+                        }
+                    }
                     pendingUploads.forEachIndexed { index, pending ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -2440,6 +2498,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
                     }
+                }
                 }
             },
             primaryAction = {
