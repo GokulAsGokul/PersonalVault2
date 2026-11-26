@@ -2169,24 +2169,42 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     pendingScanFile = null
                 }
             },
-            title = { Text("Add Documents") },
+            title = {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF4B2A68)),
+                        contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.InsertDriveFile, null, tint = Color(0xFFD9B5FF), modifier = Modifier.size(27.dp))
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Add Documents", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Add files to your Personal Vault", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            },
             text = {
                 Column(
                     Modifier.fillMaxWidth().heightIn(max = 680.dp).verticalScroll(uploadFormScrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "Limits: 50 MB per file · 200 MB per batch",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                    Text(
-                        "Total selected: ${formatDocumentBytesNew(pendingUploads.sumOf { it.sizeBytes })}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF352541))) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Outlined.Info, null, tint = Color(0xFFD6B2FF), modifier = Modifier.size(26.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected", fontWeight = FontWeight.SemiBold)
+                                Text("Limits: 50 MB per file · 200 MB per batch", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Total", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(formatDocumentBytesNew(pendingUploads.sumOf { it.sizeBytes }),
+                                    color = Color(0xFFD6B2FF), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     if (!uploading) {
                     if (pendingUploads.isEmpty()) {
                         OutlinedButton(
@@ -2263,19 +2281,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text("Access", style = MaterialTheme.typography.labelMedium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(
-                                    selected = pending.scope == "PERSONAL",
-                                    onClick = { pendingUploads[index] = pending.copy(scope = "PERSONAL", folderId = null) },
-                                    label = { Text("Personal") },
-                                    enabled = !uploading
-                                )
-                                FilterChip(
-                                    selected = pending.scope == "SHARED",
-                                    onClick = { pendingUploads[index] = pending.copy(scope = "SHARED", folderId = null) },
-                                    label = { Text("Shared") },
-                                    enabled = !uploading
-                                )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                listOf("PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
+                                    val selected = pending.scope == value
+                                    val selectorShape = RoundedCornerShape(16.dp)
+                                    Row(Modifier.weight(1f).height(52.dp).clip(selectorShape)
+                                        .background(if (selected) Color(0xFF684080) else Color(0xFF281E34))
+                                        .border(1.dp, if (selected) Color(0xFFD3A4FF) else Color(0xFF493653), selectorShape)
+                                        .clickable(enabled = !uploading,
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = ripple(color = Color(0xFFD9B5FF))) {
+                                            pendingUploads[index] = pending.copy(scope = value, folderId = null)
+                                        }.padding(horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                        Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
+                                            null, tint = Color(0xFFD9B5FF), modifier = Modifier.size(19.dp))
+                                        Spacer(Modifier.width(7.dp))
+                                        Text(label, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                                    }
+                                }
                             }
                             var categoryMenuExpanded by remember(pending.uri) { mutableStateOf(false) }
                             Text("Category", style = MaterialTheme.typography.labelMedium)
@@ -4596,7 +4620,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     editingDocument = null
                 }
             },
-            title = { Text("Edit document") },
+            title = {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF4B2A68)),
+                        contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Edit, null, tint = Color(0xFFD9B5FF), modifier = Modifier.size(26.dp))
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Edit Document", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Update file details and access settings", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Document file", style = MaterialTheme.typography.labelLarge)
@@ -4643,9 +4680,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                         }
                     }
-                    OutlinedTextField(editTitle, { editTitle = it.take(50) }, label = { Text("File name (max 50)") }, singleLine = true)
-                    OutlinedTextField(editDescription, { editDescription = it.take(50) },
-                        label = { Text("Notes (max 50)") }, singleLine = true)
+                    OutlinedTextField(value = editTitle, onValueChange = { editTitle = it.take(50) },
+                        modifier = Modifier.fillMaxWidth(), label = { Text("File Name (max 50)") }, singleLine = true,
+                        supportingText = { Text("${editTitle.length}/50") }, shape = RoundedCornerShape(14.dp))
+                    OutlinedTextField(value = editDescription, onValueChange = { editDescription = it.take(50) },
+                        modifier = Modifier.fillMaxWidth(), label = { Text("Notes (max 50)") }, singleLine = true,
+                        supportingText = { Text("${editDescription.length}/50") }, shape = RoundedCornerShape(14.dp))
                     Text("Category", style = MaterialTheme.typography.labelLarge)
                     var editCategoryMenuExpanded by remember(doc.id) { mutableStateOf(false) }
                     Box {
@@ -4673,26 +4713,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                     Text("Access", style = MaterialTheme.typography.labelLarge)
-                    Row(
-                        Modifier.fillMaxWidth().clickable { editScope = "PERSONAL" }.padding(vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = editScope == "PERSONAL", onClick = { editScope = "PERSONAL" })
-                        Column {
-                            Text("Personal", fontWeight = FontWeight.SemiBold)
-                            Text("Only you can access", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    Row(
-                        Modifier.fillMaxWidth().clickable { editScope = "SHARED" }.padding(vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = editScope == "SHARED", onClick = { editScope = "SHARED" })
-                        Column {
-                            Text("Shared", fontWeight = FontWeight.SemiBold)
-                            Text("Both household members can access", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    listOf(Triple("PERSONAL", "Personal", "Only you can access"),
+                        Triple("SHARED", "Shared", "Both household members can access")).forEach { (value, label, description) ->
+                        val selected = editScope == value
+                        val selectorShape = RoundedCornerShape(16.dp)
+                        Row(Modifier.fillMaxWidth().clip(selectorShape)
+                            .background(if (selected) Color(0xFF513363) else Color(0xFF281E34))
+                            .border(1.dp, if (selected) Color(0xFFD3A4FF) else Color(0xFF493653), selectorShape)
+                            .clickable(interactionSource = remember { MutableInteractionSource() },
+                                indication = ripple(color = Color(0xFFD9B5FF))) { editScope = value }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            RadioButton(selected = selected, onClick = { editScope = value })
+                            Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
+                                null, tint = Color(0xFFD9B5FF), modifier = Modifier.size(24.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(label, fontWeight = FontWeight.SemiBold)
+                                Text(description, style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                     if (doc.folderId != null &&
