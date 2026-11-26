@@ -2448,47 +2448,75 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                     }
                     if (uploading) {
-                        Text("Uploading Files", style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold)
+                        Text(
+                            "Uploading files",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                         pendingUploads.forEachIndexed { index, pending ->
                             val itemProgress = when {
                                 index < currentUploadIndex -> 1f
-                                index == currentUploadIndex -> currentFileProgress
+                                index == currentUploadIndex -> currentFileProgress.coerceIn(0f, 1f)
                                 else -> 0f
                             }
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    DocumentTypeIconNew(
-                                        if (pending.fileName.endsWith(".pdf", true)) "application/pdf" else "application/octet-stream",
-                                        Modifier.size(34.dp)
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(pending.fileName, style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.SemiBold, maxLines = 1)
-                                        Text(
-                                            when {
-                                                index < currentUploadIndex -> "${formatDocumentBytesNew(pending.sizeBytes)} · 100%"
-                                                index == currentUploadIndex -> "${formatDocumentBytesNew((pending.sizeBytes * itemProgress).toLong())} · ${(itemProgress * 100).toInt()}%"
-                                                else -> "${formatDocumentBytesNew(pending.sizeBytes)} · Pending…"
-                                            },
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line),
+                                colors = CardDefaults.cardColors(containerColor = addPalette.surface)
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        DocumentTypeIconNew(
+                                            if (pending.fileName.endsWith(".pdf", true)) "application/pdf" else "application/octet-stream",
+                                            Modifier.size(42.dp)
                                         )
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text(
+                                                pending.fileName,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638)
+                                            )
+                                            Text(
+                                                when {
+                                                    index < currentUploadIndex -> "${formatDocumentBytesNew(pending.sizeBytes)} · Completed"
+                                                    index == currentUploadIndex -> "${formatDocumentBytesNew((pending.sizeBytes * itemProgress).toLong())} · ${(itemProgress * 100).toInt()}%"
+                                                    else -> "${formatDocumentBytesNew(pending.sizeBytes)} · Pending…"
+                                                },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = addPalette.muted
+                                            )
+                                        }
+                                        if (index < currentUploadIndex) {
+                                            Icon(
+                                                Icons.Filled.CheckCircle,
+                                                contentDescription = "Completed",
+                                                tint = Color(0xFF31C56B)
+                                            )
+                                        } else if (index > currentUploadIndex) {
+                                            Text(
+                                                "•••",
+                                                color = addPalette.accent,
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                        }
                                     }
-                                    if (index < currentUploadIndex) {
-                                        Icon(Icons.Filled.CheckCircle, contentDescription = "Completed",
-                                            tint = Color(0xFF31C56B))
-                                    } else if (index == currentUploadIndex) {
-                                        CircularProgressIndicator(progress = { itemProgress },
-                                            modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                    }
+                                    LinearProgressIndicator(
+                                        progress = { itemProgress },
+                                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                                        color = addPalette.accent,
+                                        trackColor = addPalette.container
+                                    )
                                 }
-                                LinearProgressIndicator(
-                                    progress = { itemProgress },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = documentAccent
-                                )
                             }
                         }
                         Card(
