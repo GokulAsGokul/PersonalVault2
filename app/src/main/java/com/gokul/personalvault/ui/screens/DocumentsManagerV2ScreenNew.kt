@@ -3446,9 +3446,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { showCreateFolder = false }, enabled = !busyDocument,
-                            modifier = Modifier.weight(1f).height(54.dp)) {
-                            Text("Cancel", color = folderAccent, fontWeight = FontWeight.SemiBold)
+                        Button(
+                            onClick = { showCreateFolder = false },
+                            enabled = !busyDocument,
+                            modifier = Modifier.weight(1f).height(54.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFFDCC0F5) else Color(0xFFE9D5FA),
+                                contentColor = if (isDarkUi) Color(0xFF30203F) else Color(0xFF54217F)
+                            )
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
                         }
                         Button(
                             onClick = {
