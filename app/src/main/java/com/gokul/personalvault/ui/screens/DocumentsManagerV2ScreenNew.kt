@@ -4909,7 +4909,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
                             .background(detailsCard)
-                            .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 42.dp),
+                            .padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
