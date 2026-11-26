@@ -263,6 +263,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val addOptionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var customCategories by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var selectedDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
+    var accessDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
+    var accessScope by remember { mutableStateOf("PERSONAL") }
     var editingDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var editTitle by remember { mutableStateOf("") }
     var editDescription by remember { mutableStateOf("") }
@@ -4166,11 +4168,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document",
                                         trailing = true
                                     ) {
-                                        editTitle = doc.title
-                                        editDescription = doc.description
-                                        editCategory = doc.categoryId
-                                        editScope = doc.scope
-                                        editingDocument = doc
+                                        accessDocument = doc
+                                        accessScope = doc.scope
                                         selectedDocument = null
                                     }
                                     actionCard(
@@ -4559,6 +4558,100 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             },
             dismissButton = {
                 TextButton(enabled = !busyDocument, onClick = { permanentDeleteTarget = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    accessDocument?.let { doc ->
+        AlertDialog(
+            onDismissRequest = {
+                if (!busyDocument) accessDocument = null
+            },
+            title = {
+                Text("Change Access", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Choose who can access this document.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    listOf(
+                        "PERSONAL" to ("Personal" to "Only you can access this document."),
+                        "SHARED" to ("Shared" to "Make this document available to household members.")
+                    ).forEach { (value, option) ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable(enabled = !busyDocument) { accessScope = value }
+                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = accessScope == value,
+                                onClick = { accessScope = value },
+                                enabled = !busyDocument
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(option.first, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    option.second,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !busyDocument && accessScope != doc.scope,
+                    onClick = {
+                        scope.launch {
+                            busyDocument = true
+                            try {
+                                repository.updateMetadata(
+                                    vaultId = vaultId,
+                                    document = doc,
+                                    title = doc.title,
+                                    description = doc.description,
+                                    categoryId = doc.categoryId,
+                                    scope = accessScope
+                                )
+                                message = if (accessScope == "SHARED") {
+                                    "Document access changed to Shared."
+                                } else {
+                                    "Document access changed to Personal."
+                                }
+                                accessDocument = null
+                            } catch (error: Exception) {
+                                message = error.localizedMessage ?: error.message ?: "Could not update document access."
+                            } finally {
+                                busyDocument = false
+                            }
+                        }
+                    }
+                ) {
+                    if (busyDocument) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Save")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !busyDocument,
+                    onClick = { accessDocument = null }
+                ) {
                     Text("Cancel")
                 }
             }
