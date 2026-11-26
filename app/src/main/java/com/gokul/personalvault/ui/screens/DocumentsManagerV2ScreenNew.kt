@@ -4590,15 +4590,22 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 ) {
                     Row(
                         Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Text(
+                            "File Details",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         IconButton(onClick = { showDocumentDetails = false }) {
-                            Icon(Icons.Outlined.ArrowBack, contentDescription = "Back from file details",
-                                tint = detailsAccent)
+                            Icon(
+                                Icons.Outlined.Close,
+                                contentDescription = "Close file details",
+                                tint = detailsAccent
+                            )
                         }
-                        Text("File Details", style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
 
                     Column(
@@ -4635,29 +4642,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     fontWeight = FontWeight.Bold,
                                     softWrap = true
                                 )
-                                Text(
-                                    "${fileType}  •  ${formatDocumentBytesNew(doc.sizeBytes)}",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
                             }
                         }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
-                            Surface(shape = RoundedCornerShape(50),
-                                color = if (isDarkUi) Color(0xFF43285B) else Color(0xFFDDF3EB)) {
-                                Text(
-                                    "Category · ${categoryLabel}",
-                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
-                                    color = if (isDarkUi) Color(0xFFD7B4FF) else Color(0xFF176B4A),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
+                        ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
                     }
 
                     Text("File Information", style = MaterialTheme.typography.titleMedium,
@@ -4687,22 +4674,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             doc.updatedAt?.toDate()?.let {
                                 SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
                             } ?: "—",
-                            Icons.Outlined.History
+                            Icons.Outlined.History,
+                            showDivider = false
                         )
                     }
 
-                    Button(
-                        onClick = { showDocumentDetails = false },
-                        modifier = Modifier.fillMaxWidth().height(58.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isDarkUi) Color(0xFFB982F0) else Color(0xFF8742C5),
-                            contentColor = if (isDarkUi) Color(0xFF21142D) else Color.White
-                        )
-                    ) {
-                        Text("Done", fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium)
-                    }
                 }
             }
         }
@@ -5247,7 +5223,12 @@ private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
 }
 
 @Composable
-private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVector) {
+private fun DocumentDetailRowV2New(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    showDivider: Boolean = true
+) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -5275,7 +5256,9 @@ private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVect
                 softWrap = true
             )
         }
-        Divider(color = if (dark) Color(0xFF493A56) else Color(0xFFDDD2E8), thickness = 1.dp)
+        if (showDivider) {
+            Divider(color = if (dark) Color(0xFF493A56) else Color(0xFFDDD2E8), thickness = 1.dp)
+        }
     }
 }
 
