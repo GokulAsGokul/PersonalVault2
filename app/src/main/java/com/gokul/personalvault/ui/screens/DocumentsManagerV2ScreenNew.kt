@@ -2165,9 +2165,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             header = {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(enabled = !uploading, onClick = {
+                Row(Modifier.fillMaxWidth().offset(x = (-12).dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(modifier = Modifier.size(40.dp), enabled = !uploading, onClick = {
                         if (!uploading) {
                             showAddDocuments = false
                             pendingUploads.clear()
@@ -2179,12 +2179,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             pendingScanFile = null
                         }
                     }) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Back") }
-                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(if (isDarkUi) Color(0xFF4B2A68) else Color(0xFFE9D8FF)),
+                    Box(Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(if (isDarkUi) Color(0xFF4B2A68) else Color(0xFFE9D8FF)),
                         contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.InsertDriveFile, null, tint = if (isDarkUi) Color(0xFFD9B5FF) else Color(0xFF7B2CBF), modifier = Modifier.size(27.dp))
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Add Documents", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Add Documents", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
+                            color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
                         Text("Add files to your Personal Vault", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -2197,20 +2198,22 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .verticalScroll(uploadFormScrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    val addPalette = documentPaletteV2New(isDarkUi)
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF352541))) {
+                        colors = CardDefaults.cardColors(containerColor = addPalette.container)) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Outlined.Info, null, tint = Color(0xFFD6B2FF), modifier = Modifier.size(26.dp))
+                            Icon(Icons.Outlined.Info, null, tint = addPalette.accent, modifier = Modifier.size(26.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected", fontWeight = FontWeight.SemiBold)
+                                Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected", fontWeight = FontWeight.SemiBold,
+                                    color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
                                 Text("Limits: 50 MB per file · 200 MB per batch", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    color = addPalette.muted)
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("Total", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Total", style = MaterialTheme.typography.labelSmall, color = addPalette.muted)
                                 Text(formatDocumentBytesNew(pendingUploads.sumOf { it.sizeBytes }),
-                                    color = Color(0xFFD6B2FF), fontWeight = FontWeight.Bold)
+                                    color = addPalette.accent, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -2221,8 +2224,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 VaultExternalActivityState.documentPickerActive = true
                                 picker.launch(arrayOf("*/*"))
                             },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            shape = RoundedCornerShape(16.dp)
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.accent),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line)
                         ) {
                             Icon(Icons.Outlined.Add, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
@@ -2233,8 +2238,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(18.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF493653)),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF281E34))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line),
+                            colors = CardDefaults.cardColors(containerColor = addPalette.surface2)
                         ) {
                             Row(
                                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -2249,10 +2254,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(pending.fileName, fontWeight = FontWeight.SemiBold,
-                                        style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                                        style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                                        color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
                                     Text(formatDocumentBytesNew(pending.sizeBytes),
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        color = addPalette.muted)
                                     pending.errorMessage?.let { uploadError ->
                                         Text(
                                             if (pending.retryBlocked) "Needs cleanup: $uploadError" else "Upload failed: $uploadError",
@@ -2282,7 +2288,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 },
                                 singleLine = true,
                                 enabled = !uploading,
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp)
                             )
                             OutlinedTextField(
                                 value = pending.notes,
@@ -2293,7 +2300,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 supportingText = { Text("${pending.notes.length}/50") },
                                 singleLine = true,
                                 enabled = !uploading,
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp)
                             )
                             Text("Access", style = MaterialTheme.typography.labelMedium)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2301,8 +2309,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     val selected = pending.scope == value
                                     val selectorShape = RoundedCornerShape(16.dp)
                                     Row(Modifier.weight(1f).height(56.dp).clip(selectorShape)
-                                        .background(if (selected) Color(0xFF684080) else Color(0xFF281E34))
-                                        .border(1.dp, if (selected) Color(0xFFD3A4FF) else Color(0xFF493653), selectorShape)
+                                        .background(if (selected) addPalette.container else addPalette.surface2)
+                                        .border(1.dp, if (selected) addPalette.accent else addPalette.line, selectorShape)
                                         .clickable(enabled = !uploading,
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = ripple(color = Color(0xFFD9B5FF))) {
@@ -2310,9 +2318,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         }.padding(horizontal = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                                         Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
-                                            null, tint = Color(0xFFD9B5FF), modifier = Modifier.size(19.dp))
+                                            null, tint = addPalette.accent, modifier = Modifier.size(19.dp))
                                         Spacer(Modifier.width(7.dp))
-                                        Text(label, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                                        Text(label, color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638),
+                                            fontSize = 14.sp,
+                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
                                     }
                                 }
                             }
@@ -2322,8 +2332,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 OutlinedButton(
                                     onClick = { categoryMenuExpanded = true },
                                     enabled = !uploading,
-                                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                                    shape = RoundedCornerShape(16.dp)
+                                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.muted)
                                 ) {
                                     Text(allCategories.firstOrNull { it.first == pending.categoryId }?.second ?: "Other")
                                     Spacer(Modifier.weight(1f))
@@ -2354,8 +2365,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 OutlinedButton(
                                     onClick = { folderMenuExpanded = true },
                                     enabled = !uploading,
-                                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                                    shape = RoundedCornerShape(16.dp)
+                                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.muted)
                                 ) {
                                     Text(
                                         pending.folderId?.let { id -> eligibleFolders.firstOrNull { it.id == id }?.name }
@@ -4894,13 +4906,14 @@ private fun FullScreenDocumentForm(
 ) {
     if (fullScreenPage) {
         androidx.activity.compose.BackHandler(onBack = onDismissRequest)
-        Surface(Modifier.fillMaxSize().imePadding(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
+        val pagePalette = documentPaletteV2New(dark)
+        Surface(Modifier.fillMaxSize().imePadding(), color = pagePalette.surface) {
+            Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 header()
                 Spacer(Modifier.height(18.dp))
                 Box(Modifier.weight(1f).fillMaxWidth()) { content() }
                 Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically) {
                     secondaryAction()
                     Spacer(Modifier.width(12.dp))
