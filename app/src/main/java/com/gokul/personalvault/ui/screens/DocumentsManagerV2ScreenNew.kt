@@ -2150,6 +2150,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     if (showAddDocuments) {
         FullScreenDocumentForm(
             dark = isDarkUi,
+            fullScreenPage = true,
             onDismissRequest = {
                 if (!uploading) {
                     showAddDocuments = false
@@ -2164,10 +2165,22 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             },
             header = {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF4B2A68)),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(enabled = !uploading, onClick = {
+                        if (!uploading) {
+                            showAddDocuments = false
+                            pendingUploads.clear()
+                            pendingPhotoFile?.delete()
+                            pendingPhotoFile = null
+                            pendingPhotoUri = null
+                            capturedPhotoUri = null
+                            pendingScanFile?.delete()
+                            pendingScanFile = null
+                        }
+                    }) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Back") }
+                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(if (isDarkUi) Color(0xFF4B2A68) else Color(0xFFE9D8FF)),
                         contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.InsertDriveFile, null, tint = Color(0xFFD9B5FF), modifier = Modifier.size(27.dp))
+                        Icon(Icons.Outlined.InsertDriveFile, null, tint = if (isDarkUi) Color(0xFFD9B5FF) else Color(0xFF7B2CBF), modifier = Modifier.size(27.dp))
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Add Documents", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -2201,17 +2214,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                     if (!uploading) {
-                    if (pendingUploads.isEmpty()) {
+                    if (pendingUploads.size < MAX_DOCUMENT_BATCH_COUNT_NEW) {
                         OutlinedButton(
                             onClick = {
                                 VaultExternalActivityState.documentPickerActive = true
                                 picker.launch(arrayOf("*/*"))
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             Icon(Icons.Outlined.Add, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Add Files")
+                            Text(if (pendingUploads.isEmpty()) "Add Files" else "Add New File")
                         }
                     }
                     pendingUploads.forEachIndexed { index, pending ->
@@ -4873,9 +4887,27 @@ private fun FullScreenDocumentForm(
     content: @Composable () -> Unit,
     contentFillsSpace: Boolean = true,
     compactDialog: Boolean = false,
+    fullScreenPage: Boolean = false,
     primaryAction: @Composable () -> Unit,
     secondaryAction: @Composable () -> Unit
 ) {
+    if (fullScreenPage) {
+        androidx.activity.compose.BackHandler(onBack = onDismissRequest)
+        Surface(Modifier.fillMaxSize().imePadding(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
+                header()
+                Spacer(Modifier.height(18.dp))
+                Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    secondaryAction()
+                    Spacer(Modifier.width(12.dp))
+                    primaryAction()
+                }
+            }
+        }
+    } else {
     Dialog(onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = compactDialog, decorFitsSystemWindows = false)) {
         Surface(
@@ -4908,6 +4940,7 @@ private fun FullScreenDocumentForm(
                 }
             }
         }
+    }
     }
 }
 
