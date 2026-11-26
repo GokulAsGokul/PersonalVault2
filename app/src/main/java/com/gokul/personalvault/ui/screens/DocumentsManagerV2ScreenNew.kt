@@ -1608,6 +1608,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 name = name,
                                 icon = categoryIconV2New(id),
                                 count = count,
+                                folderCount = folders.count { it.categoryId == id },
                                 tileBg = tileBg,
                                 tileFg = tileFg,
                                 palette = palette,
@@ -5778,6 +5779,7 @@ private fun CategoryCardV2New(
     name: String,
     icon: ImageVector,
     count: Int,
+    folderCount: Int,
     tileBg: Color,
     tileFg: Color,
     palette: DocPaletteV2New,
@@ -5811,7 +5813,18 @@ private fun CategoryCardV2New(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                Text("$count files", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    buildString {
+                        append("$count ${if (count == 1) "File" else "Files"}")
+                        if (folderCount > 0) {
+                            append(" · $folderCount ${if (folderCount == 1) "Folder" else "Folders"}")
+                        }
+                    },
+                    color = palette.muted,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
