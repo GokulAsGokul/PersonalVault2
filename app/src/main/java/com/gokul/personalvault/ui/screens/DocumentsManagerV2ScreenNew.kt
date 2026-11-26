@@ -1316,8 +1316,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 0.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // ── Upload progress banner (replaces the old inline progress) ──
-            if (uploading) {
+            // Upload progress is shown only inside Add Documents, not on the dashboard.
+            if (uploading && !isHome) {
                 item(key = "uploading") {
                     Card(
                         Modifier.fillMaxWidth(),
