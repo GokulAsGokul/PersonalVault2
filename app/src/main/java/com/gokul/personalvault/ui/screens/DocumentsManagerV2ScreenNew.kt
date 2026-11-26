@@ -1461,12 +1461,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(if (isDarkUi) Color(0xFF17121D) else MaterialTheme.colorScheme.background)
+        ) {
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // Paint an opaque surface into the same layer that receives the blur.
+                // Without this, RenderEffect can expose transparent/black pixels at
+                // the LazyColumn's lower edge while the add-action menu is expanded.
+                .background(if (isDarkUi) Color(0xFF17121D) else MaterialTheme.colorScheme.background)
                 .graphicsLayer {
                     renderEffect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && menuBlurRadius > 0.1f) {
                         PlatformRenderEffect.createBlurEffect(
