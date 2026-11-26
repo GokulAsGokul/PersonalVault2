@@ -1343,7 +1343,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
                     Column(
                         horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         @Composable
                         fun ActionItem(
@@ -1371,7 +1371,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 ) {
                                     Text(
                                         title,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1
@@ -1379,6 +1379,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                                 FloatingActionButton(
                                     onClick = onClick,
+                                    modifier = Modifier.size(60.dp),
                                     containerColor = tint,
                                     contentColor = Color.White,
                                     shape = RoundedCornerShape(50),
@@ -1428,6 +1429,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                         FloatingActionButton(
                             onClick = { showAddOptions = false },
+                            modifier = Modifier.size(60.dp),
                             containerColor = documentAccent,
                             contentColor = palette.onAccent,
                             shape = RoundedCornerShape(50)
