@@ -4584,7 +4584,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .clip(RoundedCornerShape(30.dp))
                     .background(accessDialogBackground)
                     .padding(horizontal = 24.dp, vertical = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -4756,50 +4756,53 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(38.dp)
+                        .height(44.dp)
                         .drawBehind {
-                            val baseWave = androidx.compose.ui.graphics.Path().apply {
-                                val crest = size.height - 15.dp.toPx()
-                                moveTo(0f, crest)
+                            val width = size.width
+                            val height = size.height
+
+                            // Back wave: a shallow crest at both ends with a broad center dip.
+                            val backWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, height * 0.30f)
                                 cubicTo(
-                                    size.width * 0.2f, crest - 8.dp.toPx(),
-                                    size.width * 0.34f, size.height + 1.dp.toPx(),
-                                    size.width * 0.55f, crest + 1.dp.toPx()
+                                    width * 0.16f, height * 0.10f,
+                                    width * 0.29f, height * 0.98f,
+                                    width * 0.51f, height * 0.68f
                                 )
                                 cubicTo(
-                                    size.width * 0.76f, crest - 7.dp.toPx(),
-                                    size.width * 0.9f, crest - 9.dp.toPx(),
-                                    size.width, crest
+                                    width * 0.72f, height * 0.42f,
+                                    width * 0.84f, height * 0.02f,
+                                    width, height * 0.30f
                                 )
-                                lineTo(size.width, size.height)
-                                lineTo(0f, size.height)
+                                lineTo(width, height)
+                                lineTo(0f, height)
                                 close()
                             }
                             drawPath(
-                                baseWave,
-                                if (isDarkUi) Color(0xFF4B2468) else Color(0xFFD7B8EF)
+                                backWave,
+                                if (isDarkUi) Color(0xFF542A73) else Color(0xFFD7B8EF)
                             )
 
-                            val highlightWave = androidx.compose.ui.graphics.Path().apply {
-                                val crest = size.height - 8.dp.toPx()
-                                moveTo(0f, crest)
+                            // Front wave: a lighter, lower curve, matching the reference footer.
+                            val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, height * 0.72f)
                                 cubicTo(
-                                    size.width * 0.2f, crest - 5.dp.toPx(),
-                                    size.width * 0.4f, size.height + 1.dp.toPx(),
-                                    size.width * 0.58f, crest
+                                    width * 0.18f, height * 0.48f,
+                                    width * 0.34f, height * 0.98f,
+                                    width * 0.54f, height * 0.86f
                                 )
                                 cubicTo(
-                                    size.width * 0.8f, crest - 5.dp.toPx(),
-                                    size.width * 0.9f, crest - 6.dp.toPx(),
-                                    size.width, crest
+                                    width * 0.75f, height * 0.72f,
+                                    width * 0.88f, height * 0.48f,
+                                    width, height * 0.70f
                                 )
-                                lineTo(size.width, size.height)
-                                lineTo(0f, size.height)
+                                lineTo(width, height)
+                                lineTo(0f, height)
                                 close()
                             }
                             drawPath(
-                                highlightWave,
-                                if (isDarkUi) Color(0xFF8542A8) else Color(0xFFE8D1F8)
+                                frontWave,
+                                if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
                             )
                         }
                 )
