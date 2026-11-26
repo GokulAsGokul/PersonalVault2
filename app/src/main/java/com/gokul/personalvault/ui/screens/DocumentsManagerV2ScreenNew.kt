@@ -4846,7 +4846,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Text(
                             "File Details",
                             modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
