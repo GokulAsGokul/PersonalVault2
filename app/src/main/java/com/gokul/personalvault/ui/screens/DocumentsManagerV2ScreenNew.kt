@@ -5423,8 +5423,9 @@ private fun DocumentGridCardV2New(
             Text(
                 documentDisplayNameV2New(document),
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                maxLines = 3,
+                softWrap = true,
+                overflow = TextOverflow.Clip,
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
