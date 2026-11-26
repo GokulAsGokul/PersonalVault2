@@ -3297,105 +3297,193 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     if (showCreateFolder) {
-        AlertDialog(
+        val parentScope = currentFolderId?.let { id -> folders.firstOrNull { it.id == id }?.scope }
+        val folderSurface = if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF)
+        val folderWaveBack = if (isDarkUi) Color(0xFF63347F) else Color(0xFFDCC0F5)
+        val folderWaveFront = if (isDarkUi) Color(0xFF8D52B4) else Color(0xFFE9D5FA)
+        val folderAccent = if (isDarkUi) Color(0xFFD7B5FF) else Color(0xFF7136B8)
 
-            shape = RoundedCornerShape(24.dp),
-
-            containerColor = MaterialTheme.colorScheme.surface,
-
-            tonalElevation = 8.dp,
-            onDismissRequest = { showCreateFolder = false },
-            title = { Text("Create Folder") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = newFolderName,
-                        onValueChange = { newFolderName = it.take(30); createFolderError = null },
-                        label = { Text("Folder name") },
-                        supportingText = { Text(newFolderName.length.toString() + "/30") },
-                        singleLine = true
-                    )
-                    val parentScope = currentFolderId?.let { id ->
-                        folders.firstOrNull { it.id == id }?.scope
+        Dialog(
+            onDismissRequest = { if (!busyDocument) showCreateFolder = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            val dialogShape = RoundedCornerShape(30.dp)
+            Box(
+                Modifier.fillMaxWidth(0.92f).clip(dialogShape).background(folderSurface)
+                    .drawBehind {
+                        val waveHeight = 72.dp.toPx()
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.78f)
+                            cubicTo(size.width * 0.24f, size.height - waveHeight * 1.35f,
+                                size.width * 0.36f, size.height - waveHeight * 0.05f,
+                                size.width * 0.58f, size.height - waveHeight * 0.45f)
+                            cubicTo(size.width * 0.78f, size.height - waveHeight * 0.85f,
+                                size.width * 0.86f, size.height - waveHeight * 1.18f,
+                                size.width, size.height - waveHeight * 0.62f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawPath(backWave, folderWaveBack)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.38f)
+                            cubicTo(size.width * 0.22f, size.height - waveHeight * 0.85f,
+                                size.width * 0.42f, size.height - waveHeight * 0.02f,
+                                size.width * 0.62f, size.height - waveHeight * 0.28f)
+                            cubicTo(size.width * 0.80f, size.height - waveHeight * 0.50f,
+                                size.width * 0.88f, size.height - waveHeight * 0.68f,
+                                size.width, size.height - waveHeight * 0.32f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawPath(frontWave, folderWaveFront)
                     }
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+                        .padding(top = 26.dp, bottom = 76.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Box(Modifier.size(66.dp).clip(RoundedCornerShape(20.dp))
+                            .background(if (isDarkUi) Color(0xFF594078) else Color(0xFFE9DDFB)),
+                            contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.FolderOpen, null, tint = folderAccent, modifier = Modifier.size(38.dp))
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Create Folder", style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("Add a new folder to organize your files",
+                                style = MaterialTheme.typography.bodyMedium, color = folderAccent)
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Folder Name", style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = newFolderName,
+                            onValueChange = { newFolderName = it.take(30); createFolderError = null },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Enter folder name") },
+                            supportingText = { Text("${newFolderName.length}/30") },
+                            singleLine = true, shape = RoundedCornerShape(16.dp)
+                        )
+                    }
+
                     if (category == "all" && currentFolderId == null) {
-                        Text("Category", style = MaterialTheme.typography.labelMedium)
-                        Box {
-                            OutlinedButton(onClick = { folderCategoryMenuExpanded = true }) {
-                                Text(allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other")
-                                Spacer(Modifier.width(8.dp))
-                                Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
-                            }
-                            DropdownMenu(expanded = folderCategoryMenuExpanded, onDismissRequest = { folderCategoryMenuExpanded = false }) {
-                                allCategories.forEach { (id, label) ->
-                                    DropdownMenuItem(text = { Text(label) }, onClick = {
-                                        newFolderCategory = id
-                                        folderCategoryMenuExpanded = false
-                                    })
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Category", style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                            Box {
+                                OutlinedButton(onClick = { folderCategoryMenuExpanded = true },
+                                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                                    shape = RoundedCornerShape(16.dp)) {
+                                    Icon(Icons.Outlined.GridView, null, tint = folderAccent)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other",
+                                        modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
+                                    Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
+                                }
+                                DropdownMenu(expanded = folderCategoryMenuExpanded,
+                                    onDismissRequest = { folderCategoryMenuExpanded = false }) {
+                                    allCategories.forEach { (id, label) ->
+                                        DropdownMenuItem(text = { Text(label) }, onClick = {
+                                            newFolderCategory = id; folderCategoryMenuExpanded = false
+                                        })
+                                    }
                                 }
                             }
                         }
                     }
-                    Text("Visibility", style = MaterialTheme.typography.labelMedium)
-                    if (parentScope != null) {
-                        Text(
-                            if (parentScope == "SHARED") "Shared (inherited from parent folder)" else "Personal (inherited from parent folder)",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(newFolderScope == "PERSONAL", { newFolderScope = "PERSONAL" }, label = { Text("Personal") })
-                            FilterChip(newFolderScope == "SHARED", { newFolderScope = "SHARED" }, label = { Text("Shared") })
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Visibility", style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        if (parentScope != null) {
+                            Surface(shape = RoundedCornerShape(14.dp), color = palette.surface2) {
+                                Text(if (parentScope == "SHARED") "Shared (inherited from parent folder)"
+                                    else "Personal (inherited from parent folder)",
+                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium)
+                            }
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                listOf("PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
+                                    val selected = newFolderScope == value
+                                    Surface(modifier = Modifier.weight(1f).height(52.dp).clickable { newFolderScope = value },
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = if (selected) folderAccent.copy(alpha = 0.28f) else palette.surface2,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp,
+                                            if (selected) folderAccent else palette.line)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center) {
+                                            Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
+                                                null, tint = folderAccent, modifier = Modifier.size(20.dp))
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(label, color = MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                    createFolderError?.let { errorText ->
-                        Snackbar(
-                            modifier = Modifier.fillMaxWidth(),
-                            containerColor = Color(0xFFC62828),
-                            contentColor = Color.White
-                        ) { Text(errorText) }
-                    }
+
                     Text(
                         if (currentFolderId == null) "Folder will be created inside " +
                             (allCategories.firstOrNull { it.first == (if (category == "all") newFolderCategory else category) }?.second ?: "this category") + "."
                         else "Folder will be created inside " +
                             (folders.firstOrNull { it.id == currentFolderId }?.name ?: "the selected folder") + ".",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                            .background(palette.surface2).padding(14.dp),
+                        color = folderAccent, style = MaterialTheme.typography.bodySmall
                     )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = newFolderName.trim().isNotEmpty() && !busyDocument,
-                    onClick = {
-                        scope.launch {
-                            busyDocument = true
-                            try {
-                                repository.createFolder(
-                                    vaultId, memberUid, newFolderName,
-                                    if (category == "all") newFolderCategory else category,
-                                    currentFolderId, newFolderScope
-                                )
-                                showCreateFolder = false
-                                createFolderError = null
-                                message = "Folder created."
-                            } catch (error: Exception) {
-                                val failure = error.localizedMessage ?: error.message ?: "Unable to create folder."
-                                createFolderError = failure
-                                triggerVaultErrorVibration(context)
-                            } finally {
-                                busyDocument = false
-                            }
+
+                    createFolderError?.let { errorText ->
+                        Snackbar(modifier = Modifier.fillMaxWidth(), containerColor = Color(0xFFC62828),
+                            contentColor = Color.White) { Text(errorText) }
+                    }
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { showCreateFolder = false }, enabled = !busyDocument,
+                            modifier = Modifier.weight(1f).height(54.dp)) {
+                            Text("Cancel", color = folderAccent, fontWeight = FontWeight.SemiBold)
+                        }
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    busyDocument = true
+                                    try {
+                                        repository.createFolder(vaultId, memberUid, newFolderName,
+                                            if (category == "all") newFolderCategory else category,
+                                            currentFolderId, newFolderScope)
+                                        showCreateFolder = false
+                                        createFolderError = null
+                                        message = "Folder created."
+                                    } catch (error: Exception) {
+                                        val failure = error.localizedMessage ?: error.message ?: "Unable to create folder."
+                                        createFolderError = failure
+                                        triggerVaultErrorVibration(context)
+                                    } finally { busyDocument = false }
+                                }
+                            },
+                            enabled = newFolderName.trim().isNotEmpty() && !busyDocument,
+                            modifier = Modifier.weight(1f).height(54.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFF8D43D7) else Color(0xFF8A35D1),
+                                contentColor = Color.White)
+                        ) {
+                            if (busyDocument) CircularProgressIndicator(Modifier.size(20.dp),
+                                color = Color.White, strokeWidth = 2.dp)
+                            else Text("Create", fontWeight = FontWeight.Bold)
                         }
                     }
-                ) { Text("Create") }
-            },
-            dismissButton = { TextButton(onClick = { showCreateFolder = false }) { Text("Cancel") } }
-        )
+                }
+            }
+        }
     }
-
 
     if (showMoveDocument) {
         val doc = documentToMove
