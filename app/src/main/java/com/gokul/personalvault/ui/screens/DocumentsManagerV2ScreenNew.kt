@@ -2564,7 +2564,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             uploads = payload
                         )
                     }
-                ) { Text(if (uploading) "Uploading…" else "Upload", fontWeight = FontWeight.SemiBold) }
+                ) { Text("Upload", fontWeight = FontWeight.SemiBold) }
             },
             secondaryAction = {
                 if (pendingUploads.isNotEmpty() || uploading) Button(
