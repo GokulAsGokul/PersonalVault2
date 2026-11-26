@@ -4844,7 +4844,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "File Details",
+                            "File Information",
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
@@ -4969,9 +4969,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
                     }
-
-                    Text("File Information", style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
                     Column(
                         Modifier.fillMaxWidth()
