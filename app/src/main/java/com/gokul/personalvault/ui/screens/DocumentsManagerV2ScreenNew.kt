@@ -4735,7 +4735,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             .border(1.dp, if (selected) Color(0xFFD3A4FF) else Color(0xFF493653), selectorShape)
                             .clickable(interactionSource = remember { MutableInteractionSource() },
                                 indication = ripple(color = Color(0xFFD9B5FF))) { editScope = value }
-                            .heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 10.dp),
+                            .height(56.dp).padding(horizontal = 12.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             RadioButton(selected = selected, onClick = { editScope = value })
                             Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
