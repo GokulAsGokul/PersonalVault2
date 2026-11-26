@@ -4970,6 +4970,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
 
+                    Spacer(Modifier.height(8.dp))
+
                     Column(
                         Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
