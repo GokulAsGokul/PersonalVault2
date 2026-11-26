@@ -2176,8 +2176,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             },
+            contentFillsSpace = pendingUploads.isNotEmpty() || uploading,
             content = {
-                Column(Modifier.fillMaxWidth().fillMaxHeight().verticalScroll(uploadFormScrollState),
+                Column(Modifier.fillMaxWidth()
+                    .then(if (pendingUploads.isNotEmpty() || uploading) Modifier.fillMaxHeight() else Modifier.wrapContentHeight())
+                    .verticalScroll(uploadFormScrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
@@ -2275,7 +2278,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 supportingText = { Text("${pending.notes.length}/50") },
                                 singleLine = true,
                                 enabled = !uploading,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
                             )
                             Text("Access", style = MaterialTheme.typography.labelMedium)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -4640,11 +4643,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Text("Document file", style = MaterialTheme.typography.labelLarge)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        DocumentTypeIconNew(doc.contentType, Modifier.size(42.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(doc.originalFileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                            Text(doc.originalFileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2,
+                                overflow = TextOverflow.Ellipsis)
                             Text(
                                 pendingReplacement?.takeIf { replacementTarget?.id == doc.id }?.fileName
                                     ?.let { "Selected: $it" } ?: formatDocumentBytesNew(doc.sizeBytes),
@@ -4836,6 +4841,7 @@ private fun FullScreenDocumentForm(
     onDismissRequest: () -> Unit,
     header: @Composable () -> Unit,
     content: @Composable () -> Unit,
+    contentFillsSpace: Boolean = true,
     primaryAction: @Composable () -> Unit,
     secondaryAction: @Composable () -> Unit
 ) {
@@ -4847,7 +4853,11 @@ private fun FullScreenDocumentForm(
                 .padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 30.dp)) {
                 header()
                 Spacer(Modifier.height(18.dp))
-                Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+                if (contentFillsSpace) {
+                    Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+                } else {
+                    Box(Modifier.fillMaxWidth().wrapContentHeight()) { content() }
+                }
                 Spacer(Modifier.height(16.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically) {
