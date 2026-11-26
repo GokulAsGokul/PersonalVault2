@@ -1341,18 +1341,43 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     val cameraTint = Color(0xFFD58A2B)
                     val actionPillShape = RoundedCornerShape(18.dp)
 
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    Box(
+                        modifier = Modifier
+                            .width(380.dp)
+                            .height(390.dp)
+                            .drawBehind {
+                                val center = androidx.compose.ui.geometry.Offset(
+                                    x = size.width + 18.dp.toPx(),
+                                    y = size.height + 18.dp.toPx()
+                                )
+                                drawCircle(
+                                    color = Color(0xFF344A78).copy(alpha = 0.42f),
+                                    radius = 350.dp.toPx(),
+                                    center = center
+                                )
+                                drawCircle(
+                                    color = Color(0xFF536B9A).copy(alpha = 0.30f),
+                                    radius = 350.dp.toPx(),
+                                    center = center,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+                                )
+                                drawCircle(
+                                    color = documentCardSurface.copy(alpha = 0.98f),
+                                    radius = 205.dp.toPx(),
+                                    center = center
+                                )
+                            }
                     ) {
                         @Composable
                         fun ActionItem(
                             title: String,
                             tint: Color,
                             icon: ImageVector,
+                            modifier: Modifier = Modifier,
                             onClick: () -> Unit
                         ) {
                             Row(
+                                modifier = modifier,
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -1365,7 +1390,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     shape = actionPillShape,
                                     border = androidx.compose.foundation.BorderStroke(
                                         1.dp,
-                                        tint.copy(alpha = 0.65f)
+                                        tint.copy(alpha = 0.78f)
                                     ),
                                     shadowElevation = 4.dp
                                 ) {
@@ -1393,16 +1418,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
 
-                        ActionItem("Upload Files", uploadTint, Icons.Outlined.Description) {
+                        // Radial order: Take Photo at the bottom, then Scan, Create, Upload.
+                        ActionItem(
+                            "Take Photo", cameraTint, Icons.Outlined.PhotoCamera,
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-115).dp, y = (-8).dp)
+                        ) {
                             showAddOptions = false
-                            VaultExternalActivityState.documentPickerActive = true
-                            picker.launch(arrayOf("*/*"))
+                            launchPhotoCapture()
                         }
-                        ActionItem("Create Folder", folderTint, Icons.Outlined.FolderOpen) {
-                            showAddOptions = false
-                            startCreateFolder()
-                        }
-                        ActionItem("Scan Document", scanTint, Icons.Outlined.DocumentScanner) {
+                        ActionItem(
+                            "Scan Document", scanTint, Icons.Outlined.DocumentScanner,
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-75).dp, y = (-98).dp)
+                        ) {
                             showAddOptions = false
                             val activity = context as? Activity
                             if (activity == null) {
@@ -1423,13 +1450,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     }
                             }
                         }
-                        ActionItem("Take Photo", cameraTint, Icons.Outlined.PhotoCamera) {
+                        ActionItem(
+                            "Create Folder", folderTint, Icons.Outlined.FolderOpen,
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-35).dp, y = (-188).dp)
+                        ) {
                             showAddOptions = false
-                            launchPhotoCapture()
+                            startCreateFolder()
                         }
+                        ActionItem(
+                            "Upload Files", uploadTint, Icons.Outlined.Description,
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 0.dp, y = (-278).dp)
+                        ) {
+                            showAddOptions = false
+                            VaultExternalActivityState.documentPickerActive = true
+                            picker.launch(arrayOf("*/*"))
+                        }
+
                         FloatingActionButton(
                             onClick = { showAddOptions = false },
-                            modifier = Modifier.size(60.dp),
+                            modifier = Modifier.align(Alignment.BottomEnd).size(60.dp),
                             containerColor = documentAccent,
                             contentColor = palette.onAccent,
                             shape = RoundedCornerShape(50)
