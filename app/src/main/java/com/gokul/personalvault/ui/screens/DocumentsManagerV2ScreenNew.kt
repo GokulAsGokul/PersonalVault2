@@ -5319,7 +5319,7 @@ private fun DocumentRowV2New(
             interactionSource = null,
             indication = ripple(color = palette.accent),
             onClick = onClick,
-            onLongClick = if (isRecycleBin) onLongClick else null
+            onLongClick = onLongClick
         ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
