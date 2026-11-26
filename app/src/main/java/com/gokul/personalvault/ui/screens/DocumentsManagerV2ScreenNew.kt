@@ -2476,6 +2476,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             },
             primaryAction = {
                 Button(
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9137D7), contentColor = Color.White),
                     enabled = !uploading && pendingUploads.any { !it.retryBlocked } &&
