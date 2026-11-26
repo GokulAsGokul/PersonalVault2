@@ -1271,7 +1271,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val mutedColor = palette.muted
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = if (isDarkUi) Color(0xFF17121D) else MaterialTheme.colorScheme.background,
         topBar = {
             var menuExpanded by remember { mutableStateOf(false) }
             VaultCompactHeader(
@@ -1442,7 +1442,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             modifier = Modifier.align(Alignment.BottomEnd).size(60.dp),
                             containerColor = documentAccent,
                             contentColor = palette.onAccent,
-                            shape = RoundedCornerShape(50)
+                            shape = RoundedCornerShape(18.dp)
                         ) {
                             Icon(Icons.Outlined.Close, contentDescription = "Close add actions")
                         }
