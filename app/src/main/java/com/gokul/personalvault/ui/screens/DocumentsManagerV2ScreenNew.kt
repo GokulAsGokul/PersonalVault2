@@ -4568,149 +4568,146 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     if (showDocumentDetails) {
         val doc = selectedDocument
         if (doc != null) {
-            AlertDialog(
-                modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.88f),
-                properties = DialogProperties(usePlatformDefaultWidth = false),
-                shape = RoundedCornerShape(28.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
+            val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
+                ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+            val fullFileName = doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) }
+            val fileType = doc.contentType.substringAfter('/').uppercase().ifBlank { "File" }
+            val detailsSurface = if (isDarkUi) Color(0xFF21182B) else Color(0xFFF8F3FF)
+            val detailsCard = if (isDarkUi) Color(0xFF30243D) else Color(0xFFEFE6F8)
+            val detailsAccent = if (isDarkUi) Color(0xFFD3A0FF) else Color(0xFF7136B8)
+
+            Dialog(
                 onDismissRequest = { showDocumentDetails = false },
-                title = {
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Column(
+                    Modifier.fillMaxWidth(0.94f)
+                        .heightIn(max = 820.dp)
+                        .clip(RoundedCornerShape(30.dp))
+                        .background(detailsSurface)
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("FILE INFORMATION", style = MaterialTheme.typography.labelSmall,
-                                color = palette.accent, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
-                            Text("File Details", style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        }
                         IconButton(onClick = { showDocumentDetails = false }) {
-                            Icon(Icons.Outlined.Close, contentDescription = "Close file details",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Outlined.ArrowBack, contentDescription = "Back from file details",
+                                tint = detailsAccent)
                         }
+                        Text("File Details", style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
-                },
-                text = {
+
                     Column(
-                        Modifier.fillMaxWidth().fillMaxHeight(0.94f),
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(detailsCard)
+                            .drawBehind {
+                                val wave = androidx.compose.ui.graphics.Path().apply {
+                                    val waveTop = size.height - 34.dp.toPx()
+                                    moveTo(0f, waveTop)
+                                    cubicTo(size.width * 0.22f, waveTop - 16.dp.toPx(),
+                                        size.width * 0.42f, size.height,
+                                        size.width * 0.62f, waveTop + 2.dp.toPx())
+                                    cubicTo(size.width * 0.82f, waveTop - 10.dp.toPx(),
+                                        size.width * 0.9f, waveTop - 12.dp.toPx(),
+                                        size.width, waveTop)
+                                    lineTo(size.width, size.height)
+                                    lineTo(0f, size.height)
+                                    close()
+                                }
+                                drawPath(wave, if (isDarkUi) Color(0xFF573579) else Color(0xFFDCC0F5))
+                            }
+                            .padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(
-                            Modifier.fillMaxWidth().weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                                    .background(palette.surface2)
-                                    .border(1.dp, palette.line, RoundedCornerShape(20.dp))
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                DocumentTypeIconNew(doc.contentType, Modifier.size(58.dp))
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(
-                                        documentDisplayNameV2New(doc),
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) },
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
-                                ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
-
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
-                                Surface(shape = RoundedCornerShape(50), color = palette.container) {
-                                    Text(
-                                        categoryLabel,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                        color = palette.accent,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            Column(
-                                Modifier.fillMaxWidth().weight(1f)
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(palette.surface2)
-                                    .border(1.dp, palette.line, RoundedCornerShape(20.dp))
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                            ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            DocumentTypeIconNew(doc.contentType, Modifier.size(76.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 Text(
-                                    "DETAILS",
-                                    Modifier.padding(start = 12.dp, top = 6.dp, bottom = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = palette.accent,
+                                    fullFileName,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.1.sp
+                                    maxLines = 5,
+                                    softWrap = true,
+                                    overflow = TextOverflow.Clip
                                 )
-                                DocumentDetailRowV2New(
-                                    "File type",
-                                    doc.contentType.substringAfter('/').uppercase().ifBlank { "File" },
-                                    Icons.Outlined.Description
-                                )
-                                DocumentDetailRowV2New("File size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
-                                DocumentDetailRowV2New(
-                                    "Location",
-                                    "My Documents / $categoryLabel",
-                                    Icons.Outlined.FolderOpen
-                                )
-                                DocumentDetailRowV2New(
-                                    "Date added",
-                                    doc.uploadedAt?.toDate()?.let {
-                                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                                    } ?: "—",
-                                    Icons.Outlined.CalendarToday
-                                )
-                                DocumentDetailRowV2New(
-                                    "Last modified",
-                                    doc.updatedAt?.toDate()?.let {
-                                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                                    } ?: "—",
-                                    Icons.Outlined.History
+                                Text(
+                                    "${fileType}  •  ${formatDocumentBytesNew(doc.sizeBytes)}",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
                             }
                         }
-
-                        Button(
-                            onClick = { showDocumentDetails = false },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = palette.accent,
-                                contentColor = palette.onAccent
-                            )
-                        ) {
-                            Text("Done", fontWeight = FontWeight.SemiBold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                            Surface(shape = RoundedCornerShape(50),
+                                color = if (isDarkUi) Color(0xFF43285B) else Color(0xFFDDF3EB)) {
+                                Text(
+                                    "Category · ${categoryLabel}",
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                                    color = if (isDarkUi) Color(0xFFD7B4FF) else Color(0xFF176B4A),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
-                },
-                confirmButton = {}
-            )
+
+                    Text("File Information", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .heightIn(max = 390.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(detailsCard)
+                            .border(1.dp, palette.line, RoundedCornerShape(24.dp))
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        DocumentDetailRowV2New("File Type", fileType, Icons.Outlined.Description)
+                        DocumentDetailRowV2New("File Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
+                        DocumentDetailRowV2New("Location", "My Documents / ${categoryLabel}", Icons.Outlined.FolderOpen)
+                        DocumentDetailRowV2New(
+                            "Date Added",
+                            doc.uploadedAt?.toDate()?.let {
+                                SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                            } ?: "—",
+                            Icons.Outlined.CalendarToday
+                        )
+                        DocumentDetailRowV2New(
+                            "Last Modified",
+                            doc.updatedAt?.toDate()?.let {
+                                SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                            } ?: "—",
+                            Icons.Outlined.History
+                        )
+                    }
+
+                    Button(
+                        onClick = { showDocumentDetails = false },
+                        modifier = Modifier.fillMaxWidth().height(58.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isDarkUi) Color(0xFFB982F0) else Color(0xFF8742C5),
+                            contentColor = if (isDarkUi) Color(0xFF21142D) else Color.White
+                        )
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
         }
     }
 
