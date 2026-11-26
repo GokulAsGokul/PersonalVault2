@@ -2165,37 +2165,24 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             header = {
-                Row(
-                    Modifier.fillMaxWidth().offset(x = (-3).dp).height(56.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    IconButton(
-                        modifier = Modifier.offset(x = (-7).dp).size(40.dp),
-                        enabled = !uploading,
-                        onClick = {
-                            if (!uploading) {
-                                showAddDocuments = false
-                                pendingUploads.clear()
-                                pendingPhotoFile?.delete()
-                                pendingPhotoFile = null
-                                pendingPhotoUri = null
-                                capturedPhotoUri = null
-                                pendingScanFile?.delete()
-                                pendingScanFile = null
-                            }
+                VaultCompactHeader(
+                    title = "Add Documents",
+                    subtitle = null,
+                    onBack = {
+                        if (!uploading) {
+                            showAddDocuments = false
+                            pendingUploads.clear()
+                            pendingPhotoFile?.delete()
+                            pendingPhotoFile = null
+                            pendingPhotoUri = null
+                            capturedPhotoUri = null
+                            pendingScanFile?.delete()
+                            pendingScanFile = null
                         }
-                    ) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Add Documents",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                }
+                    },
+                    titleIcon = null,
+                    actions = {}
+                )
             },
             contentFillsSpace = pendingUploads.isNotEmpty() || uploading,
             content = {
@@ -2513,6 +2500,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             },
             secondaryAction = {
                 Button(
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
                     enabled = !uploading,
@@ -4914,12 +4902,13 @@ private fun FullScreenDocumentForm(
     if (fullScreenPage) {
         androidx.activity.compose.BackHandler(onBack = onDismissRequest)
         Surface(Modifier.fillMaxSize().imePadding(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Column(Modifier.fillMaxSize().padding(vertical = 12.dp)) {
                 header()
                 Spacer(Modifier.height(18.dp))
-                Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+                Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) { content() }
                 Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) { secondaryAction() }
                     Box(Modifier.weight(1f)) { primaryAction() }
