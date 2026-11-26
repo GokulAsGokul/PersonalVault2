@@ -309,7 +309,8 @@ class DocumentRepositoryV2(
         description: String,
         scope: String,
         folderId: String? = null,
-        onProgress: (Float) -> Unit = {}
+        onProgress: (Float) -> Unit = {},
+        onUploadTaskCreated: (UploadTask?) -> Unit = {}
     ): UploadResult {
         val cleanTitle = title.trim()
         require(cleanTitle.isNotEmpty() && cleanTitle.length <= 50) { "Enter a file name up to 50 characters." }
@@ -361,11 +362,16 @@ class DocumentRepositoryV2(
             .build()
 
         val uploadTask = storageRef.putFile(uri, customMetadata)
+        onUploadTaskCreated(uploadTask)
         uploadTask.addOnProgressListener { snapshot ->
             val total = snapshot.totalByteCount
             if (total > 0L) onProgress(snapshot.bytesTransferred.toFloat() / total.toFloat())
         }
-        uploadTask.awaitCancellable()
+        try {
+            uploadTask.awaitCancellable()
+        } finally {
+            onUploadTaskCreated(null)
+        }
 
         val now = FieldValue.serverTimestamp()
         val record = hashMapOf<String, Any?>(
@@ -584,8 +590,8 @@ class DocumentRepositoryV2(
         val localFile = File(targetDirectory, document.id + suffix)
         val partialFile = File(targetDirectory, document.id + suffix + ".part")
         partialFile.delete()
+        val downloadTask = storage.reference.child(expectedPath).getFile(partialFile)
         try {
-            val downloadTask = storage.reference.child(expectedPath).getFile(partialFile)
             downloadTask.addOnProgressListener { snapshot ->
                 onProgress(snapshot.bytesTransferred, snapshot.totalByteCount)
             }
@@ -607,6 +613,10 @@ class DocumentRepositoryV2(
             }
             onProgress(localFile.length(), localFile.length())
             return localFile
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            downloadTask.cancel()
+            partialFile.delete()
+            throw error
         } catch (error: Exception) {
             partialFile.delete()
             throw error

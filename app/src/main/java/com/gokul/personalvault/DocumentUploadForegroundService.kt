@@ -12,6 +12,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.gokul.personalvault.data.firebase.DocumentRepositoryV2
+import com.google.firebase.storage.UploadTask
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +20,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,6 +66,8 @@ class DocumentUploadForegroundService : Service() {
     private var notificationTitle = "Uploading documents"
     private var serviceScope: CoroutineScope? = null
     private var uploadJob: Job? = null
+    @Volatile private var activeUploadTask: UploadTask? = null
+    @Volatile private var cancelRequested: Boolean = false
 
     override fun onCreate() {
         super.onCreate()
@@ -80,6 +84,8 @@ class DocumentUploadForegroundService : Service() {
         val uploadIntent = intent
         val uploadsJson = uploadIntent?.getStringExtra(EXTRA_UPLOADS_JSON)
         if (!uploadsJson.isNullOrBlank()) {
+            cancelRequested = false
+            activeUploadTask = null
             uploadJob?.cancel()
             uploadJob = serviceScope?.launch {
                 try {
@@ -95,6 +101,7 @@ class DocumentUploadForegroundService : Service() {
                     mutableUploadState.value = DocumentUploadUiState.Failed(errorText)
                     updateNotification(0, false, "Upload failed: $errorText")
                 } finally {
+                    setCancelAction(null)
                     stopForegroundCompat()
                     stopSelf(startId)
                 }
@@ -116,6 +123,8 @@ class DocumentUploadForegroundService : Service() {
         val total = payload.length()
 
         for (index in 0 until total) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            if (cancelRequested) throw CancellationException("Upload cancelled by user.")
             val item = payload.getJSONObject(index)
             val uri = item.getString("uri")
             val fileName = item.getString("fileName")
@@ -137,19 +146,23 @@ class DocumentUploadForegroundService : Service() {
                     categoryId = categoryId,
                     description = notes,
                     scope = visibility,
-                    folderId = folderId
-                ) { value ->
-                    fileProgress = value.coerceIn(0f, 1f)
-                    val overall = ((index + fileProgress) / total.toFloat()).coerceIn(0f, 1f)
-                    mutableUploadState.value = DocumentUploadUiState.Running(
-                        fileName = fileName,
-                        fileIndex = index + 1,
-                        totalFiles = total,
-                        fileProgress = fileProgress,
-                        overallProgress = overall
-                    )
-                    updateNotification((overall * 100).toInt(), false)
-                }
+                    folderId = folderId,
+                    onProgress = { value ->
+                        fileProgress = value.coerceIn(0f, 1f)
+                        val overall = ((index + fileProgress) / total.toFloat()).coerceIn(0f, 1f)
+                        mutableUploadState.value = DocumentUploadUiState.Running(
+                            fileName = fileName,
+                            fileIndex = index + 1,
+                            totalFiles = total,
+                            fileProgress = fileProgress,
+                            overallProgress = overall
+                        )
+                        updateNotification((overall * 100).toInt(), false)
+                    },
+                    onUploadTaskCreated = { task ->
+                        activeUploadTask = task
+                    }
+                )
                 uploadedCount++
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -181,6 +194,9 @@ class DocumentUploadForegroundService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         // Explicitly swiping Personal Vault away from Recents cancels the active upload.
+        cancelRequested = true
+        activeUploadTask?.cancel()
+        activeUploadTask = null
         uploadJob?.cancel()
         cancelAction?.invoke()
         cancelAction = null
@@ -193,6 +209,9 @@ class DocumentUploadForegroundService : Service() {
 
     override fun onDestroy() {
         if (activeService === this) activeService = null
+        cancelRequested = true
+        activeUploadTask?.cancel()
+        activeUploadTask = null
         uploadJob?.cancel()
         serviceScope?.cancel()
         serviceScope = null
@@ -310,7 +329,13 @@ class DocumentUploadForegroundService : Service() {
         }
 
         fun cancelAndStop(context: Context) {
-            activeService?.uploadJob?.cancel()
+            activeService?.let { service ->
+                service.cancelRequested = true
+                service.activeUploadTask?.cancel()
+                service.activeUploadTask = null
+                service.uploadJob?.cancel()
+                service.uploadJob = null
+            }
             cancelAction?.invoke()
             cancelAction = null
             mutableUploadState.value = DocumentUploadUiState.Cancelled

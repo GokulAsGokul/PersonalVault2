@@ -25,6 +25,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.ripple
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -61,6 +62,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
@@ -84,6 +86,7 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.History
@@ -113,6 +116,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.gokul.personalvault.VaultExternalActivityState
 import com.gokul.personalvault.DocumentUploadForegroundService
@@ -221,6 +226,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var showBulkPermanentDeleteConfirm by remember { mutableStateOf(false) }
     var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
     var showRecycleBinSearch by remember { mutableStateOf(false) }
+    var showDocumentSearch by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var advancedSearchExpanded by remember { mutableStateOf(false) }
     var searchFileNameOnly by remember { mutableStateOf(false) }
@@ -229,7 +235,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val selectedDocumentIds = remember { mutableStateListOf<String>() }
     var category by remember { mutableStateOf("all") }
     var visibility by remember { mutableStateOf("ALL") }
-    var fileType by remember { mutableStateOf("ALL") }
+    var dashboardFilter by remember { mutableStateOf("ALL") }
     var sort by remember { mutableStateOf(DocumentSortV2New.NEWEST) }
     var sortMenu by remember { mutableStateOf(false) }
     var grid by remember { mutableStateOf(false) }
@@ -266,9 +272,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var busyDocument by remember { mutableStateOf(false) }
     var isDownloadingFile by remember { mutableStateOf(false) }
     var downloadingFileName by remember { mutableStateOf("") }
+    var downloadingFileType by remember { mutableStateOf("DOCUMENT") }
     var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
     var downloadTotalBytes by remember { mutableLongStateOf(0L) }
     var isSavingDownloadedFile by remember { mutableStateOf(false) }
+    var activeDocumentTransferJob by remember { mutableStateOf<Job?>(null) }
     var showDocumentPreview by remember { mutableStateOf(false) }
     var previewBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var previewFile by remember { mutableStateOf<File?>(null) }
@@ -794,11 +802,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     val active = documents.filter { !it.isDeleted }
+    val dashboardScoped: (DocumentRecordV2) -> Boolean = { doc ->
+        when (dashboardFilter) {
+            "ONLY_ME" -> doc.scope != "SHARED" && doc.ownerUid == memberUid
+            "SHARED" -> doc.scope == "SHARED" && doc.ownerUid == memberUid
+            "SPOUSE" -> doc.scope == "SHARED" && doc.ownerUid != memberUid
+            else -> true
+        }
+    }
     val scopedActive = active.filter { visibility == "ALL" || it.scope == visibility }
     val deleted = documents.filter { it.isDeleted }
     val source = if (recycleBin) deleted else active
     val visible = source
-        .filter { visibility == "ALL" || it.scope == visibility }
+        .filter { recycleBin || dashboardScoped(it) }
         .filter { category == "all" || it.categoryId == category }
         .filter { it.folderId == currentFolderId }
         .filter {
@@ -813,19 +829,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
         }
         .filter { recycleBin || !showFavouritesOnly || it.favouriteUids[memberUid] == true }
-        .filter {
-            when (fileType) {
-                "PDF" -> it.contentType.contains("pdf", true)
-                "IMAGE" -> it.contentType.startsWith("image/")
-                "OFFICE" -> listOf("msword", "wordprocessing", "spreadsheet", "presentation", "excel", "powerpoint")
-                    .any { token -> it.contentType.contains(token, true) }
-                "OTHER" -> !it.contentType.contains("pdf", true) &&
-                    !it.contentType.startsWith("image/") &&
-                    !listOf("msword", "wordprocessing", "spreadsheet", "presentation", "excel", "powerpoint")
-                        .any { token -> it.contentType.contains(token, true) }
-                else -> true
-            }
-        }.let { list ->
+.let { list ->
             when (sort) {
                 DocumentSortV2New.NAME_ASC -> list.sortedBy { it.title.lowercase(Locale.ROOT) }
                 DocumentSortV2New.NAME_DESC -> list.sortedByDescending { it.title.lowercase(Locale.ROOT) }
@@ -847,10 +851,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     fun downloadDocument(doc: DocumentRecordV2) {
-        scope.launch {
+        activeDocumentTransferJob = scope.launch {
             busyDocument = true
             isDownloadingFile = true
-            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileName = doc.originalFileName.ifBlank { doc.title }
+            downloadingFileType = doc.originalFileName.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
+                ?: when {
+                    doc.contentType.contains("pdf", true) -> "PDF"
+                    doc.contentType.startsWith("image/jpeg", true) -> "JPG"
+                    doc.contentType.startsWith("image/png", true) -> "PNG"
+                    doc.contentType.startsWith("image/", true) -> "IMAGE"
+                    doc.contentType.contains("spreadsheet", true) || doc.contentType.contains("excel", true) -> "XLSX"
+                    doc.contentType.contains("word", true) -> "DOCX"
+                    else -> "DOCUMENT"
+                }
             downloadTransferredBytes = 0L
             downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
@@ -859,7 +873,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     if (total > 0L) downloadTotalBytes = total
                 }
                 isSavingDownloadedFile = true
-                withContext(Dispatchers.IO) {
+                withContext<Unit>(Dispatchers.IO) {
                     saveDocumentToDownloadsNew(
                         context = context,
                         source = file,
@@ -873,12 +887,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     "Downloaded to the app's Downloads folder."
                 }
                 selectedDocument = null
+            } catch (error: CancellationException) {
+                message = "Download cancelled."
             } catch (error: Exception) {
                 message = error.localizedMessage ?: error.message ?: "Download failed."
             } finally {
                 busyDocument = false
                 isSavingDownloadedFile = false
                 isDownloadingFile = false
+                activeDocumentTransferJob = null
             }
         }
     }
@@ -927,10 +944,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             selectedDocument = doc
             return
         }
-        scope.launch {
+        activeDocumentTransferJob = scope.launch {
             busyDocument = true
             isDownloadingFile = true
-            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileName = doc.originalFileName.ifBlank { doc.title }
+            downloadingFileType = doc.originalFileName.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
+                ?: when {
+                    doc.contentType.contains("pdf", true) -> "PDF"
+                    doc.contentType.startsWith("image/jpeg", true) -> "JPG"
+                    doc.contentType.startsWith("image/png", true) -> "PNG"
+                    doc.contentType.startsWith("image/", true) -> "IMAGE"
+                    doc.contentType.contains("spreadsheet", true) || doc.contentType.contains("excel", true) -> "XLSX"
+                    doc.contentType.contains("word", true) -> "DOCX"
+                    else -> "DOCUMENT"
+                }
             downloadTransferredBytes = 0L
             downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
@@ -951,12 +978,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
                 VaultExternalActivityState.documentViewerActive = true
                 context.startActivity(Intent.createChooser(viewIntent, "Open document"))
+            } catch (error: CancellationException) {
+                message = "Download cancelled."
+                VaultExternalActivityState.documentViewerActive = false
             } catch (error: Exception) {
                 VaultExternalActivityState.documentViewerActive = false
                 message = error.localizedMessage ?: error.message ?: "Unable to open document."
             } finally {
                 busyDocument = false
                 isDownloadingFile = false
+                activeDocumentTransferJob = null
             }
         }
     }
@@ -966,8 +997,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             if (doc.contentType.startsWith("image/")) {
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeFile(file.absolutePath, bounds)
-                val sampleSize = maxOf(
-                    1,
+                val sampleSize = maxOf(                    1,
                     (bounds.outWidth / 1600).coerceAtLeast(1),
                     (bounds.outHeight / 2000).coerceAtLeast(1)
                 )
@@ -999,11 +1029,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
 
     fun previewDocument(doc: DocumentRecordV2, pageIndex: Int = 0) {
-        scope.launch {
+        activeDocumentTransferJob = scope.launch {
             busyDocument = true
             val cachedPreview = previewFile?.takeIf { previewFileDocumentId == doc.id }
             isDownloadingFile = cachedPreview == null
-            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileName = doc.originalFileName.ifBlank { doc.title }
             downloadTransferredBytes = 0L
             downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
@@ -1020,11 +1050,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 previewPageIndex = pageIndex.coerceIn(0, count - 1)
                 previewTitle = doc.title.ifBlank { doc.originalFileName }
                 showDocumentPreview = true
+            } catch (error: CancellationException) {
+                message = "Download cancelled."
             } catch (error: Exception) {
                 message = error.localizedMessage ?: error.message ?: "Unable to preview this document."
             } finally {
                 isDownloadingFile = false
                 busyDocument = false
+                activeDocumentTransferJob = null
             }
         }
     }
@@ -1173,6 +1206,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val inCategory = !recycleBin && category != "all"
     val canGoBack = !isHome
 
+    // Return to the default, unselected state whenever the Documents dashboard is shown.
+    LaunchedEffect(isHome) {
+        if (isHome) {
+            selectedDocumentIds.clear()
+            selectionMode = false
+        }
+    }
+
     fun goBack() {
         when {
             recycleBin -> {
@@ -1185,9 +1226,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 currentFolderId = folders.firstOrNull { it.id == currentFolderId }?.parentFolderId
             category != "all" -> {
                 category = "all"
-                fileType = "ALL"
+                dashboardFilter = "ALL"
             }
-            showAllDocuments -> showAllDocuments = false
+            showAllDocuments -> {
+                showAllDocuments = false
+                dashboardFilter = "ALL"
+            }
         }
     }
     BackHandler(enabled = canGoBack) { goBack() }
@@ -1216,6 +1260,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val headerSubtitle = null
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    LaunchedEffect(category, currentFolderId, showAllDocuments, recycleBin) { listState.scrollToItem(0) }
     val mutedColor = palette.muted
 
     Scaffold(
@@ -1239,16 +1284,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                         }
                     } else {
+                        IconButton(onClick = { showDocumentSearch = !showDocumentSearch; if (!showDocumentSearch) { search = ""; advancedSearchExpanded = false } }) {
+                            Icon(if (showDocumentSearch) Icons.Outlined.Close else Icons.Outlined.Search,
+                                contentDescription = if (showDocumentSearch) "Close search" else "Search documents")
+                        }
                         Box {
-                            IconButton(onClick = { menuExpanded = true }) {
-                                Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
-                            }
+                            IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "More options") }
                             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                DropdownMenuItem(
-                                    text = { Text("Manage Categories") },
-                                    leadingIcon = { Icon(Icons.Outlined.Edit, null) },
-                                    onClick = { manageCategories = true; menuExpanded = false }
-                                )
+                                DropdownMenuItem(text = { Text("New folder") }, leadingIcon = { Icon(Icons.Outlined.FolderOpen, null) }, onClick = { menuExpanded = false; startCreateFolder() })
                             }
                         }
                     }
@@ -1273,8 +1316,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 0.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // ── Upload progress banner (replaces the old inline progress) ──
-            if (uploading) {
+            // Upload progress is shown only inside Add Documents, not on the dashboard.
+            if (uploading && !isHome) {
                 item(key = "uploading") {
                     Card(
                         Modifier.fillMaxWidth(),
@@ -1289,63 +1332,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             }
 
-            // Search is available in All Files and deeper views, not on the Documents dashboard.
-            if (!isHome && !recycleBin) item(key = "search") {
-                TextField(
-                    value = search,
-                    onValueChange = { search = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    placeholder = { Text("Search documents") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                    trailingIcon = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { advancedSearchExpanded = !advancedSearchExpanded }) {
-                                Icon(Icons.Outlined.Tune, "Advanced search")
-                            }
-                            if (search.isNotEmpty()) {
-                                IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Close, "Clear search") }
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(28.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = palette.surface,
-                        unfocusedContainerColor = palette.surface,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent,
-                        errorIndicatorColor = Color.Transparent
-                    )
-                )
-            }
-
-            if (advancedSearchExpanded && !isHome) {
-                item(key = "advanced_search_options") {
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = palette.surface)
-                    ) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Advanced Search", fontWeight = FontWeight.SemiBold)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = searchFileNameOnly, onCheckedChange = { searchFileNameOnly = it })
-                                Text("Search filename only", style = MaterialTheme.typography.bodySmall)
-                            }
-                            Text("Search matches title, filename, notes and category.",
-                                color = palette.muted, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
             // Unified Documents Overview: scope filters and live statistics.
             if (isHome) {
                 item(key = "documents_overview") {
-                    val overviewDocuments = if (recycleBin) deleted else scopedActive
-                    val overviewFolders = folders.filter {
-                        visibility == "ALL" || it.scope == visibility
-                    }
+                    val dashboardOverviewDocs = if (recycleBin) deleted else active.filter(dashboardScoped)
+
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         shape = RoundedCornerShape(24.dp),
@@ -1360,21 +1351,42 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            val scopes = listOf(
+                            val filters = listOf(
                                 Triple("ALL", "All", Icons.Outlined.SelectAll),
-                                Triple("PERSONAL", "Personal", Icons.Outlined.Person),
-                                Triple("SHARED", "Shared", Icons.Outlined.Groups),
+                                Triple("ONLY_ME", "Only Me", Icons.Outlined.Person),
+                                Triple("SHARED", "Shared", Icons.Outlined.People),
+                                Triple("SPOUSE", "Spouse", Icons.Outlined.People),
                                 Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
                             )
                             Row(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                scopes.forEach { (value, label, icon) ->
+                                filters.forEach { (value, label, icon) ->
                                     val selected = if (value == "RECYCLE_BIN") recycleBin
-                                        else !recycleBin && visibility == value
+                                        else !recycleBin && dashboardFilter == value
+                                    val tileBackground = when (value) {
+                                        "ALL" -> Color(0xFFF0E5FF)
+                                        "ONLY_ME" -> Color(0xFFE7F7E9)
+                                        "SHARED" -> Color(0xFFFFEEE5)
+                                        "SPOUSE" -> Color(0xFFFCE8F5)
+                                        else -> Color(0xFFE3F0FF)
+                                    }
+                                    val tileAccent = when (value) {
+                                        "ALL" -> Color(0xFF7136B8)
+                                        "ONLY_ME" -> Color(0xFF269B52)
+                                        "SHARED" -> Color(0xFFEF7B35)
+                                        "SPOUSE" -> Color(0xFFD63384)
+                                        else -> Color(0xFF2875D0)
+                                    }
                                     Surface(
-                                        modifier = Modifier.weight(1f).heightIn(min = 62.dp).clickable {
+                                        modifier = Modifier.weight(1f)
+                                            .height(72.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .clickable(
+                                                indication = ripple(bounded = true, color = tileAccent),
+                                                interactionSource = remember { MutableInteractionSource() }
+                                            ) {
                                             if (value == "RECYCLE_BIN") {
                                                 recycleBin = true
                                                 category = "all"
@@ -1383,146 +1395,141 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                                 visibility = "ALL"
                                             } else {
                                                 recycleBin = false
-                                                visibility = value
+                                                dashboardFilter = value
+                                                visibility = "ALL"
                                                 category = "all"
                                                 currentFolderId = null
                                                 showAllDocuments = false
                                             }
                                         },
                                         shape = RoundedCornerShape(16.dp),
-                                        color = if (selected) documentAccent else palette.container,
+                                        color = tileBackground,
                                         border = androidx.compose.foundation.BorderStroke(
-                                            1.dp,
-                                            if (selected) documentAccent
-                                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
-                                        )
+                                            if (selected) 2.dp else 1.dp,
+                                            if (selected) tileAccent else tileAccent.copy(alpha = 0.18f)
+                                        ),
+                                        shadowElevation = if (selected) 3.dp else 0.dp
                                     ) {
                                         Column(
-                                            Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 7.dp),
+                                            modifier = Modifier.fillMaxSize().padding(horizontal = 1.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                            verticalArrangement = Arrangement.Center
                                         ) {
-                                            Icon(
-                                                icon,
-                                                contentDescription = null,
-                                                tint = if (selected) palette.onAccent
-                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(19.dp)
-                                            )
-                                            Text(
-                                                label,
-                                                color = if (selected) palette.onAccent
-                                                    else MaterialTheme.colorScheme.onSurface,
+                                            Icon(icon, contentDescription = null,
+                                                tint = tileAccent,
+                                                modifier = Modifier.size(23.dp))
+                                            Text(label,
+                                                color = Color(0xFF211536),
                                                 style = MaterialTheme.typography.labelSmall,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
+                                                maxLines = 1, softWrap = false)
                                         }
                                     }
                                 }
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                DocumentDashboardStatCardV2New(
-                                    label = "Documents",
-                                    value = overviewDocuments.size.toString(),
-                                    icon = Icons.Outlined.Description,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF352347),
-                                    iconTint = Color(0xFFD2A8FF)
-                                )
-                                DocumentDashboardStatCardV2New(
-                                    label = "Storage",
-                                    value = formatDocumentBytesNew(overviewDocuments.sumOf { it.sizeBytes }),
-                                    icon = Icons.Outlined.Storage,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF252D4A),
-                                    iconTint = Color(0xFF58B8FF)
-                                )
-                                DocumentDashboardStatCardV2New(
-                                    label = "Personal",
-                                    value = overviewDocuments.count { it.scope == "PERSONAL" }.toString(),
-                                    icon = Icons.Outlined.Person,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF1D3A2C),
-                                    iconTint = Color(0xFF8FE0A7)
-                                )
-                                DocumentDashboardStatCardV2New(
-                                    label = "Shared",
-                                    value = overviewDocuments.count { it.scope == "SHARED" }.toString(),
-                                    icon = Icons.Outlined.Groups,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF352347),
-                                    iconTint = Color(0xFFD2A8FF)
-                                )
-                                DocumentDashboardStatCardV2New(
-                                    label = "Folders",
-                                    value = overviewFolders.size.toString(),
-                                    icon = Icons.Outlined.FolderOpen,
-                                    modifier = Modifier.weight(1f),
-                                    cardColor = Color(0xFF3A2D28),
-                                    iconTint = Color(0xFFFFD34D)
-                                )
+                            val personalCount = dashboardOverviewDocs.count { it.scope != "SHARED" && it.ownerUid == memberUid }
+                            val sharedCount = dashboardOverviewDocs.count { it.scope == "SHARED" && it.ownerUid == memberUid }
+                            val spouseCount = dashboardOverviewDocs.count { it.scope == "SHARED" && it.ownerUid != memberUid }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                DocumentDashboardStatCardV2New("Document", dashboardOverviewDocs.size.toString(),
+                                    Icons.Outlined.Description, Modifier.weight(1f), Color(0xFFF0E5FF), Color(0xFF7136B8))
+                                DocumentDashboardStatCardV2New("Storage", formatDocumentBytesNew(dashboardOverviewDocs.sumOf { it.sizeBytes }),
+                                    Icons.Outlined.Storage, Modifier.weight(1f), Color(0xFFE3F0FF), Color(0xFF2875D0))
+                                DocumentDashboardStatCardV2New("Only Me", personalCount.toString(),
+                                    Icons.Outlined.Person, Modifier.weight(1f), Color(0xFFE7F7E9), Color(0xFF269B52))
+                                DocumentDashboardStatCardV2New("Shared", sharedCount.toString(),
+                                    Icons.Outlined.People, Modifier.weight(1f), Color(0xFFFFEEE5), Color(0xFFEF7B35))
+                                DocumentDashboardStatCardV2New("Spouse", spouseCount.toString(),
+                                    Icons.Outlined.People, Modifier.weight(1f), Color(0xFFFCE8F5), Color(0xFFD63384))
                             }
                         }
                     }
                 }
             } else if (!recycleBin) {
-                // Scope selector remains available in non-dashboard document views.
-                item(key = "scope") {
-                    val scopes = listOf(
+
+                item(key = "ownership_filters") {
+                    val filters = listOf(
                         Triple("ALL", "All", Icons.Outlined.SelectAll),
-                        Triple("PERSONAL", "Personal", Icons.Outlined.Person),
-                        Triple("SHARED", "Shared", Icons.Outlined.Groups),
-                        Triple("RECYCLE_BIN", "Recycle Bin", Icons.Outlined.Delete)
+                        Triple("ONLY_ME", "Only Me", Icons.Outlined.Person),
+                        Triple("SHARED", "Shared", Icons.Outlined.People),
+                        Triple("SPOUSE", "Spouse", Icons.Outlined.People)
                     )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        scopes.forEach { (value, label, icon) ->
-                            val selected = if (value == "RECYCLE_BIN") recycleBin
-                                else !recycleBin && visibility == value
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        filters.forEach { (value, label, icon) ->
+                            val selected = dashboardFilter == value
+                            val tileBackground = when (value) {
+                                "ALL" -> Color(0xFFF0E5FF)
+                                "ONLY_ME" -> Color(0xFFE7F7E9)
+                                "SHARED" -> Color(0xFFFFEEE5)
+                                "SPOUSE" -> Color(0xFFFCE8F5)
+                                else -> Color(0xFFE3F0FF)
+                            }
+                            val tileAccent = when (value) {
+                                "ALL" -> Color(0xFF7136B8)
+                                "ONLY_ME" -> Color(0xFF269B52)
+                                "SHARED" -> Color(0xFFEF7B35)
+                                "SPOUSE" -> Color(0xFFD63384)
+                                else -> Color(0xFF2875D0)
+                            }
                             Surface(
-                                modifier = Modifier.weight(1f).heightIn(min = 52.dp).clickable {
-                                    if (value == "RECYCLE_BIN") {
-                                        recycleBin = true
-                                        category = "all"
-                                        currentFolderId = null
-                                        showAllDocuments = false
-                                        visibility = "ALL"
-                                    } else {
-                                        recycleBin = false
-                                        visibility = value
-                                        category = "all"
-                                        currentFolderId = null
-                                        showAllDocuments = false
-                                    }
-                                },
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (selected) documentAccent else palette.container,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (selected) documentAccent else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                                )
-                            ) {
-                                Column(
-                                    Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                modifier = Modifier.weight(1f).height(72.dp).clip(RoundedCornerShape(16.dp)).clickable(
+                                    indication = ripple(bounded = true, color = tileAccent),
+                                    interactionSource = remember { MutableInteractionSource() }
                                 ) {
-                                    Icon(icon, contentDescription = null,
-                                        tint = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(17.dp))
-                                    Text(label, color = if (selected) palette.onAccent else MaterialTheme.colorScheme.onSurface,
-                                        style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                                    recycleBin = false
+                                    dashboardFilter = value
+                                    visibility = "ALL"
+                                    selectionMode = false; selectedDocumentIds.clear()
+                                },
+                                shape = RoundedCornerShape(16.dp), color = tileBackground,
+                                border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) tileAccent else tileAccent.copy(alpha = 0.18f)),
+                                shadowElevation = if (selected) 3.dp else 0.dp
+                            ) {
+                                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                    Icon(icon, null, tint = tileAccent, modifier = Modifier.size(23.dp))
+                                    Text(label, color = Color(0xFF211536), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                                 }
                             }
                         }
                     }
                 }
             }
-
+            if (showDocumentSearch && !recycleBin) item(key = "search_spacing") { Spacer(Modifier.height(12.dp)) }
+            if (showDocumentSearch && !recycleBin) item(key = "search") {
+                TextField(
+                    value = search,
+                    onValueChange = { search = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Search documents") },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { advancedSearchExpanded = !advancedSearchExpanded }) { Icon(Icons.Outlined.Tune, "Advanced search") }
+                            if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Icon(Icons.Outlined.Close, "Clear search") }
+                        }
+                    },
+                    shape = RoundedCornerShape(28.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = palette.surface, unfocusedContainerColor = palette.surface,
+                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent, errorIndicatorColor = Color.Transparent
+                    )
+                )
+            }
+            if (advancedSearchExpanded && showDocumentSearch && !recycleBin) {
+                item(key = "advanced_search_options") {
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = palette.surface)) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Advanced Search", fontWeight = FontWeight.SemiBold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = searchFileNameOnly, onCheckedChange = { searchFileNameOnly = it })
+                                Text("Search filename only", style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text("Search matches title, filename, notes and category.", color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
             if (!documentsLoaded) {
                 item(key = "documents_initial_loading") {
                     Card(
@@ -1544,7 +1551,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             } else if (isHome) {
                 // ── Home: summary, recent documents and categories ──
-                val recent = active.filter { visibility == "ALL" || it.scope == visibility }
+                val recent = active.filter(dashboardScoped)
                     .sortedByDescending { it.uploadedAt?.toDate()?.time ?: 0L }.take(5)
                 item(key = "cat_header") {
                     Row(
@@ -1575,7 +1582,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         categoryRow.forEach { (id, name) ->
                             val count = active.count {
-                                it.categoryId == id && (visibility == "ALL" || it.scope == visibility)
+                                it.categoryId == id && dashboardScoped(it)
                             }
                             val (tileBg, tileFg) = categoryStyleV2New(id, isDarkUi)
                             CategoryCardV2New(
@@ -1752,20 +1759,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    val folderSlots: List<DocumentFolderV2?> = childFolders + listOf<DocumentFolderV2?>(null)
+                    val folderSlots = childFolders
                     items(folderSlots.chunked(2)) { slotRow ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             slotRow.forEach { folder ->
-                                if (folder == null) {
-                                    NewFolderCardV2New(palette, Modifier.weight(1f)) { startCreateFolder() }
-                                } else {
-                                    FolderCardV2New(
+                                FolderCardV2New(
                                         folder = folder,
                                         palette = palette,
+                                        fileCount = active.count { it.folderId == folder.id },
+                                        subfolderCount = folders.count { it.parentFolderId == folder.id },
                                         modifier = Modifier.weight(1f),
-                                        onOpen = { currentFolderId = folder.id }
+                                        onOpen = { currentFolderId = folder.id },
+                                        onMore = { selectedFolder = folder; showFolderActions = true }
                                     )
-                                }
                             }
                             repeat(2 - slotRow.size) { Spacer(Modifier.weight(1f)) }
                         }
@@ -1796,18 +1802,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                             }
                         }
-                        if (!recycleBin) IconButton(onClick = {
-                            if (selectionMode) {
-                                selectionMode = false
-                                selectedDocumentIds.clear()
-                            } else {
-                                selectionMode = true
-                                selectedDocumentIds.clear()
-                            }
-                        }) {
-                            Icon(if (selectionMode) Icons.Outlined.Close else Icons.Outlined.SelectAll,
-                                if (selectionMode) "Exit selection" else "Select documents")
-                        }
+
                         IconButton(onClick = { grid = !grid }) {
                             Icon(if (grid) Icons.Outlined.List else Icons.Outlined.GridView, "Toggle view")
                         }
@@ -1905,29 +1900,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         )
                     }
                 }
-                item(key = "type_chips") {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("ALL" to "All", "PDF" to "Pdf", "IMAGE" to "Image", "OFFICE" to "Office", "OTHER" to "Other")
-                            .forEach { (value, label) ->
-                                FilterChip(
-                                    selected = fileType == value,
-                                    onClick = { fileType = value },
-                                    label = { Text(label) },
-                                    shape = RoundedCornerShape(50),
-                                    border = null,
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = documentAccent,
-                                        selectedLabelColor = palette.onAccent,
-                                        containerColor = palette.container,
-                                        labelColor = MaterialTheme.colorScheme.onSurface
-                                    )
-                                )
-                            }
-                    }
-                }
                 if (visible.isEmpty()) {
                     item(key = "empty") {
                         EmptyStateV2New(
@@ -1958,6 +1930,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         if (selectionMode) toggleSelection(doc)
                                         else if (recycleBin) selectedDocument = doc else openDocument(doc)
                                     },
+                                    onLongClick = {
+                                        if (!selectionMode) selectionMode = true
+                                        toggleSelection(doc)
+                                    },
                                     onMore = { selectedDocument = doc },
                                     selectionMode = selectionMode,
                                     selected = doc.id in selectedDocumentIds
@@ -1975,10 +1951,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 else if (recycleBin) selectedDocument = doc else openDocument(doc)
                             },
                             onLongClick = {
-                                if (recycleBin) {
-                                    if (!selectionMode) selectionMode = true
-                                    toggleSelection(doc)
-                                }
+                                if (!selectionMode) selectionMode = true
+                                toggleSelection(doc)
                             },
                             onMore = { selectedDocument = doc },
                             selectionMode = selectionMode,
@@ -2022,8 +1996,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Text("Add to Documents", style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold)
                 ListItem(
-                    headlineContent = { Text("Upload Files", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("From device (PDF, images, documents, etc.)") },
+                    headlineContent = { Text("Upload Files", fontWeight = FontWeight.SemiBold) },                    supportingContent = { Text("From device (PDF, images, documents, etc.)") },
                     leadingContent = { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.clickable {
                         showAddOptions = false
@@ -2174,15 +2147,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     if (showAddDocuments) {
-        AlertDialog(
-            modifier = Modifier.fillMaxSize(),
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-
-            shape = RoundedCornerShape(24.dp),
-
-            containerColor = MaterialTheme.colorScheme.surface,
-
-            tonalElevation = 8.dp,
+        FullScreenDocumentForm(
+            dark = isDarkUi,
+            fullScreenPage = true,
             onDismissRequest = {
                 if (!uploading) {
                     showAddDocuments = false
@@ -2195,44 +2162,129 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     pendingScanFile = null
                 }
             },
-            title = { Text("Add Documents") },
-            text = {
-                Column(
-                    Modifier.fillMaxWidth().heightIn(max = 680.dp).verticalScroll(uploadFormScrollState),
+            header = {
+                VaultCompactHeader(
+                    title = "Add Documents",
+                    subtitle = null,
+                    onBack = {
+                        if (!uploading) {
+                            showAddDocuments = false
+                            pendingUploads.clear()
+                            pendingPhotoFile?.delete()
+                            pendingPhotoFile = null
+                            pendingPhotoUri = null
+                            capturedPhotoUri = null
+                            pendingScanFile?.delete()
+                            pendingScanFile = null
+                        }
+                    },
+                    titleIcon = null,
+                    actions = {}
+                )
+            },
+            contentFillsSpace = pendingUploads.isNotEmpty() || uploading,
+            content = {
+                if (pendingUploads.isEmpty() && !uploading) {
+                    val addPalette = documentPaletteV2New(isDarkUi)
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Card(
+                                Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(containerColor = addPalette.container)
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Outlined.Info, null, tint = addPalette.accent,
+                                            modifier = Modifier.size(22.dp))
+                                        Text(
+                                            "0 of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected",
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638)
+                                        )
+                                    }
+                                    Text("Total · 0 B", color = addPalette.accent, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Limits: 50 MB per file · 200 MB per batch",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = addPalette.muted,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    VaultExternalActivityState.documentPickerActive = true
+                                    picker.launch(arrayOf("*/*"))
+                                },
+                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.accent),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line)
+                            ) {
+                                Icon(Icons.Outlined.Add, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Add New File")
+                            }
+                        }
+                    }
+                } else {
+                Column(Modifier.fillMaxWidth().fillMaxHeight().verticalScroll(uploadFormScrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "Limits: 50 MB per file · 200 MB per batch",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                    Text(
-                        "Total selected: ${formatDocumentBytesNew(pendingUploads.sumOf { it.sizeBytes })}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    val addPalette = documentPaletteV2New(isDarkUi)
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = addPalette.container)) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Outlined.Info, null, tint = addPalette.accent, modifier = Modifier.size(26.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected", fontWeight = FontWeight.SemiBold,
+                                    color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
+                                Text("Limits: 50 MB per file · 200 MB per batch", style = MaterialTheme.typography.labelSmall,
+                                    color = addPalette.muted)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Total", style = MaterialTheme.typography.labelSmall, color = addPalette.muted)
+                                Text(formatDocumentBytesNew(pendingUploads.sumOf { it.sizeBytes }),
+                                    color = addPalette.accent, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     if (!uploading) {
-                    if (pendingUploads.isEmpty()) {
+                    if (pendingUploads.size < MAX_DOCUMENT_BATCH_COUNT_NEW) {
                         OutlinedButton(
                             onClick = {
                                 VaultExternalActivityState.documentPickerActive = true
                                 picker.launch(arrayOf("*/*"))
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.accent),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line)
                         ) {
                             Icon(Icons.Outlined.Add, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Add Files")
+                            Text(if (pendingUploads.isEmpty()) "Add Files" else "Add New File")
                         }
                     }
-                    Divider()
                     pendingUploads.forEachIndexed { index, pending ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = documentCardSurface)
+                            shape = RoundedCornerShape(18.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line),
+                            colors = CardDefaults.cardColors(containerColor = addPalette.surface2)
                         ) {
                             Row(
                                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -2247,10 +2299,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(pending.fileName, fontWeight = FontWeight.SemiBold,
-                                        style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                                        style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                                        color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
                                     Text(formatDocumentBytesNew(pending.sizeBytes),
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        color = addPalette.muted)
                                     pending.errorMessage?.let { uploadError ->
                                         Text(
                                             if (pending.retryBlocked) "Needs cleanup: $uploadError" else "Upload failed: $uploadError",
@@ -2273,9 +2326,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 },
                                 label = { Text("File name (max 50)") },
                                 supportingText = { Text("${pending.title.length}/50") },
+                                trailingIcon = {
+                                    if (pending.title.isNotEmpty()) IconButton(enabled = !uploading, onClick = {
+                                        pendingUploads[index] = pending.copy(title = "")
+                                    }) { Icon(Icons.Outlined.Close, contentDescription = "Clear file name") }
+                                },
                                 singleLine = true,
                                 enabled = !uploading,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp)
                             )
                             OutlinedTextField(
                                 value = pending.notes,
@@ -2286,22 +2345,31 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 supportingText = { Text("${pending.notes.length}/50") },
                                 singleLine = true,
                                 enabled = !uploading,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp)
                             )
                             Text("Access", style = MaterialTheme.typography.labelMedium)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(
-                                    selected = pending.scope == "PERSONAL",
-                                    onClick = { pendingUploads[index] = pending.copy(scope = "PERSONAL", folderId = null) },
-                                    label = { Text("Personal") },
-                                    enabled = !uploading
-                                )
-                                FilterChip(
-                                    selected = pending.scope == "SHARED",
-                                    onClick = { pendingUploads[index] = pending.copy(scope = "SHARED", folderId = null) },
-                                    label = { Text("Shared") },
-                                    enabled = !uploading
-                                )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                listOf("PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
+                                    val selected = pending.scope == value
+                                    val selectorShape = RoundedCornerShape(16.dp)
+                                    Row(Modifier.weight(1f).height(56.dp).clip(selectorShape)
+                                        .background(if (selected) addPalette.container else addPalette.surface2)
+                                        .border(1.dp, if (selected) addPalette.accent else addPalette.line, selectorShape)
+                                        .clickable(enabled = !uploading,
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = ripple(color = Color(0xFFD9B5FF))) {
+                                            pendingUploads[index] = pending.copy(scope = value, folderId = null)
+                                        }.padding(horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                        Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
+                                            null, tint = addPalette.accent, modifier = Modifier.size(19.dp))
+                                        Spacer(Modifier.width(7.dp))
+                                        Text(label, color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638),
+                                            fontSize = 14.sp,
+                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                                    }
+                                }
                             }
                             var categoryMenuExpanded by remember(pending.uri) { mutableStateOf(false) }
                             Text("Category", style = MaterialTheme.typography.labelMedium)
@@ -2309,7 +2377,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 OutlinedButton(
                                     onClick = { categoryMenuExpanded = true },
                                     enabled = !uploading,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.muted)
                                 ) {
                                     Text(allCategories.firstOrNull { it.first == pending.categoryId }?.second ?: "Other")
                                     Spacer(Modifier.weight(1f))
@@ -2340,7 +2410,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 OutlinedButton(
                                     onClick = { folderMenuExpanded = true },
                                     enabled = !uploading,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.muted)
                                 ) {
                                     Text(
                                         pending.folderId?.let { id -> eligibleFolders.firstOrNull { it.id == id }?.name }
@@ -2376,47 +2448,62 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                     }
                     if (uploading) {
-                        Text("Uploading Files", style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold)
+                        Text(
+                            "Uploading files",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                         pendingUploads.forEachIndexed { index, pending ->
                             val itemProgress = when {
                                 index < currentUploadIndex -> 1f
-                                index == currentUploadIndex -> currentFileProgress
+                                index == currentUploadIndex -> currentFileProgress.coerceIn(0f, 1f)
                                 else -> 0f
                             }
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    DocumentTypeIconNew(
-                                        if (pending.fileName.endsWith(".pdf", true)) "application/pdf" else "application/octet-stream",
-                                        Modifier.size(34.dp)
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(pending.fileName, style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.SemiBold, maxLines = 1)
-                                        Text(
-                                            when {
-                                                index < currentUploadIndex -> "${formatDocumentBytesNew(pending.sizeBytes)} · 100%"
-                                                index == currentUploadIndex -> "${formatDocumentBytesNew((pending.sizeBytes * itemProgress).toLong())} · ${(itemProgress * 100).toInt()}%"
-                                                else -> "${formatDocumentBytesNew(pending.sizeBytes)} · Pending…"
-                                            },
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line),
+                                colors = CardDefaults.cardColors(containerColor = addPalette.surface)
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        DocumentTypeIconNew(
+                                            if (pending.fileName.endsWith(".pdf", true)) "application/pdf" else "application/octet-stream",
+                                            Modifier.size(42.dp)
                                         )
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text(
+                                                pending.fileName,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638)
+                                            )
+                                            Text(
+                                                when {
+                                                    index < currentUploadIndex -> "${formatDocumentBytesNew(pending.sizeBytes)} · Completed"
+                                                    index == currentUploadIndex -> "${formatDocumentBytesNew((pending.sizeBytes * itemProgress).toLong())} · ${(itemProgress * 100).toInt()}%"
+                                                    else -> "${formatDocumentBytesNew(pending.sizeBytes)} · Pending…"
+                                                },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = addPalette.muted
+                                            )
+                                        }
                                     }
-                                    if (index < currentUploadIndex) {
-                                        Icon(Icons.Filled.CheckCircle, contentDescription = "Completed",
-                                            tint = Color(0xFF31C56B))
-                                    } else if (index == currentUploadIndex) {
-                                        CircularProgressIndicator(progress = { itemProgress },
-                                            modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                    }
+                                    LinearProgressIndicator(
+                                        progress = { itemProgress },
+                                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                                        color = addPalette.accent,
+                                        trackColor = addPalette.container
+                                    )
                                 }
-                                LinearProgressIndicator(
-                                    progress = { itemProgress },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = documentAccent
-                                )
                             }
                         }
                         Card(
@@ -2440,9 +2527,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }
+                }
             },
-            confirmButton = {
-                TextButton(
+            primaryAction = {
+                if (pendingUploads.isNotEmpty() || uploading) Button(
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9137D7), contentColor = Color.White),
                     enabled = !uploading && pendingUploads.any { !it.retryBlocked } &&
                         pendingUploads.filter { !it.retryBlocked }.all { it.title.isNotBlank() },
                     onClick = {
@@ -2473,12 +2564,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             uploads = payload
                         )
                     }
-                ) { Text(if (uploading) "Uploading…" else "Upload") }
+                ) { Text("Upload", fontWeight = FontWeight.SemiBold) }
             },
-            dismissButton = {
-                TextButton(
-                    enabled = !uploading,
+            secondaryAction = {
+                if (pendingUploads.isNotEmpty() || uploading) Button(
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
+                    enabled = true,
                     onClick = {
+                        if (uploading) {
+                            DocumentUploadForegroundService.cancelAndStop(context)
+                        }
                         showAddDocuments = false
                         pendingUploads.clear()
                         pendingPhotoFile?.delete()
@@ -2488,7 +2585,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         pendingScanFile?.delete()
                         pendingScanFile = null
                     }
-                ) { Text("Cancel") }
+                ) { Text("Cancel", fontWeight = FontWeight.SemiBold) }
             }
         )
     }
@@ -2931,8 +3028,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Text(
                                     categoryRenameError.orEmpty(),
                                     color = if (categoryRenameError != null) MaterialTheme.colorScheme.error
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                    else MaterialTheme.colorScheme.onSurfaceVariant                                )
                                 Text("${categoryEditName.length}/30", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -2997,43 +3093,156 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     if (showFolderActions) {
         val folder = selectedFolder
         if (folder != null) {
-            ModalBottomSheet(onDismissRequest = { showFolderActions = false }, containerColor = documentSurface) {
+            ModalBottomSheet(
+                onDismissRequest = { showFolderActions = false },
+                shape = RoundedCornerShape(topStart = 48.dp, topEnd = 48.dp),
+                containerColor = if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF),
+                dragHandle = null
+            ) {
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(topStart = 48.dp, topEnd = 48.dp))
+                        .background(
+                            if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF)
+                        )
+                        .padding(horizontal = 22.dp)
+                        .padding(top = 10.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    Text(folder.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Folder actions", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ListItem(
-                        headlineContent = { Text("Rename Folder") },
-                        leadingContent = { Icon(Icons.Outlined.Edit, null) },
-                        modifier = Modifier.clickable {
-                            renameFolderName = folder.name
-                            showFolderActions = false
-                            showRenameFolder = true
-                        }
+                    Box(
+                        Modifier.align(Alignment.CenterHorizontally)
+                            .width(34.dp).height(5.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(palette.accent.copy(alpha = 0.85f))
                     )
-                    ListItem(
-                        headlineContent = { Text("Move Folder") },
-                        supportingContent = { Text("Move this folder with all its subfolders and files") },
-                        leadingContent = { Icon(Icons.Outlined.DriveFileMove, null) },
-                        modifier = Modifier.clickable {
-                            moveParentFolderId = folder.parentFolderId
-                            moveTargetChosen = false
-                            showFolderActions = false
-                            showMoveFolder = true
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            Modifier.size(42.dp)
+                                .clip(RoundedCornerShape(15.dp))
+                                .background(if (isDarkUi) Color(0xFF594078) else Color(0xFFE9DDFB)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Outlined.FolderOpen,
+                                contentDescription = null,
+                                tint = if (isDarkUi) Color(0xFFD7B5FF) else Color(0xFF7136B8),
+                                modifier = Modifier.size(25.dp)
+                            )
                         }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Delete Empty Folder", color = MaterialTheme.colorScheme.error) },
-                        supportingContent = { Text("Available only when the folder has no files or subfolders") },
-                        leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                        modifier = Modifier.clickable {
-                            showFolderActions = false
-                            deleteFolderError = null
-                            showDeleteFolderConfirm = true
+                        Column(
+                            Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                folder.name,
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "Folder Options",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = palette.accent,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
-                    )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                                .background(palette.surface2)
+                                .border(1.dp, palette.line, RoundedCornerShape(18.dp))
+                                .clickable {
+                                    renameFolderName = folder.name
+                                    showFolderActions = false
+                                    showRenameFolder = true
+                                }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(palette.container),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.Edit, null, tint = palette.accent, modifier = Modifier.size(22.dp))
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Rename Folder", style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                                Text("Change this folder's name", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                                .background(palette.surface2)
+                                .border(1.dp, palette.line, RoundedCornerShape(22.dp))
+                                .clickable {
+                                    moveParentFolderId = folder.parentFolderId
+                                    moveTargetChosen = false
+                                    showFolderActions = false
+                                    showMoveFolder = true
+                                }
+                                .padding(18.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(palette.container),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.DriveFileMove, null, tint = palette.accent, modifier = Modifier.size(25.dp))
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Move Folder", style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                                Text("Move with all subfolders and files", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.42f))
+                                .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.20f), RoundedCornerShape(18.dp))
+                                .clickable {
+                                    showFolderActions = false
+                                    deleteFolderError = null
+                                    showDeleteFolderConfirm = true
+                                }
+                                .padding(18.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(25.dp))
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Delete Empty Folder", style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                                Text("Available only when no files or subfolders remain",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
                 }
             }
         }
@@ -3210,105 +3419,207 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     if (showCreateFolder) {
-        AlertDialog(
+        val parentScope = currentFolderId?.let { id -> folders.firstOrNull { it.id == id }?.scope }
+        val folderSurface = if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF)
+        val folderWaveBack = if (isDarkUi) Color(0xFF63347F) else Color(0xFFDCC0F5)
+        val folderWaveFront = if (isDarkUi) Color(0xFF8D52B4) else Color(0xFFE9D5FA)
+        val folderAccent = if (isDarkUi) Color(0xFFD7B5FF) else Color(0xFF7136B8)
 
-            shape = RoundedCornerShape(24.dp),
-
-            containerColor = MaterialTheme.colorScheme.surface,
-
-            tonalElevation = 8.dp,
-            onDismissRequest = { showCreateFolder = false },
-            title = { Text("Create Folder") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = newFolderName,
-                        onValueChange = { newFolderName = it.take(30); createFolderError = null },
-                        label = { Text("Folder name") },
-                        supportingText = { Text(newFolderName.length.toString() + "/30") },
-                        singleLine = true
-                    )
-                    val parentScope = currentFolderId?.let { id ->
-                        folders.firstOrNull { it.id == id }?.scope
+        Dialog(
+            onDismissRequest = { if (!busyDocument) showCreateFolder = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            val dialogShape = RoundedCornerShape(30.dp)
+            Box(
+                Modifier.fillMaxWidth(0.92f).clip(dialogShape).background(folderSurface)
+                    .drawBehind {
+                        val waveHeight = 48.dp.toPx()
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.78f)
+                            cubicTo(size.width * 0.24f, size.height - waveHeight * 1.35f,
+                                size.width * 0.36f, size.height - waveHeight * 0.05f,
+                                size.width * 0.58f, size.height - waveHeight * 0.45f)
+                            cubicTo(size.width * 0.78f, size.height - waveHeight * 0.85f,
+                                size.width * 0.86f, size.height - waveHeight * 1.18f,
+                                size.width, size.height - waveHeight * 0.62f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawPath(backWave, folderWaveBack)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.38f)
+                            cubicTo(size.width * 0.22f, size.height - waveHeight * 0.85f,
+                                size.width * 0.42f, size.height - waveHeight * 0.02f,
+                                size.width * 0.62f, size.height - waveHeight * 0.28f)
+                            cubicTo(size.width * 0.80f, size.height - waveHeight * 0.50f,
+                                size.width * 0.88f, size.height - waveHeight * 0.68f,
+                                size.width, size.height - waveHeight * 0.32f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawPath(frontWave, folderWaveFront)
                     }
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+                        .padding(top = 26.dp, bottom = 76.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Box(Modifier.size(66.dp).clip(RoundedCornerShape(20.dp))
+                            .background(if (isDarkUi) Color(0xFF594078) else Color(0xFFE9DDFB)),
+                            contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.FolderOpen, null, tint = folderAccent, modifier = Modifier.size(38.dp))
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Create Folder", style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("Add a new folder to organize your files",
+                                style = MaterialTheme.typography.bodyMedium, color = folderAccent)
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Folder Name", style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = newFolderName,
+                            onValueChange = { newFolderName = it.take(30); createFolderError = null },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Enter folder name") },
+                            supportingText = { Text("${newFolderName.length}/30") },
+                            singleLine = true, shape = RoundedCornerShape(16.dp)
+                        )
+                    }
+
                     if (category == "all" && currentFolderId == null) {
-                        Text("Category", style = MaterialTheme.typography.labelMedium)
-                        Box {
-                            OutlinedButton(onClick = { folderCategoryMenuExpanded = true }) {
-                                Text(allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other")
-                                Spacer(Modifier.width(8.dp))
-                                Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
-                            }
-                            DropdownMenu(expanded = folderCategoryMenuExpanded, onDismissRequest = { folderCategoryMenuExpanded = false }) {
-                                allCategories.forEach { (id, label) ->
-                                    DropdownMenuItem(text = { Text(label) }, onClick = {
-                                        newFolderCategory = id
-                                        folderCategoryMenuExpanded = false
-                                    })
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Category", style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                            Box {
+                                OutlinedButton(onClick = { folderCategoryMenuExpanded = true },
+                                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                                    shape = RoundedCornerShape(16.dp)) {
+                                    Icon(Icons.Outlined.GridView, null, tint = folderAccent)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other",
+                                        modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
+                                    Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
+                                }
+                                DropdownMenu(expanded = folderCategoryMenuExpanded,
+                                    onDismissRequest = { folderCategoryMenuExpanded = false }) {
+                                    allCategories.forEach { (id, label) ->
+                                        DropdownMenuItem(text = { Text(label) }, onClick = {
+                                            newFolderCategory = id; folderCategoryMenuExpanded = false
+                                        })
+                                    }
                                 }
                             }
                         }
                     }
-                    Text("Visibility", style = MaterialTheme.typography.labelMedium)
-                    if (parentScope != null) {
-                        Text(
-                            if (parentScope == "SHARED") "Shared (inherited from parent folder)" else "Personal (inherited from parent folder)",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(newFolderScope == "PERSONAL", { newFolderScope = "PERSONAL" }, label = { Text("Personal") })
-                            FilterChip(newFolderScope == "SHARED", { newFolderScope = "SHARED" }, label = { Text("Shared") })
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Visibility", style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        if (parentScope != null) {
+                            Surface(shape = RoundedCornerShape(14.dp), color = palette.surface2) {
+                                Text(if (parentScope == "SHARED") "Shared (inherited from parent folder)"
+                                    else "Personal (inherited from parent folder)",
+                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium)
+                            }
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                listOf("PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
+                                    val selected = newFolderScope == value
+                                    Surface(
+                                        modifier = Modifier.weight(1f).height(52.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = ripple()
+                                            ) { newFolderScope = value },
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = if (selected) folderAccent.copy(alpha = 0.28f) else palette.surface2,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp,
+                                            if (selected) folderAccent else palette.line)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center) {
+                                            Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
+                                                null, tint = folderAccent, modifier = Modifier.size(20.dp))
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(label, color = MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                    createFolderError?.let { errorText ->
-                        Snackbar(
-                            modifier = Modifier.fillMaxWidth(),
-                            containerColor = Color(0xFFC62828),
-                            contentColor = Color.White
-                        ) { Text(errorText) }
-                    }
+
                     Text(
                         if (currentFolderId == null) "Folder will be created inside " +
                             (allCategories.firstOrNull { it.first == (if (category == "all") newFolderCategory else category) }?.second ?: "this category") + "."
                         else "Folder will be created inside " +
                             (folders.firstOrNull { it.id == currentFolderId }?.name ?: "the selected folder") + ".",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                            .background(palette.surface2).padding(14.dp),
+                        color = folderAccent, style = MaterialTheme.typography.bodySmall
                     )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = newFolderName.trim().isNotEmpty() && !busyDocument,
-                    onClick = {
-                        scope.launch {
-                            busyDocument = true
-                            try {
-                                repository.createFolder(
-                                    vaultId, memberUid, newFolderName,
-                                    if (category == "all") newFolderCategory else category,
-                                    currentFolderId, newFolderScope
-                                )
-                                showCreateFolder = false
-                                createFolderError = null
-                                message = "Folder created."
-                            } catch (error: Exception) {
-                                val failure = error.localizedMessage ?: error.message ?: "Unable to create folder."
-                                createFolderError = failure
-                                triggerVaultErrorVibration(context)
-                            } finally {
-                                busyDocument = false
-                            }
+
+                    createFolderError?.let { errorText ->
+                        Snackbar(modifier = Modifier.fillMaxWidth(), containerColor = Color(0xFFC62828),
+                            contentColor = Color.White) { Text(errorText) }
+                    }
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Button(
+                            onClick = { showCreateFolder = false },
+                            enabled = !busyDocument,
+                            modifier = Modifier.weight(1f).height(54.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFFDCC0F5) else Color(0xFFE9D5FA),
+                                contentColor = if (isDarkUi) Color(0xFF30203F) else Color(0xFF54217F)
+                            )
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
+                        }
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    busyDocument = true
+                                    try {
+                                        repository.createFolder(vaultId, memberUid, newFolderName,
+                                            if (category == "all") newFolderCategory else category,
+                                            currentFolderId, newFolderScope)
+                                        showCreateFolder = false
+                                        createFolderError = null
+                                        message = "Folder created."
+                                    } catch (error: Exception) {
+                                        val failure = error.localizedMessage ?: error.message ?: "Unable to create folder."
+                                        createFolderError = failure
+                                        triggerVaultErrorVibration(context)
+                                    } finally { busyDocument = false }
+                                }
+                            },
+                            enabled = newFolderName.trim().isNotEmpty() && !busyDocument,
+                            modifier = Modifier.weight(1f).height(54.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFF8D43D7) else Color(0xFF8A35D1),
+                                contentColor = Color.White)
+                        ) {
+                            if (busyDocument) CircularProgressIndicator(Modifier.size(20.dp),
+                                color = Color.White, strokeWidth = 2.dp)
+                            else Text("Create", fontWeight = FontWeight.Bold)
                         }
                     }
-                ) { Text("Create") }
-            },
-            dismissButton = { TextButton(onClick = { showCreateFolder = false }) { Text("Cancel") } }
-        )
+                }
+            }
+        }
     }
-
 
     if (showMoveDocument) {
         val doc = documentToMove
@@ -3424,11 +3735,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     selectedDocument?.let { doc ->
         ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = if (isDarkUi) Color(0xFF1D1725) else Color(0xFFF7F1FC),
             dragHandle = null
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
+                Modifier.fillMaxWidth().then(
+                    if (doc.isDeleted) Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)
+                    else Modifier
+                ),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 if (doc.isDeleted) {
@@ -3668,154 +3982,229 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(doc.title, style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold, maxLines = 2)
-                        Text(
-                            "${formatDocumentBytesNew(doc.sizeBytes)} · ${doc.contentType.substringAfter('/') .uppercase()}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    val fileName = doc.originalFileName.ifBlank { doc.title }
+                    val fileIcon = when {
+                        doc.contentType.contains("pdf", true) -> Icons.Outlined.PictureAsPdf
+                        doc.contentType.startsWith("image/") -> Icons.Outlined.Image
+                        else -> Icons.Outlined.InsertDriveFile
                     }
-                    IconButton(onClick = { selectedDocument = null }) {
-                        Icon(Icons.Outlined.Close, "Close")
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Visibility, null, tint = documentAccent) },
-                        label = "Preview",
-                        enabled = !busyDocument && !doc.isDeleted &&
-                            (doc.contentType.startsWith("image/") || doc.contentType.contains("pdf", true) ||
-                                doc.originalFileName.endsWith(".pdf", true)),
-                        onClick = { previewDocument(doc) }
-                    )
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Download, null, tint = documentAccent) },
-                        label = "Download",
-                        enabled = !busyDocument && !doc.isDeleted,
-                        onClick = { downloadDocument(doc) }
-                    )
-                    if (doc.ownerUid == memberUid && !doc.isDeleted) {
-                        DocumentActionIconNew(
-                            icon = { Icon(Icons.Outlined.Edit, null, tint = documentAccent) },
-                            label = "Edit",
-                            enabled = !busyDocument,
-                            onClick = {
-                                editTitle = doc.title
-                                editDescription = doc.description
-                                editCategory = doc.categoryId
-                                editScope = doc.scope
-                                editingDocument = doc
-                                selectedDocument = null
-                            }
-                        )
-                    }
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Share, null, tint = documentAccent) },
-                        label = "Share",
-                        enabled = !busyDocument && !doc.isDeleted,
-                        onClick = { shareDocument(doc) }
-                    )
-                    DocumentActionIconNew(
-                        icon = { Icon(Icons.Outlined.Info, null, tint = documentAccent) },
-                        label = "Details",
-                        enabled = !busyDocument,
-                        onClick = { showDocumentDetails = true }
-                    )
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                if (!doc.isDeleted) {
-                    ListItem(
-                        headlineContent = { Text(if (doc.favouriteUids[memberUid] == true) "Remove from Favourites" else "Add to Favourites") },
-                        supportingContent = { Text("Only your account's Favourite list is changed") },
-                        leadingContent = {
-                            Icon(
-                                Icons.Outlined.Favorite,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        },
-                        modifier = Modifier.clickable(enabled = !busyDocument) {
-                            toggleFavourite(doc)
-                            selectedDocument = null
+                    val favourite = doc.favouriteUids[memberUid] == true
+                    val sheetBackground = if (isDarkUi) Color(0xFF1D1725) else Color(0xFFF7F1FC)
+                    val actionCardBackground = if (isDarkUi) Color(0xFF2B2135) else Color(0xFFFFFFFF)
+                    val accent = if (isDarkUi) Color(0xFFD4A1FF) else documentAccent
+                    val muted = if (isDarkUi) Color(0xFFD0C4D9) else MaterialTheme.colorScheme.onSurfaceVariant
+                    val danger = if (isDarkUi) Color(0xFFFF9BB2) else MaterialTheme.colorScheme.error
+
+                    @Composable
+                    fun quickAction(modifier: Modifier, icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
+                        Column(
+                            modifier = modifier.clip(RoundedCornerShape(18.dp))
+                                .background(if (isDarkUi) Color(0xFF34263F) else Color(0xFFECE1F8))
+                                .clickable(enabled = enabled, onClick = onClick)
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Icon(icon, contentDescription = null, tint = if (enabled) accent else muted.copy(alpha = 0.45f),
+                                modifier = Modifier.size(25.dp))
+                            Text(label, color = if (enabled) MaterialTheme.colorScheme.onSurface else muted,
+                                style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                         }
-                    )
-                    if (doc.ownerUid == memberUid) {
-                        ListItem(
-                            headlineContent = { Text("Change Access") },
-                            supportingContent = { Text(if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document") },
-                            leadingContent = { Icon(Icons.Outlined.Groups, null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
-                            modifier = Modifier.clickable {
-                                editTitle = doc.title
-                                editDescription = doc.description
-                                editCategory = doc.categoryId
-                                editScope = doc.scope
-                                editingDocument = doc
-                                selectedDocument = null
-                            }
-                        )
-                        ListItem(
-                            headlineContent = { Text("Move to Folder") },
-                            supportingContent = { Text("Organise this file inside a folder in the same category") },
-                            leadingContent = { Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingContent = { Icon(Icons.Outlined.ChevronRight, null) },
-                            modifier = Modifier.clickable {
-                                documentToMove = doc
-                                moveDocumentTargetId = doc.folderId
-                                moveDocumentTargetChosen = false
-                                selectedDocument = null
-                                showMoveDocument = true
-                            }
-                        )
                     }
-                    if (doc.ownerUid == memberUid) {
-                        ListItem(
-                            headlineContent = { Text("Move to Recycle Bin", color = MaterialTheme.colorScheme.error) },
-                            supportingContent = { Text("Keep it recoverable for 30 days") },
-                            leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                            modifier = Modifier.clickable(enabled = !busyDocument) {
-                                scope.launch {
-                                    busyDocument = true
-                                    try {
-                                        repository.moveToRecycleBin(vaultId, doc)
-                                        selectedDocument = null
-                                        message = "Moved to Recycle Bin. Retained for 30 days."
-                                    } catch (error: Exception) {
-                                        message = error.localizedMessage ?: error.message ?: "Delete failed."
-                                    } finally { busyDocument = false }
+
+                    @Composable
+                    fun actionCard(icon: ImageVector, title: String, subtitle: String, tint: Color = accent,
+                                   trailing: Boolean = false, onClick: () -> Unit) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                                .background(actionCardBackground)
+                                .clickable(enabled = !busyDocument, onClick = onClick)
+                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(26.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(title, color = if (tint == danger) danger else MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(subtitle, color = muted, style = MaterialTheme.typography.bodySmall)                            }
+                            if (trailing) Icon(Icons.Outlined.ChevronRight, null, tint = muted)
+                        }
+                    }
+
+                    Box(
+                        Modifier.fillMaxWidth()
+                            .background(sheetBackground)
+                            .drawBehind {
+                                val wave = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, size.height * 0.965f)
+                                    cubicTo(size.width * 0.24f, size.height, size.width * 0.38f, size.height * 0.975f,
+                                        size.width * 0.58f, size.height * 0.965f)
+                                    cubicTo(size.width * 0.78f, size.height * 0.94f, size.width * 0.88f,
+                                        size.height * 0.95f, size.width, size.height * 0.975f)
+                                    lineTo(size.width, size.height)
+                                    lineTo(0f, size.height)
+                                    close()
+                                }
+                                drawPath(wave, if (isDarkUi) Color(0xFF563273) else Color(0xFFE5D1F7))
+                            }
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                                .padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 42.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                Modifier.align(Alignment.CenterHorizontally).width(42.dp).height(4.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(if (isDarkUi) Color(0xFFD7B9EB) else Color(0xFFB69ACB))
+                            )
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    Modifier.size(76.dp).clip(RoundedCornerShape(22.dp))
+                                        .background(if (isDarkUi) Color(0xFF243C5C) else Color(0xFFDCEBFF)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(fileIcon, null, tint = if (isDarkUi) Color(0xFF9CC4FF) else Color(0xFF2468C5),
+                                        modifier = Modifier.size(38.dp))
+                                }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text(
+                                        fileName,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "${formatDocumentBytesNew(doc.sizeBytes)}  •  ${doc.contentType.substringAfter('/').uppercase()}",
+                                        color = muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1
+                                    )
                                 }
                             }
-                        )
-                    }
-                } else if (doc.ownerUid == memberUid) {
-                    ListItem(
-                        headlineContent = { Text("Restore Document") },
-                        leadingContent = { Icon(Icons.Outlined.Restore, null, tint = MaterialTheme.colorScheme.primary) },
-                        modifier = Modifier.clickable(enabled = !busyDocument) {
-                            scope.launch {
-                                busyDocument = true
-                                try {
-                                    repository.restore(vaultId, doc.id)
-                                    selectedDocument = null
-                                    message = "Document restored."
-                                } catch (error: Exception) {
-                                    message = error.localizedMessage ?: error.message ?: "Restore failed."
-                                } finally { busyDocument = false }
+
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                quickAction(Modifier.weight(1f), Icons.Outlined.Visibility, "Preview",
+                                    enabled = !busyDocument && !doc.isDeleted &&
+                                        (doc.contentType.startsWith("image/") || doc.contentType.contains("pdf", true) ||
+                                            doc.originalFileName.endsWith(".pdf", true))) { previewDocument(doc) }
+                                quickAction(Modifier.weight(1f), Icons.Outlined.Download, "Download", !busyDocument && !doc.isDeleted) {
+                                    downloadDocument(doc)
+                                }
+                                if (doc.ownerUid == memberUid && !doc.isDeleted) {
+                                    quickAction(Modifier.weight(1f), Icons.Outlined.Edit, "Edit", !busyDocument) {
+                                        editTitle = doc.title
+                                        editDescription = doc.description
+                                        editCategory = doc.categoryId
+                                        editScope = doc.scope
+                                        editingDocument = doc
+                                        selectedDocument = null
+                                    }
+                                }
+                                quickAction(Modifier.weight(1f), Icons.Outlined.Share, "Share", !busyDocument && !doc.isDeleted) {
+                                    shareDocument(doc)
+                                }
+                                quickAction(Modifier.weight(1f), Icons.Outlined.Info, "Details", !busyDocument) { showDocumentDetails = true }
+                            }
+
+                            if (!doc.isDeleted) {
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                                        .background(actionCardBackground)
+                                        .clickable(enabled = !busyDocument) {
+                                            toggleFavourite(doc)
+                                            selectedDocument = null
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 17.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Icon(Icons.Outlined.Favorite, null,
+                                        tint = if (favourite) Color(0xFFFF83B5) else accent,
+                                        modifier = Modifier.size(27.dp))
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(if (favourite) "Remove from Favourites" else "Add to Favourites",
+                                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                                        Text("Only your account's Favourite list is changed", color = muted,
+                                            style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    if (favourite) {
+                                        Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFFFF83B5))
+                                    } else {
+                                        Icon(Icons.Outlined.ChevronRight, null, tint = muted)
+                                    }
+                                }
+                                if (doc.ownerUid == memberUid) {
+                                    actionCard(
+                                        Icons.Outlined.People,
+                                        "Change Access",
+                                        if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document",
+                                        trailing = true
+                                    ) {
+                                        editTitle = doc.title
+                                        editDescription = doc.description
+                                        editCategory = doc.categoryId
+                                        editScope = doc.scope
+                                        editingDocument = doc
+                                        selectedDocument = null
+                                    }
+                                    actionCard(
+                                        Icons.Outlined.FolderOpen,
+                                        "Move to Folder",
+                                        "Organise this file inside a folder in the same category",
+                                        trailing = true
+                                    ) {
+                                        documentToMove = doc
+                                        moveDocumentTargetId = doc.folderId
+                                        moveDocumentTargetChosen = false
+                                        selectedDocument = null
+                                        showMoveDocument = true
+                                    }
+                                    actionCard(
+                                        Icons.Outlined.Delete,
+                                        "Move to Recycle Bin",
+                                        "Keep it recoverable for 30 days",
+                                        tint = danger
+                                    ) {
+                                        scope.launch {
+                                            busyDocument = true
+                                            try {
+                                                repository.moveToRecycleBin(vaultId, doc)
+                                                selectedDocument = null
+                                                message = "Moved to Recycle Bin. Retained for 30 days."
+                                            } catch (error: Exception) {
+                                                message = error.localizedMessage ?: error.message ?: "Delete failed."
+                                            } finally { busyDocument = false }
+                                        }
+                                    }
+                                }
+                            } else if (doc.ownerUid == memberUid) {
+                                actionCard(Icons.Outlined.Restore, "Restore Document", "Return this document to its original location") {
+                                    scope.launch {
+                                        busyDocument = true
+                                        try {
+                                            repository.restore(vaultId, doc.id)
+                                            selectedDocument = null
+                                            message = "Document restored."
+                                        } catch (error: Exception) {
+                                            message = error.localizedMessage ?: error.message ?: "Restore failed."
+                                        } finally { busyDocument = false }
+                                    }
+                                }
+                                actionCard(Icons.Outlined.DeleteForever, "Delete Permanently", "This action cannot be undone", tint = danger) {
+                                    permanentDeleteTarget = doc
+                                }
                             }
                         }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) },
-                        supportingContent = { Text("This action cannot be undone") },
-                        leadingContent = { Icon(Icons.Outlined.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
-                        modifier = Modifier.clickable(enabled = !busyDocument) {
-                            permanentDeleteTarget = doc
-                        }
-                    )
-                }
+                    }
                 }
             }
         }
@@ -3864,31 +4253,183 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val progressValue = if (total > 0L) {
             (downloadTransferredBytes.toFloat() / total.toFloat()).coerceIn(0f, 1f)
         } else 0f
-        AlertDialog(
+        val darkDownloadUi = MaterialTheme.colorScheme.background.luminance() < 0.5f
+        val dialogBackground = if (darkDownloadUi) Color(0xFF211B2B) else Color(0xFFF8F3FF)
+        val downloadAccent = if (darkDownloadUi) Color(0xFFD6A5FF) else Color(0xFF7438B8)
+        val downloadTrack = if (darkDownloadUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
+        val waveColor = if (darkDownloadUi) Color(0xFF563273) else Color(0xFFE5D1F7)
+        val fileTypeLabel = downloadingFileType
+        val (fileIconBackground, fileIconTint, downloadFileIcon) = when {
+            fileTypeLabel == "PDF" -> Triple(
+                if (darkDownloadUi) Color(0xFF4A2020) else Color(0xFFFFE3E3),
+                if (darkDownloadUi) Color(0xFFFF9A9A) else Color(0xFFC42020),
+                Icons.Outlined.PictureAsPdf
+            )
+            fileTypeLabel in setOf("JPG", "JPEG", "PNG", "GIF", "WEBP", "IMAGE") -> Triple(
+                if (darkDownloadUi) Color(0xFF1E3350) else Color(0xFFDDEBFF),
+                if (darkDownloadUi) Color(0xFF9CC4FF) else Color(0xFF1D63C2),
+                Icons.Outlined.Image
+            )
+            fileTypeLabel in setOf("XLS", "XLSX", "CSV") -> Triple(
+                if (darkDownloadUi) Color(0xFF1B3A2A) else Color(0xFFDDF4E5),
+                if (darkDownloadUi) Color(0xFF9BE3BA) else Color(0xFF13733F),
+                Icons.Outlined.Description
+            )
+            fileTypeLabel in setOf("DOC", "DOCX", "RTF") -> Triple(
+                if (darkDownloadUi) Color(0xFF1E3350) else Color(0xFFDDEBFF),
+                if (darkDownloadUi) Color(0xFF9CC4FF) else Color(0xFF1D63C2),
+                Icons.Outlined.Description
+            )
+            else -> Triple(
+                if (darkDownloadUi) Color(0xFF302447) else Color(0xFFEBE2FF),
+                if (darkDownloadUi) Color(0xFFCDB5FF) else Color(0xFF5B2FB5),
+                Icons.Outlined.InsertDriveFile
+            )
+        }
+
+        Dialog(
             onDismissRequest = { },
-            title = { Text("Downloading document", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(downloadingFileName, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    LinearProgressIndicator(progress = { progressValue }, modifier = Modifier.fillMaxWidth(),
-                        color = documentAccent)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(formatDocumentBytesNew(downloadTransferredBytes), style = MaterialTheme.typography.bodySmall)
-                        Text(if (total > 0L) "of ${formatDocumentBytesNew(total)}" else "Calculating total…",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .widthIn(max = 620.dp)
+                    .clip(RoundedCornerShape(34.dp))
+                    .background(dialogBackground)
+                    .drawBehind {
+                        val wave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height * 0.88f)
+                            cubicTo(size.width * 0.22f, size.height * 0.99f, size.width * 0.42f, size.height * 0.94f, size.width * 0.58f, size.height * 0.92f)
+                            cubicTo(size.width * 0.76f, size.height * 0.87f, size.width * 0.88f, size.height * 0.88f, size.width, size.height * 0.93f)
+                            lineTo(size.width, size.height)
+                            lineTo(0f, size.height)
+                            close()
+                        }
+                        drawPath(wave, waveColor)
                     }
-                    Text(
-                        when {
-                            isSavingDownloadedFile -> "Saving to Downloads/Personal Vault…"
-                            total > 0L -> "${(progressValue * 100).toInt()}% downloaded"
-                            else -> "Downloading…"
-                        },
-                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 34.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(64.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            color = fileIconBackground
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    downloadFileIcon,
+                                    contentDescription = "$fileTypeLabel document",
+                                    tint = fileIconTint,
+                                    modifier = Modifier.size(38.dp)
+                                )
+                            }
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text(
+                                "Downloading Document",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Visible
+                            )
+                            Text(
+                                downloadingFileName,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "$fileTypeLabel  •  ${if (total > 0L) formatDocumentBytesNew(total) else "Calculating size…"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { progressValue },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(9.dp)
+                                .clip(RoundedCornerShape(50)),
+                            color = downloadAccent,
+                            trackColor = downloadTrack
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                if (total > 0L) "${(progressValue * 100).toInt()}% Downloaded" else "Downloading…",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = downloadAccent
+                            )
+                            Text(
+                                "${formatDocumentBytesNew(downloadTransferredBytes)} of ${if (total > 0L) formatDocumentBytesNew(total) else "—"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { if (!isSavingDownloadedFile) activeDocumentTransferJob?.cancel() },
+                        enabled = !isSavingDownloadedFile && activeDocumentTransferJob?.isActive == true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 72.dp).height(48.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = waveColor,
+                            contentColor = if (darkDownloadUi) Color.White else Color(0xFF5B2FB5),
+                            disabledContainerColor = waveColor.copy(alpha = 0.65f),
+                            disabledContentColor = (if (darkDownloadUi) Color.White else Color(0xFF5B2FB5)).copy(alpha = 0.75f)
+                        )
+                    ) {
+                        if (isSavingDownloadedFile) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = if (darkDownloadUi) Color.White else Color(0xFF5B2FB5)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text("Finishing download", fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Cancel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-            },
-            confirmButton = {}
-        )
+            }
+        }
     }
 
     if (showEmptyRecycleBinConfirm) {
@@ -4011,100 +4552,143 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val doc = selectedDocument
         if (doc != null) {
             AlertDialog(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.88f),
                 properties = DialogProperties(usePlatformDefaultWidth = false),
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(28.dp),
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp,
                 onDismissRequest = { showDocumentDetails = false },
                 title = {
-                    Text(
-                        "File Details",
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, start = 4.dp),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Normal
-                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("FILE INFORMATION", style = MaterialTheme.typography.labelSmall,
+                                color = palette.accent, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                            Text("File Details", style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                        IconButton(onClick = { showDocumentDetails = false }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Close file details",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 },
                 text = {
                     Column(
                         Modifier.fillMaxWidth().fillMaxHeight(0.94f),
-                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Column(
-                            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            Modifier.fillMaxWidth().weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Spacer(Modifier.height(12.dp))
-                            DocumentTypeIconNew(doc.contentType, Modifier.size(72.dp))
-                            Spacer(Modifier.height(10.dp))
-                            Text(
-                                documentDisplayNameV2New(doc),
-                                modifier = Modifier.fillMaxWidth(),
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                doc.originalFileName,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            ScopeLabelV2New(doc.scope, palette)
-                            Spacer(Modifier.height(10.dp))
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (doc.scope == "SHARED") Color(0xFFEFE4FF) else Color(0xFFE2F5E8)
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                                    .background(palette.surface2)
+                                    .border(1.dp, palette.line, RoundedCornerShape(20.dp))
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                DocumentTypeIconNew(doc.contentType, Modifier.size(58.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        documentDisplayNameV2New(doc),
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) },
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
+                                ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                                Surface(shape = RoundedCornerShape(50), color = palette.container) {
+                                    Text(
+                                        categoryLabel,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                        color = palette.accent,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Column(
+                                Modifier.fillMaxWidth().weight(1f)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(palette.surface2)
+                                    .border(1.dp, palette.line, RoundedCornerShape(20.dp))
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    "Category  ·  ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                    color = if (doc.scope == "SHARED") Color(0xFF7136A8) else Color(0xFF237A43),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                    "DETAILS",
+                                    Modifier.padding(start = 12.dp, top = 6.dp, bottom = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = palette.accent,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.1.sp
+                                )
+                                DocumentDetailRowV2New(
+                                    "File type",
+                                    doc.contentType.substringAfter('/').uppercase().ifBlank { "File" },
+                                    Icons.Outlined.Description
+                                )
+                                DocumentDetailRowV2New("File size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
+                                DocumentDetailRowV2New(
+                                    "Location",
+                                    "My Documents / $categoryLabel",
+                                    Icons.Outlined.FolderOpen
+                                )
+                                DocumentDetailRowV2New(
+                                    "Date added",
+                                    doc.uploadedAt?.toDate()?.let {
+                                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                                    } ?: "—",
+                                    Icons.Outlined.CalendarToday
+                                )
+                                DocumentDetailRowV2New(
+                                    "Last modified",
+                                    doc.updatedAt?.toDate()?.let {
+                                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                                    } ?: "—",
+                                    Icons.Outlined.History
                                 )
                             }
-                            Spacer(Modifier.height(18.dp))
-                            HorizontalDivider(color = palette.line)
-                            Spacer(Modifier.height(8.dp))
-                            DocumentDetailRowV2New(
-                                "Type",
-                                doc.contentType.substringAfter('/').uppercase().ifBlank { "File" },
-                                Icons.Outlined.Description
-                            )
-                            DocumentDetailRowV2New("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
-                            DocumentDetailRowV2New(
-                                "Location",
-                                "My Documents / ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"}",
-                                Icons.Outlined.FolderOpen
-                            )
-                            DocumentDetailRowV2New(
-                                "Added",
-                                doc.uploadedAt?.toDate()?.let {
-                                    SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                                } ?: "—",
-                                Icons.Outlined.CalendarToday
-                            )
-                            DocumentDetailRowV2New(
-                                "Modified",
-                                doc.updatedAt?.toDate()?.let {
-                                    SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                                } ?: "—",
-                                Icons.Outlined.History
-                            )
                         }
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 8.dp, end = 8.dp),
-                            horizontalArrangement = Arrangement.End
+
+                        Button(
+                            onClick = { showDocumentDetails = false },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = palette.accent,
+                                contentColor = palette.onAccent
+                            )
                         ) {
-                            TextButton(onClick = { showDocumentDetails = false }) {
-                                Text("Close", color = palette.accent)
-                            }
+                            Text("Done", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 },
@@ -4114,15 +4698,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     editingDocument?.let { doc ->
-        AlertDialog(
-            modifier = Modifier.fillMaxSize(),
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-
-            shape = RoundedCornerShape(24.dp),
-
-            containerColor = MaterialTheme.colorScheme.surface,
-
-            tonalElevation = 8.dp,
+        val isEditBusy = busyDocument || replacingDocument
+        val editPalette = documentPaletteV2New(isDarkUi)
+        var replacementUploadJob by remember(doc.id) { mutableStateOf<Job?>(null) }
+        FullScreenDocumentForm(
+            dark = isDarkUi,
+            compactDialog = true,
             onDismissRequest = {
                 if (!replacingDocument && !busyDocument) {
                     if (replacementTarget?.id == doc.id) {
@@ -4133,63 +4714,98 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     editingDocument = null
                 }
             },
-            title = { Text("Edit document") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Document file", style = MaterialTheme.typography.labelLarge)
+            header = {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp))
+                        .background(if (isDarkUi) Color(0xFF4B2A68) else Color(0xFFE9D8FF)),
+                        contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Edit, null, tint = editPalette.accent, modifier = Modifier.size(26.dp))
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Edit Document", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                            color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
+                        Text("Update file details and access settings", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            },
+            contentFillsSpace = false,
+            content = {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    val selectedReplacement = pendingReplacement?.takeIf { replacementTarget?.id == doc.id }
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, editPalette.line),
+                        colors = CardDefaults.cardColors(containerColor = editPalette.surface2)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        DocumentTypeIconNew(doc.contentType, Modifier.size(42.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(doc.originalFileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
                             Text(
-                                pendingReplacement?.takeIf { replacementTarget?.id == doc.id }?.fileName
-                                    ?.let { "Selected: $it" } ?: formatDocumentBytesNew(doc.sizeBytes),
+                                selectedReplacement?.fileName ?: doc.originalFileName,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 12.sp,
+                                color = if (isDarkUi) Color(0xFFF5ECFF) else Color(0xFF281638),
+                                softWrap = true
+                            )
+                            Text(
+                                formatDocumentBytesNew(selectedReplacement?.sizeBytes ?: doc.sizeBytes),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = editPalette.muted
                             )
                         }
-                        TextButton(
-                            enabled = !busyDocument && !replacingDocument,
+                        IconButton(
+                            enabled = !isEditBusy,
                             onClick = {
                                 replacementTarget = doc
                                 VaultExternalActivityState.documentPickerActive = true
                                 replacementPicker.launch(arrayOf("*/*"))
                             }
                         ) {
-                            Icon(Icons.Outlined.Edit, null)
-                            Text("Change File")
+                            Icon(Icons.Outlined.Edit, contentDescription = "Change file",
+                                tint = editPalette.accent)
                         }
                     }
-                    pendingReplacement?.takeIf { replacementTarget?.id == doc.id }?.let { selected ->
+                    if (selectedReplacement != null && replacingDocument) {
                         Text(
-                            "Ready to upload: ${selected.fileName}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
+                            "${formatDocumentBytesNew((selectedReplacement.sizeBytes * replacementProgress).toLong())} / ${formatDocumentBytesNew(selectedReplacement.sizeBytes)}",
+                            style = MaterialTheme.typography.labelSmall
                         )
-                        if (replacingDocument) {
-                            Text(
-                                "${formatDocumentBytesNew((selected.sizeBytes * replacementProgress).toLong())} / ${formatDocumentBytesNew(selected.sizeBytes)}",
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                            LinearProgressIndicator(
-                                progress = { replacementProgress },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                        LinearProgressIndicator(
+                            progress = { replacementProgress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
-                    OutlinedTextField(editTitle, { editTitle = it.take(50) }, label = { Text("File name (max 50)") }, singleLine = true)
-                    OutlinedTextField(editDescription, { editDescription = it.take(50) },
-                        label = { Text("Notes (max 50)") }, singleLine = true)
+                    }
+                    }
+                    OutlinedTextField(value = editTitle, onValueChange = { editTitle = it.take(50) },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                        label = { Text("File Name (max 50)") }, singleLine = true,
+                        enabled = !isEditBusy,
+                        trailingIcon = {
+                            if (editTitle.isNotEmpty()) IconButton(enabled = !isEditBusy, onClick = { editTitle = "" }) {
+                                Icon(Icons.Outlined.Close, contentDescription = "Clear file name")
+                            }
+                        },
+                        supportingText = { Text("${editTitle.length}/50") }, shape = RoundedCornerShape(14.dp))
+                    OutlinedTextField(value = editDescription, onValueChange = { editDescription = it.take(50) },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), label = { Text("Notes (max 50)") }, singleLine = true,
+                        enabled = !isEditBusy,
+                        supportingText = { Text("${editDescription.length}/50") }, shape = RoundedCornerShape(14.dp))
                     Text("Category", style = MaterialTheme.typography.labelLarge)
                     var editCategoryMenuExpanded by remember(doc.id) { mutableStateOf(false) }
                     Box {
                         OutlinedButton(
                             onClick = { editCategoryMenuExpanded = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            enabled = !isEditBusy,
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             Text(
                                 allCategories.firstOrNull { it.first == editCategory }?.second ?: "Other",
@@ -4204,32 +4820,43 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             allCategories.forEach { (id, name) ->
                                 DropdownMenuItem(
                                     text = { Text(name) },
-                                    onClick = { editCategory = id; editCategoryMenuExpanded = false }
+                                    onClick = { editCategory = id; editCategoryMenuExpanded = false },
+                                    enabled = !isEditBusy
                                 )
                             }
                         }
                     }
                     Text("Access", style = MaterialTheme.typography.labelLarge)
-                    Row(
-                        Modifier.fillMaxWidth().clickable { editScope = "PERSONAL" }.padding(vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = editScope == "PERSONAL", onClick = { editScope = "PERSONAL" })
-                        Column {
-                            Text("Personal", fontWeight = FontWeight.SemiBold)
-                            Text("Only you can access", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    Row(
-                        Modifier.fillMaxWidth().clickable { editScope = "SHARED" }.padding(vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = editScope == "SHARED", onClick = { editScope = "SHARED" })
-                        Column {
-                            Text("Shared", fontWeight = FontWeight.SemiBold)
-                            Text("Both household members can access", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        listOf("PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
+                            val selected = editScope == value
+                            val selectorShape = RoundedCornerShape(16.dp)
+                            Row(Modifier.weight(1f).height(56.dp).clip(selectorShape)
+                                .background(if (selected) editPalette.container else editPalette.surface2)
+                                .border(1.dp, if (selected) editPalette.accent else editPalette.line, selectorShape)
+                                .clickable(enabled = !isEditBusy,
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = ripple(color = Color(0xFFD9B5FF))) { editScope = value }
+                                .padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                RadioButton(
+                                    modifier = Modifier.size(30.dp),
+                                    selected = selected,
+                                    enabled = !isEditBusy,
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = editPalette.accent,
+                                        unselectedColor = editPalette.muted
+                                    ),
+                                    onClick = { editScope = value }
+                                )
+                                Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
+                                    null, tint = editPalette.accent, modifier = Modifier.size(19.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(label, color = if (isDarkUi) Color(0xFFF5ECFF) else Color(0xFF281638),
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    maxLines = 1, softWrap = false)
+                            }
                         }
                     }
                     if (doc.folderId != null &&
@@ -4243,8 +4870,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = {
+            primaryAction = {
+                Button(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9137D7), contentColor = Color.White),
+                    onClick = {
                     val selectedReplacement = pendingReplacement
                         ?.takeIf { replacementTarget?.id == doc.id }
                     if (selectedReplacement != null) {
@@ -4252,8 +4882,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                     scope.launch {
                         val replacementJob = currentCoroutineContext()[Job]
+                        replacementUploadJob = replacementJob
                         if (selectedReplacement != null) {
-                            DocumentUploadForegroundService.setCancelAction { replacementJob?.cancel() }
+                            DocumentUploadForegroundService.setCancelAction { replacementUploadJob?.cancel() }
                         }
                         busyDocument = true
                         try {
@@ -4279,13 +4910,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                             editingDocument = null
                         } catch (error: CancellationException) {
-                            message = "Replacement cancelled because the app was closed."
+                            message = "Document replacement cancelled."
+                            pendingReplacement = null
+                            replacementTarget = null
+                            editingDocument = null
                             throw error
                         } catch (error: Exception) {
                             editingDocument = null
                             replacementTarget = null
                             message = error.localizedMessage ?: error.message ?: "Save failed."
                         } finally {
+                            replacementUploadJob = null
                             replacingDocument = false
                             busyDocument = false
                             if (selectedReplacement != null) {
@@ -4295,18 +4930,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }, enabled = !busyDocument && !replacingDocument) {
-                    Text(if (replacingDocument) "Uploading…" else "Save")
+                    Text("Save", fontWeight = FontWeight.SemiBold)
                 }
             },
-            dismissButton = {
-                TextButton(enabled = !busyDocument && !replacingDocument, onClick = {
-                    if (replacementTarget?.id == doc.id) {
-                        pendingReplacement = null
-                        replacementTarget = null
-                        editTitle = doc.title
+            secondaryAction = {
+                Button(enabled = replacingDocument || !busyDocument,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
+                    onClick = {
+                    if (replacingDocument) {
+                        replacementUploadJob?.cancel()
+                    } else if (!busyDocument) {
+                        if (replacementTarget?.id == doc.id) {
+                            pendingReplacement = null
+                            replacementTarget = null
+                            editTitle = doc.title
+                        }
+                        editingDocument = null
                     }
-                    editingDocument = null
-                }) { Text("Cancel") }
+                }) { Text("Cancel", fontWeight = FontWeight.SemiBold) }
             }
         )
     }
@@ -4314,24 +4956,78 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
 // ───────────────────────── Redesign: palette & helpers ─────────────────────────
 
-private data class DocPaletteV2New(
-    val accent: Color,
-    val onAccent: Color,
-    val container: Color,
-    val surface: Color,
-    val surface2: Color,
-    val muted: Color,
-    val line: Color
-)
+@Composable
+private fun FullScreenDocumentForm(
+    dark: Boolean,
+    onDismissRequest: () -> Unit,
+    header: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+    contentFillsSpace: Boolean = true,
+    compactDialog: Boolean = false,
+    fullScreenPage: Boolean = false,
+    primaryAction: @Composable () -> Unit,
+    secondaryAction: @Composable () -> Unit
+) {
+    if (fullScreenPage) {
+        androidx.activity.compose.BackHandler(onBack = onDismissRequest)
+        Surface(Modifier.fillMaxSize().imePadding(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().padding(bottom = 12.dp)) {
+                header()
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) { content() }
+                if (contentFillsSpace) {
+                    Spacer(Modifier.height(16.dp))
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) { secondaryAction() }
+                        Box(Modifier.weight(1f)) { primaryAction() }
+                    }
+                }
+            }
+        }
+    } else {
+    Dialog(onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = compactDialog, decorFitsSystemWindows = false)) {
+        Surface(
+            modifier = (if (compactDialog) Modifier.fillMaxWidth().heightIn(max = 760.dp) else Modifier.fillMaxSize())
+                .documentDialogWaveBackground(dark),
+            color = Color.Transparent,
+            shape = if (compactDialog) RoundedCornerShape(28.dp) else androidx.compose.ui.graphics.RectangleShape
+        ) {
+            Column(
+                (if (compactDialog) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
+                    .imePadding()
+                    .then(
+                        if (compactDialog) Modifier.padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 42.dp)
+                        else Modifier.padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 30.dp)
+                    )
+            ) {
+                header()
+                Spacer(Modifier.height(18.dp))
+                if (contentFillsSpace) {
+                    Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+                } else {
+                    Box(Modifier.fillMaxWidth().wrapContentHeight()) { content() }
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    secondaryAction()
+                    Spacer(Modifier.width(12.dp))
+                    primaryAction()
+                }
+            }
+        }
+    }
+    }
+}
 
-private fun documentPaletteV2New(dark: Boolean): DocPaletteV2New =
-    if (dark) DocPaletteV2New(
-        accent = Color(0xFFCBA6FF), onAccent = Color(0xFF1B0B33), container = Color(0xFF2E2145),
-        surface = Color(0xFF1D1925), surface2 = Color(0xFF272131), muted = Color(0xFFB0A8C2), line = Color(0xFF2C2536)
-    ) else DocPaletteV2New(
-        accent = Color(0xFF6F35D5), onAccent = Color.White, container = Color(0xFFF0E8FD),
-        surface = Color.White, surface2 = Color(0xFFF1EEF7), muted = Color(0xFF625B75), line = Color(0xFFE8E2F3)
-    )
+private fun Modifier.documentDialogWaveBackground(dark: Boolean): Modifier = this
+    .clip(RoundedCornerShape(28.dp))
+    .drawBehind {
+        drawRect(if (dark) Color(0xFF241B30) else Color(0xFFF8F3FF))
+    }
 
 private fun categoryStyleV2New(id: String, dark: Boolean): Pair<Color, Color> = if (dark) when (id) {
     "banking_finance" -> Color(0xFF12372A) to Color(0xFF8FE3B9)
@@ -4393,17 +5089,55 @@ private fun documentMetaV2New(document: DocumentRecordV2): String {
     ).joinToString(", ")
 }
 
-private fun Modifier.dashedBorderV2New(color: Color, radius: androidx.compose.ui.unit.Dp): Modifier =
-    this.drawBehind {
-        drawRoundRect(
-            color = color,
-            cornerRadius = CornerRadius(radius.toPx(), radius.toPx()),
-            style = Stroke(
-                width = 1.5.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
-            )
+private data class DocPaletteV2New(
+    val accent: Color,
+    val onAccent: Color,
+    val container: Color,
+    val surface: Color,
+    val surface2: Color,
+    val muted: Color,
+    val line: Color
+)
+
+private fun documentPaletteV2New(dark: Boolean): DocPaletteV2New =
+    if (dark) DocPaletteV2New(
+        accent = Color(0xFFCBA6FF),
+        onAccent = Color(0xFF1B0B33),
+        container = Color(0xFF2E2145),
+        surface = Color(0xFF1D1925),
+        surface2 = Color(0xFF272131),
+        muted = Color(0xFFB0A8C2),
+        line = Color(0xFF2C2536)
+    ) else DocPaletteV2New(
+        accent = Color(0xFF6F35D5),
+        onAccent = Color.White,
+        container = Color(0xFFF0E8FD),
+        surface = Color.White,
+        surface2 = Color(0xFFF1EEF7),
+        muted = Color(0xFF625B75),
+        line = Color(0xFFE8E2F3)
+    )
+
+private fun Modifier.dashedBorderV2New(
+    color: Color,
+    radius: androidx.compose.ui.unit.Dp
+): Modifier = this.drawBehind {
+    drawRoundRect(
+        color = color,
+        cornerRadius = CornerRadius(radius.toPx(), radius.toPx()),
+        style = Stroke(
+            width = 1.5.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
         )
-    }
+    )
+}
+
+private fun formatDocumentBytesNew(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
+    bytes < 1024L * 1024L * 1024L -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
+    else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+}
 
 // ───────────────────────── Redesign: components ─────────────────────────
 
@@ -4417,25 +5151,25 @@ private fun DocumentDashboardStatCardV2New(
     iconTint: Color = Color.White
 ) {
     Card(
-        modifier = modifier.heightIn(min = 104.dp),
+        modifier = modifier.height(88.dp),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 9.dp),
+            Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 3.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconTint,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(20.dp)
             )
             Text(
                 value,
-                color = Color.White,
+                color = iconTint,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -4444,7 +5178,7 @@ private fun DocumentDashboardStatCardV2New(
             )
             Text(
                 label,
-                color = Color.White,
+                color = iconTint.copy(alpha = 0.82f),
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 2,
                 overflow = TextOverflow.Clip,
@@ -4585,7 +5319,7 @@ private fun DocumentRowV2New(
             interactionSource = null,
             indication = ripple(color = palette.accent),
             onClick = onClick,
-            onLongClick = if (isRecycleBin) onLongClick else null
+            onLongClick = onLongClick
         ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
@@ -4664,6 +5398,7 @@ private fun DocumentGridCardV2New(
     currentMemberUid: String,
     modifier: Modifier,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onMore: () -> Unit,
     selectionMode: Boolean = false,
     selected: Boolean = false
@@ -4672,10 +5407,11 @@ private fun DocumentGridCardV2New(
     val palette = documentPaletteV2New(dark)
     val mine = document.ownerUid == currentMemberUid
     Card(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).combinedClickable(
             interactionSource = null,
             indication = ripple(color = palette.accent),
-            onClick = onClick
+            onClick = onClick,
+            onLongClick = onLongClick
         ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
@@ -4767,8 +5503,11 @@ private fun CategoryCardV2New(
 private fun FolderCardV2New(
     folder: DocumentFolderV2,
     palette: DocPaletteV2New,
+    fileCount: Int,
+    subfolderCount: Int,
     modifier: Modifier,
-    onOpen: () -> Unit
+    onOpen: () -> Unit,
+    onMore: () -> Unit
 ) {
     Card(
         modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
@@ -4793,9 +5532,20 @@ private fun FolderCardV2New(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                ScopeLabelV2New(folder.scope, palette)
+                Text(
+                    buildString {
+                        append("$fileCount files")
+                        if (subfolderCount > 0) append(" · $subfolderCount folders")
+                    },
+                    color = palette.muted,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1
+                )
             }
-         }
+            IconButton(onClick = onMore) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = "Folder options", tint = palette.muted)
+            }
+        }
     }
 }
 
@@ -4960,10 +5710,3 @@ private fun saveDocumentToDownloadsNew(
     }
 }
 
-
-private fun formatDocumentBytesNew(bytes: Long): String = when {
-    bytes < 1024 -> "$bytes B"
-    bytes < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
-    bytes < 1024L * 1024L * 1024L -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
-    else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
-}
