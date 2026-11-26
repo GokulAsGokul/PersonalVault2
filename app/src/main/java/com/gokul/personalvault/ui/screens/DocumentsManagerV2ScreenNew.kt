@@ -260,7 +260,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var categoryRenameValidationAttempt by remember { mutableIntStateOf(0) }
     val categoryRenameShake = remember { Animatable(0f) }
     var categoryDeletingId by remember { mutableStateOf<String?>(null) }
-    val addOptionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var customCategories by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var selectedDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var accessDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
@@ -1318,15 +1317,120 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             )
         },
         floatingActionButton = {
-            if (!recycleBin) ExtendedFloatingActionButton(
-                onClick = { showAddOptions = true },
-                expanded = fabExpanded,
-                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                text = { Text("Add") },
-                containerColor = documentAccent,
-                contentColor = palette.onAccent,
-                shape = RoundedCornerShape(18.dp)
-            )
+            if (!recycleBin) {
+                if (showAddOptions) {
+                    val uploadTint = Color(0xFF9B45D5)
+                    val folderTint = Color(0xFF3478D4)
+                    val scanTint = Color(0xFF269B62)
+                    val cameraTint = Color(0xFFD58A2B)
+                    val actionPillShape = RoundedCornerShape(18.dp)
+
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        @Composable
+                        fun ActionItem(
+                            title: String,
+                            tint: Color,
+                            icon: ImageVector,
+                            onClick: () -> Unit
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(actionPillShape)
+                                        .clickable(onClick = onClick),
+                                    color = documentCardSurface.copy(alpha = 0.97f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                    shape = actionPillShape,
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        tint.copy(alpha = 0.65f)
+                                    ),
+                                    shadowElevation = 4.dp
+                                ) {
+                                    Text(
+                                        title,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1
+                                    )
+                                }
+                                FloatingActionButton(
+                                    onClick = onClick,
+                                    containerColor = tint,
+                                    contentColor = Color.White,
+                                    shape = RoundedCornerShape(50),
+                                    elevation = FloatingActionButtonDefaults.elevation(
+                                        defaultElevation = 5.dp,
+                                        pressedElevation = 8.dp
+                                    )
+                                ) {
+                                    Icon(icon, contentDescription = title)
+                                }
+                            }
+                        }
+
+                        ActionItem("Upload Files", uploadTint, Icons.Outlined.Description) {
+                            showAddOptions = false
+                            VaultExternalActivityState.documentPickerActive = true
+                            picker.launch(arrayOf("*/*"))
+                        }
+                        ActionItem("Create Folder", folderTint, Icons.Outlined.FolderOpen) {
+                            showAddOptions = false
+                            startCreateFolder()
+                        }
+                        ActionItem("Scan Document", scanTint, Icons.Outlined.DocumentScanner) {
+                            showAddOptions = false
+                            val activity = context as? Activity
+                            if (activity == null) {
+                                message = "Unable to open the document scanner from this screen."
+                            } else {
+                                VaultExternalActivityState.documentPickerActive = true
+                                GmsDocumentScanning.getClient(scannerOptions)
+                                    .getStartScanIntent(activity)
+                                    .addOnSuccessListener { intentSender ->
+                                        scannerLauncher.launch(
+                                            IntentSenderRequest.Builder(intentSender).build()
+                                        )
+                                    }
+                                    .addOnFailureListener { error ->
+                                        VaultExternalActivityState.documentPickerActive = false
+                                        message = error.localizedMessage
+                                            ?: "Unable to start document scanning. Check Google Play services and try again."
+                                    }
+                            }
+                        }
+                        ActionItem("Take Photo", cameraTint, Icons.Outlined.PhotoCamera) {
+                            showAddOptions = false
+                            launchPhotoCapture()
+                        }
+                        FloatingActionButton(
+                            onClick = { showAddOptions = false },
+                            containerColor = documentAccent,
+                            contentColor = palette.onAccent,
+                            shape = RoundedCornerShape(50)
+                        ) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Close add actions")
+                        }
+                    }
+                } else {
+                    ExtendedFloatingActionButton(
+                        onClick = { showAddOptions = true },
+                        expanded = fabExpanded,
+                        icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                        text = { Text("Add") },
+                        containerColor = documentAccent,
+                        contentColor = palette.onAccent,
+                        shape = RoundedCornerShape(18.dp)
+                    )
+                }
+            }
         }
     ) { padding ->
         LazyColumn(
@@ -2000,76 +2104,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
 
-            }
-        }
-    }
-
-    if (showAddOptions) {
-        ModalBottomSheet(
-            onDismissRequest = { showAddOptions = false },
-            sheetState = addOptionsSheetState,
-            containerColor = documentSurface,
-            tonalElevation = 8.dp
-        ) {
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text("Add to Documents", style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold)
-                ListItem(
-                    headlineContent = { Text("Upload Files", fontWeight = FontWeight.SemiBold) },                    supportingContent = { Text("From device (PDF, images, documents, etc.)") },
-                    leadingContent = { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable {
-                        showAddOptions = false
-                        VaultExternalActivityState.documentPickerActive = true
-                        picker.launch(arrayOf("*/*"))
-                    }
-                )
-                ListItem(
-                    headlineContent = { Text("Create Folder", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Organise your documents") },
-                    leadingContent = { Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable {
-                        showAddOptions = false
-                        startCreateFolder()
-                    }
-                )
-                ListItem(
-                    headlineContent = { Text("Scan Document", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Use camera to scan (PDF)") },
-                    leadingContent = { Icon(Icons.Outlined.DocumentScanner, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable {
-                        showAddOptions = false
-                        val activity = context as? Activity
-                        if (activity == null) {
-                            message = "Unable to open the document scanner from this screen."
-                        } else {
-                            VaultExternalActivityState.documentPickerActive = true
-                            GmsDocumentScanning.getClient(scannerOptions)
-                                .getStartScanIntent(activity)
-                                .addOnSuccessListener { intentSender ->
-                                    scannerLauncher.launch(
-                                        IntentSenderRequest.Builder(intentSender).build()
-                                    )
-                                }
-                                .addOnFailureListener { error ->
-                                    VaultExternalActivityState.documentPickerActive = false
-                                    message = error.localizedMessage
-                                        ?: "Unable to start document scanning. Check Google Play services and try again."
-                                }
-                        }
-                    }
-                )
-                ListItem(
-                    headlineContent = { Text("Take Photo", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Capture and save as document") },
-                    leadingContent = { Icon(Icons.Outlined.PhotoCamera, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable {
-                        showAddOptions = false
-                        launchPhotoCapture()
-                    }
-                )
             }
         }
     }
