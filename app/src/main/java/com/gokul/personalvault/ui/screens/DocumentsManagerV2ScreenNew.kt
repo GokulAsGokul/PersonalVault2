@@ -4941,6 +4941,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                            Spacer(Modifier.width(8.dp))
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (isDarkUi) Color(0xFF352347) else Color(0xFFF0E5FF)
