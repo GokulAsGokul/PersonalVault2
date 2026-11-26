@@ -10,6 +10,8 @@ import android.graphics.Shader
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.input.pointer.pointerInput
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.content.Context
@@ -1396,7 +1398,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         // Quarter-circle arrangement without a decorative arc or panel.
                         ActionItem(
                             "Take Photo", cameraTint, Icons.Outlined.PhotoCamera,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-180).dp, y = (35).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-180).dp, y = (-8).dp)
                         ) {
                             showAddOptions = false
                             launchPhotoCapture()
@@ -2165,6 +2167,16 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = menuScrimAlpha))
+                    // Consume all pointer changes while the menu is expanded so
+                    // blurred documents cannot be tapped, selected, or scrolled.
+                    .pointerInput(showAddOptions) {
+                        awaitPointerEventScope {
+                            while (showAddOptions) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
             )
         }
         }
