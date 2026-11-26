@@ -33,8 +33,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private val VaultHeaderNavy = Color(0xFF14213D)
-private val VaultHeaderMuted = Color(0xFF64748B)
 private val VaultHeaderTeal = Color(0xFF159F9A)
 
 @Composable
