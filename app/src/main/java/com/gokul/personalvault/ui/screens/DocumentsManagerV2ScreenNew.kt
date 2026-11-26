@@ -4848,8 +4848,14 @@ private fun FullScreenDocumentForm(
             color = Color.Transparent,
             shape = if (compactDialog) RoundedCornerShape(28.dp) else androidx.compose.ui.graphics.RectangleShape
         ) {
-            Column((if (compactDialog) Modifier.fillMaxWidth() else Modifier.fillMaxSize()).imePadding()
-                .padding(if (compactDialog) 20.dp else PaddingValues(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 30.dp))) {
+            Column(
+                (if (compactDialog) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
+                    .imePadding()
+                    .then(
+                        if (compactDialog) Modifier.padding(20.dp)
+                        else Modifier.padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 30.dp)
+                    )
+            ) {
                 header()
                 Spacer(Modifier.height(18.dp))
                 if (contentFillsSpace) {
