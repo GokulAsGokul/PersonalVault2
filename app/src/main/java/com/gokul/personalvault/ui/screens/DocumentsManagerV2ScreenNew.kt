@@ -2496,19 +2496,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                                 color = addPalette.muted
                                             )
                                         }
-                                        if (index < currentUploadIndex) {
-                                            Icon(
-                                                Icons.Filled.CheckCircle,
-                                                contentDescription = "Completed",
-                                                tint = Color(0xFF31C56B)
-                                            )
-                                        } else if (index > currentUploadIndex) {
-                                            Text(
-                                                "•••",
-                                                color = addPalette.accent,
-                                                style = MaterialTheme.typography.titleMedium
-                                            )
-                                        }
                                     }
                                     LinearProgressIndicator(
                                         progress = { itemProgress },
