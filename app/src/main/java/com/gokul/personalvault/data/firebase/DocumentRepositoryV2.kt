@@ -309,7 +309,8 @@ class DocumentRepositoryV2(
         description: String,
         scope: String,
         folderId: String? = null,
-        onProgress: (Float) -> Unit = {}
+        onProgress: (Float) -> Unit = {},
+        onUploadTaskCreated: (UploadTask?) -> Unit = {}
     ): UploadResult {
         val cleanTitle = title.trim()
         require(cleanTitle.isNotEmpty() && cleanTitle.length <= 50) { "Enter a file name up to 50 characters." }
@@ -361,11 +362,16 @@ class DocumentRepositoryV2(
             .build()
 
         val uploadTask = storageRef.putFile(uri, customMetadata)
+        onUploadTaskCreated(uploadTask)
         uploadTask.addOnProgressListener { snapshot ->
             val total = snapshot.totalByteCount
             if (total > 0L) onProgress(snapshot.bytesTransferred.toFloat() / total.toFloat())
         }
-        uploadTask.awaitCancellable()
+        try {
+            uploadTask.awaitCancellable()
+        } finally {
+            onUploadTaskCreated(null)
+        }
 
         val now = FieldValue.serverTimestamp()
         val record = hashMapOf<String, Any?>(
