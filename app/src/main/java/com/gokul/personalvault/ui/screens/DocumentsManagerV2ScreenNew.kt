@@ -2571,8 +2571,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
-                    enabled = !uploading,
+                    enabled = true,
                     onClick = {
+                        if (uploading) {
+                            DocumentUploadForegroundService.cancelAndStop(context)
+                        }
                         showAddDocuments = false
                         pendingUploads.clear()
                         pendingPhotoFile?.delete()
