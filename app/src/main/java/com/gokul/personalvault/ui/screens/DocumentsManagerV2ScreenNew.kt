@@ -5008,4 +5008,55 @@ private fun FullScreenDocumentForm(
 private fun Modifier.documentDialogWaveBackground(dark: Boolean): Modifier = this
     .clip(RoundedCornerShape(28.dp))
     .drawBehind {
-        drawRect(if (dark) Color(0xFF241B30) else Color(0xFFF8F3FF))
+        drawRect(if (dark) Color(0xFF241B30) else Color(0xFFF8F3FF))    }
+}
+
+private data class DocPaletteV2New(
+    val accent: Color,
+    val onAccent: Color,
+    val container: Color,
+    val surface: Color,
+    val surface2: Color,
+    val muted: Color,
+    val line: Color
+)
+
+private fun documentPaletteV2New(dark: Boolean): DocPaletteV2New =
+    if (dark) DocPaletteV2New(
+        accent = Color(0xFFCBA6FF),
+        onAccent = Color(0xFF1B0B33),
+        container = Color(0xFF2E2145),
+        surface = Color(0xFF1D1925),
+        surface2 = Color(0xFF272131),
+        muted = Color(0xFFB0A8C2),
+        line = Color(0xFF2C2536)
+    ) else DocPaletteV2New(
+        accent = Color(0xFF6F35D5),
+        onAccent = Color.White,
+        container = Color(0xFFF0E8FD),
+        surface = Color.White,
+        surface2 = Color(0xFFF1EEF7),
+        muted = Color(0xFF625B75),
+        line = Color(0xFFE8E2F3)
+    )
+
+private fun Modifier.dashedBorderV2New(
+    color: Color,
+    radius: androidx.compose.ui.unit.Dp
+): Modifier = this.drawBehind {
+    drawRoundRect(
+        color = color,
+        cornerRadius = CornerRadius(radius.toPx(), radius.toPx()),
+        style = Stroke(
+            width = 1.5.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
+        )
+    )
+}
+
+private fun formatDocumentBytesNew(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
+    bytes < 1024L * 1024L * 1024L -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
+    else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+}
