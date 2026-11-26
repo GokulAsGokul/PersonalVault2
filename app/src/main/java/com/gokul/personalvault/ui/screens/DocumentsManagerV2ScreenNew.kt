@@ -1361,6 +1361,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         ) {
                             Column(
                                 modifier = modifier
+                                    .size(width = 96.dp, height = 95.dp)
                                     .clip(RoundedCornerShape(14.dp))
                                     .clickable(onClick = onClick)
                                     .padding(4.dp),
@@ -1397,14 +1398,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         // Quarter-circle arrangement without a decorative arc or panel.
                         ActionItem(
                             "Take Photo", cameraTint, Icons.Outlined.PhotoCamera,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-185).dp, y = (16).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 18.dp, y = 35.dp)
                         ) {
                             showAddOptions = false
                             launchPhotoCapture()
                         }
                         ActionItem(
                             "Scan Document", scanTint, Icons.Outlined.DocumentScanner,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-145).dp, y = (-67).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-111.9).dp, y = (-40).dp)
                         ) {
                             showAddOptions = false
                             val activity = context as? Activity
@@ -1428,14 +1429,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                         ActionItem(
                             "Create Folder", folderTint, Icons.Outlined.FolderOpen,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-75).dp, y = (-133).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-57).dp, y = (-94.9).dp)
                         ) {
                             showAddOptions = false
                             startCreateFolder()
                         }
                         ActionItem(
                             "Upload Files", uploadTint, Icons.Outlined.Description,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-8).dp, y = (-170).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 18.dp, y = (-115).dp)
                         ) {
                             showAddOptions = false
                             VaultExternalActivityState.documentPickerActive = true
