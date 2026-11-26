@@ -3482,7 +3482,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             ) {
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-                        .padding(top = 26.dp, bottom = 76.dp),
+                        .padding(top = 26.dp, bottom = 56.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically,
