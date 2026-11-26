@@ -5,6 +5,11 @@ import com.gokul.personalvault.ui.components.VaultCompactHeader
 import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.RenderEffect as PlatformRenderEffect
+import android.graphics.Shader
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.content.Context
@@ -1251,6 +1256,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val headerSubtitle = null
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+
+    val menuBlurRadius by animateFloatAsState(
+        targetValue = if (showAddOptions) 8f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "addMenuBackgroundBlur"
+    )
+    val menuScrimAlpha by animateFloatAsState(
+        targetValue = if (showAddOptions) 0.22f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "addMenuBackgroundScrim"
+    )
     LaunchedEffect(category, currentFolderId, showAllDocuments, recycleBin) { listState.scrollToItem(0) }
     val mutedColor = palette.muted
 
@@ -1433,9 +1449,23 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             }
         }
     ) { padding ->
+        Box(Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .graphicsLayer {
+                    renderEffect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && menuBlurRadius > 0.1f) {
+                        PlatformRenderEffect.createBlurEffect(
+                            menuBlurRadius,
+                            menuBlurRadius,
+                            Shader.TileMode.CLAMP
+                        ).asComposeRenderEffect()
+                    } else {
+                        null
+                    }
+                },
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 0.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -2105,6 +2135,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
 
             }
+        }
+        if (menuScrimAlpha > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = menuScrimAlpha))
+            )
+        }
         }
     }
 
