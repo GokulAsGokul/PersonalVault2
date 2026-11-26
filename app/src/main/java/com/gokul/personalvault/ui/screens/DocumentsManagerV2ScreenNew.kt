@@ -4565,97 +4565,217 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     accessDocument?.let { doc ->
-        AlertDialog(
+        val accessDialogBackground = if (isDarkUi) Color(0xFF21162C) else Color(0xFFF8F2FF)
+        val accessOptionBackground = if (isDarkUi) Color(0xFF30213F) else Color(0xFFF0E6FA)
+        val accessAccent = if (isDarkUi) Color(0xFFC77DFF) else Color(0xFF813CC0)
+        val personalAccent = if (isDarkUi) Color(0xFF78E2B4) else Color(0xFF25865D)
+        val sharedAccent = if (isDarkUi) Color(0xFF8FC5FF) else Color(0xFF397CC4)
+
+        Dialog(
             onDismissRequest = {
                 if (!busyDocument) accessDocument = null
             },
-            title = {
-                Text("Change Access", fontWeight = FontWeight.Bold)
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "Choose who can access this document.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    listOf(
-                        "PERSONAL" to ("Personal" to "Only you can access this document."),
-                        "SHARED" to ("Shared" to "Make this document available to household members.")
-                    ).forEach { (value, option) ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .clickable(enabled = !busyDocument) { accessScope = value }
-                                .padding(horizontal = 8.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = accessScope == value,
-                                onClick = { accessScope = value },
-                                enabled = !busyDocument
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(accessDialogBackground)
+                    .drawBehind {
+                        val wave = androidx.compose.ui.graphics.Path().apply {
+                            val waveTop = size.height - 34.dp.toPx()
+                            moveTo(0f, waveTop)
+                            cubicTo(
+                                size.width * 0.2f, waveTop - 15.dp.toPx(),
+                                size.width * 0.36f, size.height + 2.dp.toPx(),
+                                size.width * 0.56f, waveTop + 2.dp.toPx()
                             )
-                            Spacer(Modifier.width(8.dp))
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(option.first, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    option.second,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            cubicTo(
+                                size.width * 0.76f, waveTop - 10.dp.toPx(),
+                                size.width * 0.88f, waveTop - 12.dp.toPx(),
+                                size.width, waveTop
+                            )
+                            lineTo(size.width, size.height)
+                            lineTo(0f, size.height)
+                            close()
                         }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    enabled = !busyDocument && accessScope != doc.scope,
-                    onClick = {
-                        scope.launch {
-                            busyDocument = true
-                            try {
-                                repository.updateMetadata(
-                                    vaultId = vaultId,
-                                    document = doc,
-                                    title = doc.title,
-                                    description = doc.description,
-                                    categoryId = doc.categoryId,
-                                    scope = accessScope
-                                )
-                                message = if (accessScope == "SHARED") {
-                                    "Document access changed to Shared."
-                                } else {
-                                    "Document access changed to Personal."
-                                }
-                                accessDocument = null
-                            } catch (error: Exception) {
-                                message = error.localizedMessage ?: error.message ?: "Could not update document access."
-                            } finally {
-                                busyDocument = false
-                            }
-                        }
-                    }
-                ) {
-                    if (busyDocument) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
+                        drawPath(
+                            wave,
+                            if (isDarkUi) Color(0xFF573078) else Color(0xFFE3C8FA)
                         )
-                    } else {
-                        Text("Save")
+                    }
+                    .padding(horizontal = 24.dp, vertical = 26.dp)
+                    .padding(bottom = 26.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(66.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(if (isDarkUi) Color(0xFF49305F) else Color(0xFFE9D8FA)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.People,
+                            contentDescription = null,
+                            tint = accessAccent,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "Change Access",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            "Choose who can access this document.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !busyDocument,
-                    onClick = { accessDocument = null }
+
+                listOf(
+                    Triple("PERSONAL", "Personal", "Only you can access this document."),
+                    Triple("SHARED", "Shared", "Make this document available to household members.")
+                ).forEach { (value, label, description) ->
+                    val selected = accessScope == value
+                    val accent = if (value == "PERSONAL") personalAccent else sharedAccent
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(accessOptionBackground)
+                            .border(
+                                width = if (selected) 2.dp else 1.dp,
+                                color = if (selected) accessAccent else accessAccent.copy(alpha = 0.22f),
+                                shape = RoundedCornerShape(22.dp)
+                            )
+                            .clickable(enabled = !busyDocument) { accessScope = value }
+                            .padding(horizontal = 16.dp, vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(accent.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
+                                contentDescription = null,
+                                tint = accent,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        RadioButton(
+                            selected = selected,
+                            onClick = { accessScope = value },
+                            enabled = !busyDocument,
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = accessAccent,
+                                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Cancel")
+                    TextButton(
+                        enabled = !busyDocument,
+                        onClick = { accessDocument = null },
+                        modifier = Modifier.height(54.dp)
+                    ) {
+                        Text(
+                            "Cancel",
+                            color = accessAccent,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Button(
+                        enabled = !busyDocument && accessScope != doc.scope,
+                        onClick = {
+                            scope.launch {
+                                busyDocument = true
+                                try {
+                                    repository.updateMetadata(
+                                        vaultId = vaultId,
+                                        document = doc,
+                                        title = doc.title,
+                                        description = doc.description,
+                                        categoryId = doc.categoryId,
+                                        scope = accessScope
+                                    )
+                                    message = if (accessScope == "SHARED") {
+                                        "Document access changed to Shared."
+                                    } else {
+                                        "Document access changed to Personal."
+                                    }
+                                    accessDocument = null
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message
+                                        ?: "Could not update document access."
+                                } finally {
+                                    busyDocument = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.height(54.dp).widthIn(min = 112.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accessAccent,
+                            contentColor = if (isDarkUi) Color(0xFF24142F) else Color.White,
+                            disabledContainerColor = accessAccent.copy(alpha = 0.22f),
+                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        if (busyDocument) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Save", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
-        )
+        }
     }
 
     if (showDocumentDetails) {
