@@ -4616,7 +4616,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     ) {
                         Text(
                             "Change Access",
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -4864,22 +4864,52 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             .clip(RoundedCornerShape(24.dp))
                             .background(detailsCard)
                             .drawBehind {
-                                val wave = androidx.compose.ui.graphics.Path().apply {
-                                    val waveTop = size.height - 34.dp.toPx()
-                                    moveTo(0f, waveTop)
-                                    cubicTo(size.width * 0.22f, waveTop - 16.dp.toPx(),
-                                        size.width * 0.42f, size.height,
-                                        size.width * 0.62f, waveTop + 2.dp.toPx())
-                                    cubicTo(size.width * 0.82f, waveTop - 10.dp.toPx(),
-                                        size.width * 0.9f, waveTop - 12.dp.toPx(),
-                                        size.width, waveTop)
-                                    lineTo(size.width, size.height)
-                                    lineTo(0f, size.height)
+                                val width = size.width
+                                val height = size.height
+
+                                val backWave = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, height - 34.dp.toPx())
+                                    cubicTo(
+                                        width * 0.18f, height - 48.dp.toPx(),
+                                        width * 0.34f, height - 2.dp.toPx(),
+                                        width * 0.55f, height - 20.dp.toPx()
+                                    )
+                                    cubicTo(
+                                        width * 0.76f, height - 34.dp.toPx(),
+                                        width * 0.88f, height - 50.dp.toPx(),
+                                        width, height - 34.dp.toPx()
+                                    )
+                                    lineTo(width, height)
+                                    lineTo(0f, height)
                                     close()
                                 }
-                                drawPath(wave, if (isDarkUi) Color(0xFF573579) else Color(0xFFDCC0F5))
+                                drawPath(
+                                    backWave,
+                                    if (isDarkUi) Color(0xFF542A73) else Color(0xFFD7B8EF)
+                                )
+
+                                val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, height - 16.dp.toPx())
+                                    cubicTo(
+                                        width * 0.2f, height - 30.dp.toPx(),
+                                        width * 0.38f, height - 2.dp.toPx(),
+                                        width * 0.56f, height - 12.dp.toPx()
+                                    )
+                                    cubicTo(
+                                        width * 0.78f, height - 22.dp.toPx(),
+                                        width * 0.9f, height - 28.dp.toPx(),
+                                        width, height - 16.dp.toPx()
+                                    )
+                                    lineTo(width, height)
+                                    lineTo(0f, height)
+                                    close()
+                                }
+                                drawPath(
+                                    frontWave,
+                                    if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+                                )
                             }
-                            .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 52.dp),
+                            .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 42.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
@@ -4912,18 +4942,29 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         ) {
                             ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
                             Surface(
-                                shape = RoundedCornerShape(50),
-                                color = if (isDarkUi) Color(0xFF43285B) else Color(0xFFDDF3EB)
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isDarkUi) Color(0xFF352347) else Color(0xFFF0E5FF)
                             ) {
-                                Text(
-                                    categoryLabel,
-                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
-                                    color = if (isDarkUi) Color(0xFFD7B4FF) else Color(0xFF176B4A),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.FolderOpen,
+                                        contentDescription = null,
+                                        tint = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        categoryLabel,
+                                        color = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
