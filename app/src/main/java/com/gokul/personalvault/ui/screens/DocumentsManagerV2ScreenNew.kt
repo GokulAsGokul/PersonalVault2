@@ -5151,25 +5151,25 @@ private fun DocumentDashboardStatCardV2New(
     iconTint: Color = Color.White
 ) {
     Card(
-        modifier = modifier.heightIn(min = 104.dp),
+        modifier = modifier.height(88.dp),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 9.dp),
+            Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 3.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconTint,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(20.dp)
             )
             Text(
                 value,
-                color = Color.White,
+                color = iconTint,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -5178,7 +5178,7 @@ private fun DocumentDashboardStatCardV2New(
             )
             Text(
                 label,
-                color = Color.White,
+                color = iconTint.copy(alpha = 0.82f),
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 2,
                 overflow = TextOverflow.Clip,
