@@ -3523,15 +3523,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     if (category == "all" && currentFolderId == null) {
                         Column {
                             Box {
-                                OutlinedButton(onClick = { folderCategoryMenuExpanded = true },
-                                    modifier = Modifier.fillMaxWidth().height(54.dp),
-                                    shape = RoundedCornerShape(16.dp)) {
-                                    Icon(Icons.Outlined.GridView, null, tint = folderAccent)
-                                    Spacer(Modifier.width(12.dp))
-                                    Text("Category: " + (allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other"),
-                                        modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
-                                    Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
-                                }
+                                OutlinedTextField(
+                                    value = allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other",
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    modifier = Modifier.fillMaxWidth().clickable { folderCategoryMenuExpanded = true },
+                                    label = { Text("Category") },
+                                    leadingIcon = {
+                                        Icon(Icons.Outlined.GridView, null, tint = folderAccent)
+                                    },
+                                    trailingIcon = {
+                                        Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
+                                    },
+                                    shape = RoundedCornerShape(16.dp)
+                                )
                                 DropdownMenu(expanded = folderCategoryMenuExpanded,
                                     onDismissRequest = { folderCategoryMenuExpanded = false }) {
                                     allCategories.forEach { (id, label) ->
