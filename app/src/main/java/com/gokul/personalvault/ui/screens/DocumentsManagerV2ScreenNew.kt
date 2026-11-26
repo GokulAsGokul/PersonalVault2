@@ -187,7 +187,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val documentCardSurface = if (isDarkUi) Color(0xFF211E29) else MaterialTheme.colorScheme.surface
     val repository = remember { DocumentRepositoryV2() }
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
     var documents by remember { mutableStateOf<List<DocumentRecordV2>>(emptyList()) }
     var sharedDocumentsLoaded by remember { mutableStateOf(false) }
     var personalDocumentsLoaded by remember { mutableStateOf(false) }
@@ -810,7 +809,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             else -> true
         }
     }
-    val scopedActive = active.filter { visibility == "ALL" || it.scope == visibility }
     val deleted = documents.filter { it.isDeleted }
     val source = if (recycleBin) deleted else active
     val visible = source
@@ -841,14 +839,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
 
     val allCategories = BuiltInDocumentCategoriesV2.all.map { it.id to it.name } + customCategories
-
-    fun editDocument(doc: DocumentRecordV2) {
-        editTitle = doc.title
-        editDescription = doc.description
-        editCategory = doc.categoryId
-        editScope = doc.scope
-        editingDocument = doc
-    }
 
     fun downloadDocument(doc: DocumentRecordV2) {
         activeDocumentTransferJob = scope.launch {
@@ -5203,45 +5193,6 @@ private fun documentDisplayNameV2New(document: DocumentRecordV2): String {
 }
 
 @Composable
-private fun DocumentSummaryTileV2New(
-    label: String,
-    value: String,
-    icon: ImageVector,
-    palette: DocPaletteV2New,
-    modifier: Modifier,
-    isShared: Boolean? = null
-) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val tileBackground = when (isShared) {
-        true -> if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
-        false -> if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
-        null -> palette.container
-    }
-    val tileAccent = when (isShared) {
-        true -> if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
-        false -> if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
-        null -> palette.accent
-    }
-    Card(modifier = modifier.heightIn(min = 68.dp), shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = tileBackground)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp)
-        ) {
-            Icon(icon, contentDescription = null, tint = tileAccent, modifier = Modifier.size(22.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(label, style = MaterialTheme.typography.labelSmall,
-                    color = if (isShared != null) tileAccent else palette.muted, maxLines = 1)
-                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
-                    color = if (isShared != null) tileAccent else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
-
-@Composable
 private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
     val shared = scope == "SHARED"
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -5550,29 +5501,6 @@ private fun FolderCardV2New(
 }
 
 @Composable
-private fun NewFolderCardV2New(palette: DocPaletteV2New, modifier: Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .heightIn(min = 64.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(
-                interactionSource = null,
-                indication = ripple(color = palette.accent),
-                onClick = onClick
-            )
-            .dashedBorderV2New(palette.muted, 18.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(Modifier.padding(vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Add, null, tint = palette.accent, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("New folder", color = palette.accent, fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-@Composable
 private fun EmptyStateV2New(
     palette: DocPaletteV2New,
     title: String,
@@ -5633,31 +5561,6 @@ private fun DocumentTypeIconNew(contentType: String, modifier: Modifier = Modifi
         }
     }
 }
-
-@Composable
-private fun DocumentActionIconNew(
-    icon: @Composable () -> Unit,
-    label: String,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier.width(66.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp)
-    ) {
-        Surface(
-            onClick = onClick,
-            enabled = enabled,
-            shape = RoundedCornerShape(12.dp),
-            color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF30243D) else Color(0xFFF0E8FF)
-        ) {
-            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { icon() }
-        }
-        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-    }
-}
-
 
 /**
  * Publishes a completed document download into Downloads/Personal Vault without

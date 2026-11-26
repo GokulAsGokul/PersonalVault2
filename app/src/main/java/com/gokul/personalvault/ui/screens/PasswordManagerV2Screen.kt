@@ -74,7 +74,6 @@ private val PvTeal = Color(0xFF0F9D9A)
 private val PvBackground = Color(0xFFF5F6FC)
 private val PvText = Color(0xFF182033)
 private val PvMuted = Color(0xFF687187)
-private val PvLavender = Color(0xFFEAEAFF)
 
 @Composable
 fun PasswordManagerV2Screen(

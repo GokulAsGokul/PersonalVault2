@@ -50,7 +50,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.gokul.personalvault.ui.theme.VaultTheme
-import com.gokul.personalvault.VaultCrypto
 import com.gokul.personalvault.ui.screens.VaultDashboardNavigationV2
 import com.gokul.personalvault.ui.screens.VaultV2Destination
 import androidx.compose.runtime.key
@@ -220,7 +219,6 @@ LaunchedEffect(currentUid) {
                     ) {
                         // Keep the vault unlocked while an external document picker or viewer is temporarily open.
                         VaultKeySessionV2.clear()
-                        VaultCrypto.clearSession()
                         HouseholdCrypto.clearSession()
                         sessionUnlocked = false
                         requestedUnlockDestination = null
@@ -249,7 +247,6 @@ LaunchedEffect(currentUid) {
                     },
                     onSignOut = {
                         VaultKeySessionV2.clear()
-                        VaultCrypto.clearSession()
                         HouseholdCrypto.clearSession()
                         auth.signOut()
                         signedInEmail = null

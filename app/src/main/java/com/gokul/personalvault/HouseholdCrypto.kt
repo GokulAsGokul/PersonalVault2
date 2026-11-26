@@ -11,11 +11,8 @@ import java.security.PublicKey
 import java.security.spec.MGF1ParameterSpec
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.OAEPParameterSpec
 import javax.crypto.spec.PSource
-import javax.crypto.spec.SecretKeySpec
 
 /**
  * Household-level encryption helper.
@@ -23,7 +20,7 @@ import javax.crypto.spec.SecretKeySpec
  * - Each app installation has an RSA key pair in Android Keystore, keyed by Firebase UID + device ID.
  * - The household AES-256 key is wrapped separately for each member's public key.
  * - The household AES key is kept in memory only after unwrap/create.
- * - Password record payloads are encrypted with AES-256-GCM and householdId as AAD.
+ * - Password-record encryption is handled by the dedicated password-record crypto layer.
  *
  * This helper does not perform Firestore reads/writes. The caller must store each
  * member's public key and wrappedKey envelope in Firestore, under authenticated rules.
@@ -33,10 +30,7 @@ object HouseholdCrypto {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
     private const val RSA_ALIAS_PREFIX = "personal_vault_household_rsa_"
     private const val RSA_TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
-    private const val AES_TRANSFORMATION = "AES/GCM/NoPadding"
     private const val AES_KEY_SIZE_BITS = 256
-    private const val GCM_NONCE_SIZE_BYTES = 12
-    private const val GCM_TAG_SIZE_BITS = 128
 
     @Volatile
     private var sessionHouseholdId: String? = null
@@ -49,36 +43,6 @@ object HouseholdCrypto {
         val algorithm: String = "RSA-OAEP-256",
         val wrappedKeyBase64: String
     )
-
-    data class EncryptedPayload(
-        val version: Int = 1,
-        val algorithm: String = "AES-256-GCM",
-        val nonceBase64: String,
-        val ciphertextBase64: String
-    ) {
-        fun toMap(): Map<String, Any> = mapOf(
-            "version" to version,
-            "algorithm" to algorithm,
-            "nonce" to nonceBase64,
-            "ciphertext" to ciphertextBase64
-        )
-
-        companion object {
-            fun fromMap(map: Map<String, Any?>): EncryptedPayload {
-                val version = (map["version"] as? Number)?.toInt()
-                    ?: error("Encrypted payload version is missing.")
-                require(version == 1) { "Unsupported encrypted payload version: $version" }
-                return EncryptedPayload(
-                    version = version,
-                    algorithm = map["algorithm"] as? String ?: "AES-256-GCM",
-                    nonceBase64 = map["nonce"] as? String
-                        ?: error("Encrypted payload nonce is missing."),
-                    ciphertextBase64 = map["ciphertext"] as? String
-                        ?: error("Encrypted payload ciphertext is missing.")
-                )
-            }
-        }
-    }
 
     /** Creates an RSA key pair once per Firebase UID + installation device ID. */
     @Synchronized
@@ -167,41 +131,7 @@ object HouseholdCrypto {
     }
 
     /** Encrypt a JSON/string record payload. Returns fields ready for Firestore. */
-    fun encrypt(householdId: String, plaintext: String): EncryptedPayload {
-        require(plaintext.isNotEmpty()) { "Cannot encrypt an empty payload." }
-        val key = SecretKeySpec(requireSessionKey(householdId), "AES")
-        val nonce = ByteArray(GCM_NONCE_SIZE_BYTES).also {
-            java.security.SecureRandom().nextBytes(it)
-        }
-        val cipher = Cipher.getInstance(AES_TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(GCM_TAG_SIZE_BITS, nonce))
-        cipher.updateAAD(householdId.toByteArray(StandardCharsets.UTF_8))
-        val ciphertext = cipher.doFinal(plaintext.toByteArray(StandardCharsets.UTF_8))
-
-        return EncryptedPayload(
-            nonceBase64 = Base64.encodeToString(nonce, Base64.NO_WRAP),
-            ciphertextBase64 = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
-        )
-    }
-
     /** Decrypt an encrypted record only after this account has unwrapped the household key. */
-    fun decrypt(householdId: String, payload: EncryptedPayload): String {
-        require(payload.version == 1) { "Unsupported encrypted payload version." }
-        require(payload.algorithm == "AES-256-GCM") { "Unsupported encryption algorithm." }
-
-        val nonce = Base64.decode(payload.nonceBase64, Base64.DEFAULT)
-        require(nonce.size == GCM_NONCE_SIZE_BYTES) { "Invalid AES-GCM nonce." }
-
-        val key = SecretKeySpec(requireSessionKey(householdId), "AES")
-        val cipher = Cipher.getInstance(AES_TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_SIZE_BITS, nonce))
-        cipher.updateAAD(householdId.toByteArray(StandardCharsets.UTF_8))
-        val plaintext = cipher.doFinal(
-            Base64.decode(payload.ciphertextBase64, Base64.DEFAULT)
-        )
-        return String(plaintext, StandardCharsets.UTF_8)
-    }
-
     @Synchronized
     fun clearSession() {
         sessionHouseholdKey?.fill(0)

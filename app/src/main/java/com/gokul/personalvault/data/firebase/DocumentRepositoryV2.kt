@@ -122,9 +122,6 @@ class DocumentRepositoryV2(
     fun folderCollection(vaultId: String) =
         firestore.collection(VAULTS).document(vaultId).collection("documentFolders")
 
-    fun foldersQuery(vaultId: String, categoryId: String) =
-        folderCollection(vaultId).whereEqualTo("categoryId", categoryId)
-
     fun sharedFoldersQuery(vaultId: String, categoryId: String) =
         folderCollection(vaultId).whereEqualTo("categoryId", categoryId)
             .whereEqualTo("scope", "SHARED")
