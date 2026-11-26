@@ -5837,7 +5837,7 @@ private fun FolderCardV2New(
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Outlined.FolderOpen, null, tint = palette.accent, modifier = Modifier.size(24.dp))
@@ -5852,16 +5852,20 @@ private fun FolderCardV2New(
                 )
                 Text(
                     buildString {
-                        append("$fileCount files")
-                        if (subfolderCount > 0) append(" · $subfolderCount folders")
+                        append("$fileCount \${if (fileCount == 1) "file" else "files"}")
+                        if (subfolderCount > 0) {
+                            append(" · $subfolderCount \${if (subfolderCount == 1) "folder" else "folders"}")
+                        }
                     },
                     color = palette.muted,
                     style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = onMore) {
-                Icon(Icons.Outlined.MoreVert, contentDescription = "Folder options", tint = palette.muted)
+            IconButton(onClick = onMore, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = "Folder options", tint = palette.muted,
+                    modifier = Modifier.size(20.dp))
             }
         }
     }
