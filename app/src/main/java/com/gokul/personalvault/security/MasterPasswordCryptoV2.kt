@@ -29,11 +29,6 @@ object MasterPasswordCryptoV2 {
         val nonce: String,
         val ciphertext: String
     ) {
-        fun toJsonFields(): Map<String, String> = mapOf(
-            "version" to version.toString(), "salt" to salt,
-            "nonce" to nonce, "ciphertext" to ciphertext
-        )
-
         companion object {
             fun from(fields: Map<String, String>): Envelope = Envelope(
                 version = fields["version"]?.toIntOrNull() ?: error("Master-password data is incomplete."),
