@@ -95,6 +95,7 @@ class DocumentUploadForegroundService : Service() {
                     mutableUploadState.value = DocumentUploadUiState.Failed(errorText)
                     updateNotification(0, false, "Upload failed: $errorText")
                 } finally {
+                    setCancelAction(null)
                     stopForegroundCompat()
                     stopSelf(startId)
                 }
@@ -137,7 +138,10 @@ class DocumentUploadForegroundService : Service() {
                     categoryId = categoryId,
                     description = notes,
                     scope = visibility,
-                    folderId = folderId
+                    folderId = folderId,
+                    onUploadTaskCreated = { task ->
+                        setCancelAction { task?.cancel() }
+                    }
                 ) { value ->
                     fileProgress = value.coerceIn(0f, 1f)
                     val overall = ((index + fileProgress) / total.toFloat()).coerceIn(0f, 1f)
