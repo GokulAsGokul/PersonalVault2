@@ -5646,7 +5646,6 @@ private fun DocumentRowV2New(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ScopePillV2New(document, mine, palette)
-                    Spacer(Modifier.width(0.dp))
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = if (dark) Color(0xFF352347) else Color(0xFFF0E5FF)
