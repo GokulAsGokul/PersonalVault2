@@ -5852,9 +5852,9 @@ private fun FolderCardV2New(
                 )
                 Text(
                     buildString {
-                        append("$fileCount \${if (fileCount == 1) "file" else "files"}")
+                        append("$fileCount ${if (fileCount == 1) "file" else "files"}")
                         if (subfolderCount > 0) {
-                            append(" · $subfolderCount \${if (subfolderCount == 1) "folder" else "folders"}")
+                            append(" · $subfolderCount ${if (subfolderCount == 1) "folder" else "folders"}")
                         }
                     },
                     color = palette.muted,
