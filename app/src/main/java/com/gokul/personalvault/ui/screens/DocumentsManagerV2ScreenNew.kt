@@ -4609,6 +4609,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     editingDocument?.let { doc ->
         FullScreenDocumentForm(
             dark = isDarkUi,
+            compactDialog = true,
             onDismissRequest = {
                 if (!replacingDocument && !busyDocument) {
                     if (replacementTarget?.id == doc.id) {
@@ -4634,13 +4635,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             content = {
-                Column(Modifier.fillMaxWidth().fillMaxHeight().verticalScroll(rememberScrollState()),
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val selectedReplacement = pendingReplacement?.takeIf { replacementTarget?.id == doc.id }
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF493653)),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF281E34))) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Document file", style = MaterialTheme.typography.labelLarge)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -4648,11 +4649,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     ) {
                         DocumentTypeIconNew(doc.contentType, Modifier.size(42.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(doc.originalFileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2,
+                            Text(selectedReplacement?.fileName ?: doc.originalFileName,
+                                style = MaterialTheme.typography.bodyMedium, maxLines = 2,
                                 overflow = TextOverflow.Ellipsis)
                             Text(
-                                pendingReplacement?.takeIf { replacementTarget?.id == doc.id }?.fileName
-                                    ?.let { "Selected: $it" } ?: formatDocumentBytesNew(doc.sizeBytes),
+                                formatDocumentBytesNew(selectedReplacement?.sizeBytes ?: doc.sizeBytes),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -4669,24 +4670,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Text("Change File")
                         }
                     }
-                    }
-                    }
-                    pendingReplacement?.takeIf { replacementTarget?.id == doc.id }?.let { selected ->
+                    if (selectedReplacement != null && replacingDocument) {
                         Text(
-                            "Ready to upload: ${selected.fileName}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
+                            "${formatDocumentBytesNew((selectedReplacement.sizeBytes * replacementProgress).toLong())} / ${formatDocumentBytesNew(selectedReplacement.sizeBytes)}",
+                            style = MaterialTheme.typography.labelSmall
                         )
-                        if (replacingDocument) {
-                            Text(
-                                "${formatDocumentBytesNew((selected.sizeBytes * replacementProgress).toLong())} / ${formatDocumentBytesNew(selected.sizeBytes)}",
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                            LinearProgressIndicator(
-                                progress = { replacementProgress },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                        LinearProgressIndicator(
+                            progress = { replacementProgress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    }
                     }
                     OutlinedTextField(value = editTitle, onValueChange = { editTitle = it.take(50) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), label = { Text("File Name (max 50)") }, singleLine = true,
@@ -4842,15 +4836,20 @@ private fun FullScreenDocumentForm(
     header: @Composable () -> Unit,
     content: @Composable () -> Unit,
     contentFillsSpace: Boolean = true,
+    compactDialog: Boolean = false,
     primaryAction: @Composable () -> Unit,
     secondaryAction: @Composable () -> Unit
 ) {
     Dialog(onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Surface(Modifier.fillMaxSize().documentDialogWaveBackground(dark),
-            color = Color.Transparent, shape = androidx.compose.ui.graphics.RectangleShape) {
-            Column(Modifier.fillMaxSize().imePadding()
-                .padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 30.dp)) {
+        properties = DialogProperties(usePlatformDefaultWidth = compactDialog, decorFitsSystemWindows = false)) {
+        Surface(
+            modifier = (if (compactDialog) Modifier.fillMaxWidth().heightIn(max = 760.dp) else Modifier.fillMaxSize())
+                .documentDialogWaveBackground(dark),
+            color = Color.Transparent,
+            shape = if (compactDialog) RoundedCornerShape(28.dp) else androidx.compose.ui.graphics.RectangleShape
+        ) {
+            Column((if (compactDialog) Modifier.fillMaxWidth() else Modifier.fillMaxSize()).imePadding()
+                .padding(if (compactDialog) 20.dp else PaddingValues(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 30.dp))) {
                 header()
                 Spacer(Modifier.height(18.dp))
                 if (contentFillsSpace) {
