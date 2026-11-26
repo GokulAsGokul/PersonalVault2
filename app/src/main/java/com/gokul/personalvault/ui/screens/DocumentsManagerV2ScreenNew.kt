@@ -3500,30 +3500,24 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Folder Name", style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(
-                            value = newFolderName,
-                            onValueChange = { newFolderName = it.take(30); createFolderError = null },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Enter folder name") },
-                            supportingText = { Text("${newFolderName.length}/30") },
-                            singleLine = true, shape = RoundedCornerShape(16.dp)
-                        )
-                    }
+                    OutlinedTextField(
+                        value = newFolderName,
+                        onValueChange = { newFolderName = it.take(30); createFolderError = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Folder Name") },
+                        supportingText = { Text("${newFolderName.length}/30") },
+                        singleLine = true, shape = RoundedCornerShape(16.dp)
+                    )
 
                     if (category == "all" && currentFolderId == null) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Category", style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        Column {
                             Box {
                                 OutlinedButton(onClick = { folderCategoryMenuExpanded = true },
                                     modifier = Modifier.fillMaxWidth().height(54.dp),
                                     shape = RoundedCornerShape(16.dp)) {
                                     Icon(Icons.Outlined.GridView, null, tint = folderAccent)
                                     Spacer(Modifier.width(12.dp))
-                                    Text(allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other",
+                                    Text("Category: " + (allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other"),
                                         modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
                                     Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
                                 }
@@ -3539,9 +3533,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Visibility", style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                    Column {
                         if (parentScope != null) {
                             Surface(shape = RoundedCornerShape(14.dp), color = palette.surface2) {
                                 Text(if (parentScope == "SHARED") "Shared (inherited from parent folder)"
