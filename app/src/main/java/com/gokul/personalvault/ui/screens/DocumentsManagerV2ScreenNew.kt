@@ -5060,3 +5060,618 @@ private fun formatDocumentBytesNew(bytes: Long): String = when {
     bytes < 1024L * 1024L * 1024L -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
     else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
 }
+
+// Restored document UI helpers and download utility.
+
+private fun categoryStyleV2New(id: String, dark: Boolean): Pair<Color, Color> = if (dark) when (id) {
+    "banking_finance" -> Color(0xFF12372A) to Color(0xFF8FE3B9)
+    "property" -> Color(0xFF45290F) to Color(0xFFFFC38A)
+    "insurance" -> Color(0xFF16324F) to Color(0xFF9CCBFF)
+    "employment" -> Color(0xFF32224F) to Color(0xFFD9C2FF)
+    "vehicle" -> Color(0xFF1B2D52) to Color(0xFFB3C8FF)
+    "travel_visa" -> Color(0xFF0F3534) to Color(0xFF8FE0DC)
+    "medical" -> Color(0xFF4A1E2A) to Color(0xFFFFA9BC)
+    "education" -> Color(0xFF443410) to Color(0xFFFFD98A)
+    "legal_documents" -> Color(0xFF222A55) to Color(0xFFB7C1FF)
+    else -> Color(0xFF2B2142) to Color(0xFFCDB5FF)
+} else when (id) {
+    "banking_finance" -> Color(0xFFE0F5EA) to Color(0xFF087747)
+    "property" -> Color(0xFFFFEBD8) to Color(0xFFB85A00)
+    "insurance" -> Color(0xFFE1F0FF) to Color(0xFF1767B1)
+    "employment" -> Color(0xFFF0E5FF) to Color(0xFF7134BD)
+    "vehicle" -> Color(0xFFE3ECFF) to Color(0xFF2457B5)
+    "travel_visa" -> Color(0xFFDFF4F3) to Color(0xFF087579)
+    "medical" -> Color(0xFFFFE7EC) to Color(0xFFC0304E)
+    "education" -> Color(0xFFFFF2D8) to Color(0xFF8A5A0A)
+    "legal_documents" -> Color(0xFFE8EBFF) to Color(0xFF394B9B)
+    else -> Color(0xFFEDE6FA) to Color(0xFF5B2FB5)
+}
+
+private fun categoryIconV2New(id: String): ImageVector = when (id) {
+    "banking_finance" -> Icons.Filled.AccountBalance
+    "property" -> Icons.Filled.Home
+    "insurance" -> Icons.Filled.HealthAndSafety
+    "employment" -> Icons.Filled.Work
+    "vehicle" -> Icons.Filled.DirectionsCar
+    "travel_visa" -> Icons.Filled.Flight
+    "medical" -> Icons.Filled.MedicalServices
+    "education" -> Icons.Filled.School
+    "legal_documents" -> Icons.Filled.Gavel
+    else -> Icons.Filled.Description
+}
+
+private fun sortLabelV2New(sort: DocumentSortV2New): String = when (sort) {
+    DocumentSortV2New.NAME_ASC -> "Name A–Z"
+    DocumentSortV2New.NAME_DESC -> "Name Z–A"
+    DocumentSortV2New.NEWEST -> "Newest first"
+    DocumentSortV2New.OLDEST -> "Oldest first"
+    DocumentSortV2New.LARGEST -> "Largest first"
+    DocumentSortV2New.SMALLEST -> "Smallest first"
+}
+
+private fun documentMetaV2New(document: DocumentRecordV2): String {
+    val extension = document.originalFileName.substringAfterLast('.', "")
+        .uppercase(Locale.ROOT).take(5)
+        .ifBlank { document.contentType.substringAfter('/', "").uppercase(Locale.ROOT).take(5) }
+    val date = document.uploadedAt?.toDate()?.let {
+        SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(it)
+    }
+    return listOfNotNull(
+        extension.takeIf { it.isNotBlank() },
+        formatDocumentBytesNew(document.sizeBytes),
+        date
+    ).joinToString(", ")
+}
+
+private fun DocumentDashboardStatCardV2New(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    modifier: Modifier,
+    cardColor: Color,
+    iconTint: Color = Color.White
+) {
+    Card(
+        modifier = modifier.heightIn(min = 104.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 9.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                value,
+                color = Color.White,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Text(
+                label,
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Clip,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+private fun documentDisplayNameV2New(document: DocumentRecordV2): String {
+    val displayName = document.title.ifBlank { document.originalFileName }.trim()
+    val originalName = document.originalFileName.trim()
+    val extension = originalName.substringAfterLast('.', "")
+        .takeIf { it.isNotBlank() && originalName.lastIndexOf('.') > 0 }
+        ?: return displayName
+
+    return if (displayName.endsWith(".$extension", ignoreCase = true)) {
+        displayName
+    } else {
+        "$displayName.$extension"
+    }
+}
+
+@Composable
+private fun DocumentSummaryTileV2New(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    palette: DocPaletteV2New,
+    modifier: Modifier,
+    isShared: Boolean? = null
+) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val tileBackground = when (isShared) {
+        true -> if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
+        false -> if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+        null -> palette.container
+    }
+    val tileAccent = when (isShared) {
+        true -> if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
+        false -> if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+        null -> palette.accent
+    }
+    Card(modifier = modifier.heightIn(min = 68.dp), shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = tileBackground)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = tileAccent, modifier = Modifier.size(22.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(label, style = MaterialTheme.typography.labelSmall,
+                    color = if (isShared != null) tileAccent else palette.muted, maxLines = 1)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                    color = if (isShared != null) tileAccent else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
+    val shared = scope == "SHARED"
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val background = if (shared) {
+        if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
+    } else {
+        if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+    }
+    val foreground = if (shared) {
+        if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
+    } else {
+        if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+    }
+    Surface(shape = RoundedCornerShape(10.dp), color = background) {
+        Row(
+            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                if (shared) Icons.Outlined.Groups else Icons.Outlined.Person,
+                contentDescription = null,
+                tint = foreground,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(if (shared) "Shared" else "Personal",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold, color = foreground, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVector) {
+    ListItem(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = {
+            Text(label, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        },
+        supportingContent = {
+            Text(value, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface)
+        },
+        leadingContent = {
+            Icon(icon, contentDescription = null,
+                tint = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+                    Color(0xFFD2A8FF) else Color(0xFF7136B8))
+        }
+    )
+}
+
+@Composable
+private fun ScopePillV2New(document: DocumentRecordV2, mine: Boolean, palette: DocPaletteV2New) {
+    ScopeLabelV2New(document.scope, palette)
+}
+
+@Composable
+private fun DocumentRowV2New(
+    document: DocumentRecordV2,
+    isRecycleBin: Boolean,
+    currentMemberUid: String,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+    onMore: () -> Unit,
+    selectionMode: Boolean = false,
+    selected: Boolean = false
+) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val palette = documentPaletteV2New(dark)
+    val mine = document.ownerUid == currentMemberUid
+    Card(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).combinedClickable(
+            interactionSource = null,
+            indication = ripple(color = palette.accent),
+            onClick = onClick,
+            onLongClick = if (isRecycleBin) onLongClick else null
+        ),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.surface)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onClick() })
+            }
+            DocumentTypeIconNew(document.contentType, Modifier.size(46.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    documentDisplayNameV2New(document),
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    documentMetaV2New(document),
+                    color = palette.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ScopePillV2New(document, mine, palette)
+                    if (isRecycleBin) {
+                        val remainingDays = document.purgeAt?.toDate()?.time?.let {
+                            kotlin.math.ceil(
+                                (it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0
+                            ).toInt()
+                        }
+                        if (remainingDays != null) {
+                            val retentionBackground = if (dark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+                            val retentionForeground = if (dark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = retentionBackground
+                            ) {
+                                Text(
+                                    if (remainingDays <= 0) "Due" else "$remainingDays days left",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    color = retentionForeground,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                    if (document.favouriteUids[currentMemberUid] == true && !isRecycleBin) {
+                        Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
+                            tint = Color(0xFFB45BCE), modifier = Modifier.size(15.dp))
+                    }
+                }
+            }
+            if (!isRecycleBin) IconButton(onClick = onMore) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentGridCardV2New(
+    document: DocumentRecordV2,
+    isRecycleBin: Boolean,
+    currentMemberUid: String,
+    modifier: Modifier,
+    onClick: () -> Unit,
+    onMore: () -> Unit,
+    selectionMode: Boolean = false,
+    selected: Boolean = false
+) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val palette = documentPaletteV2New(dark)
+    val mine = document.ownerUid == currentMemberUid
+    Card(
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
+            interactionSource = null,
+            indication = ripple(color = palette.accent),
+            onClick = onClick
+        ),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.surface)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selectionMode) {
+                    Checkbox(checked = selected, onCheckedChange = { onClick() })
+                }
+                DocumentTypeIconNew(document.contentType, Modifier.size(44.dp))
+                Spacer(Modifier.weight(1f))
+                if (!isRecycleBin) IconButton(onClick = onMore) {
+                    Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                documentDisplayNameV2New(document),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                documentMetaV2New(document),
+                color = palette.muted,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(8.dp))
+            if (!isRecycleBin && document.favouriteUids[currentMemberUid] == true) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
+                        tint = Color(0xFFB45BCE), modifier = Modifier.size(14.dp))
+                    Text("Favourite", color = Color(0xFFB45BCE), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            ScopePillV2New(document, mine, palette)
+        }
+    }
+}
+
+@Composable
+private fun CategoryCardV2New(
+    name: String,
+    icon: ImageVector,
+    count: Int,
+    tileBg: Color,
+    tileFg: Color,
+    palette: DocPaletteV2New,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
+            interactionSource = null,
+            indication = ripple(color = palette.accent),
+            onClick = onClick
+        ),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.surface)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(Modifier.size(36.dp), shape = RoundedCornerShape(11.dp), color = tileBg) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = tileFg, modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    name,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text("$count files", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FolderCardV2New(
+    folder: DocumentFolderV2,
+    palette: DocPaletteV2New,
+    modifier: Modifier,
+    onOpen: () -> Unit
+) {
+    Card(
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
+            interactionSource = null,
+            indication = ripple(color = palette.accent),
+            onClick = onOpen
+        ),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.surface)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Outlined.FolderOpen, null, tint = palette.accent, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    folder.name,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                ScopeLabelV2New(folder.scope, palette)
+            }
+         }
+    }
+}
+
+@Composable
+private fun NewFolderCardV2New(palette: DocPaletteV2New, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(
+                interactionSource = null,
+                indication = ripple(color = palette.accent),
+                onClick = onClick
+            )
+            .dashedBorderV2New(palette.muted, 18.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(Modifier.padding(vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Add, null, tint = palette.accent, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("New folder", color = palette.accent, fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun EmptyStateV2New(
+    palette: DocPaletteV2New,
+    title: String,
+    body: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.surface)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Surface(Modifier.size(56.dp), shape = RoundedCornerShape(28.dp), color = palette.container) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Description, null, tint = palette.accent)
+                }
+            }
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(body, color = palette.muted, style = MaterialTheme.typography.bodySmall,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            if (actionLabel != null && onAction != null) {
+                Button(
+                    onClick = onAction,
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.accent, contentColor = palette.onAccent),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(actionLabel)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentTypeIconNew(contentType: String, modifier: Modifier = Modifier) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val (tile, tint, image) = when {
+        contentType.contains("pdf", true) ->
+            Triple(if (isDark) Color(0xFF4A2020) else Color(0xFFFFE3E3), if (isDark) Color(0xFFFF9A9A) else Color(0xFFC42020), Icons.Outlined.PictureAsPdf)
+        contentType.startsWith("image/") ->
+            Triple(if (isDark) Color(0xFF1E3350) else Color(0xFFDDEBFF), if (isDark) Color(0xFF9CC4FF) else Color(0xFF1D63C2), Icons.Outlined.Image)
+        contentType.contains("spreadsheet", true) || contentType.contains("excel", true) ||
+            contentType.contains("sheet", true) ->
+            Triple(if (isDark) Color(0xFF1B3A2A) else Color(0xFFDDF4E5), if (isDark) Color(0xFF9BE3BA) else Color(0xFF13733F), Icons.Outlined.Description)
+        else ->
+            Triple(if (isDark) Color(0xFF302447) else Color(0xFFEBE2FF), if (isDark) Color(0xFFCDB5FF) else Color(0xFF5B2FB5), Icons.Outlined.InsertDriveFile)
+    }
+    Surface(modifier = modifier, shape = RoundedCornerShape(14.dp), color = tile) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(image, null, tint = tint, modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun DocumentActionIconNew(
+    icon: @Composable () -> Unit,
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.width(66.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Surface(
+            onClick = onClick,
+            enabled = enabled,
+            shape = RoundedCornerShape(12.dp),
+            color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF30243D) else Color(0xFFF0E8FF)
+        ) {
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { icon() }
+        }
+        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+    }
+}
+
+
+/**
+ * Publishes a completed document download into Downloads/Personal Vault without
+ * opening the system Save As picker.
+ */
+private fun saveDocumentToDownloadsNew(
+    context: Context,
+    source: File,
+    displayName: String,
+    mimeType: String
+) {
+    require(source.isFile && source.length() > 0L) { "The downloaded document is missing or empty." }
+    val safeDisplayName = displayName.substringAfterLast('/').substringAfterLast('\\')
+        .ifBlank { "document" }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, safeDisplayName)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType.ifBlank { "application/octet-stream" })
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Personal Vault")
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val resolver = context.contentResolver
+        val destination = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException("Unable to create the file in Downloads/Personal Vault.")
+        try {
+            val output = resolver.openOutputStream(destination, "w")
+                ?: throw IllegalStateException("Unable to open the destination file.")
+            output.use { stream ->
+                source.inputStream().use { input -> input.copyTo(stream) }
+            }
+            val completedValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.IS_PENDING, 0)
+            }
+            check(resolver.update(destination, completedValues, null, null) > 0) {
+                "The file was copied but could not be published in Downloads."
+            }
+        } catch (error: Exception) {
+            resolver.delete(destination, null, null)
+            throw error
+        }
+    } else {
+        val externalDownloads = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: context.filesDir
+        val downloadsDirectory = File(externalDownloads, "Personal Vault")
+        if (!downloadsDirectory.exists() && !downloadsDirectory.mkdirs()) {
+            throw IllegalStateException("Unable to create the app Downloads folder.")
+        }
+        source.copyTo(File(downloadsDirectory, safeDisplayName), overwrite = true)
+    }
+}
+
