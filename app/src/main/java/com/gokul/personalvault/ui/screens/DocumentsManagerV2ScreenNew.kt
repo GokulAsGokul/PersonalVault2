@@ -2983,9 +2983,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         .background(
                             if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF)
                         )
-                        .padding(horizontal = 26.dp)
-                        .padding(top = 12.dp, bottom = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(26.dp)
+                        .padding(horizontal = 22.dp)
+                        .padding(top = 10.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
                     Box(
                         Modifier.align(Alignment.CenterHorizontally)
@@ -2997,11 +2997,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(18.dp)
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Box(
-                            Modifier.size(48.dp)
-                                .clip(RoundedCornerShape(17.dp))
+                            Modifier.size(42.dp)
+                                .clip(RoundedCornerShape(15.dp))
                                 .background(if (isDarkUi) Color(0xFF594078) else Color(0xFFE9DDFB)),
                             contentAlignment = Alignment.Center
                         ) {
@@ -3009,7 +3009,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Icons.Outlined.FolderOpen,
                                 contentDescription = null,
                                 tint = if (isDarkUi) Color(0xFFD7B5FF) else Color(0xFF7136B8),
-                                modifier = Modifier.size(29.dp)
+                                modifier = Modifier.size(25.dp)
                             )
                         }
                         Column(
@@ -3018,7 +3018,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         ) {
                             Text(
                                 folder.name,
-                                style = MaterialTheme.typography.headlineMedium,
+                                style = MaterialTheme.typography.headlineSmall,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
@@ -3026,35 +3026,35 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                             Text(
                                 "Folder Options",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleSmall,
                                 color = palette.accent,
                                 fontWeight = FontWeight.Medium
                             )
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
                                 .background(palette.surface2)
-                                .border(1.dp, palette.line, RoundedCornerShape(22.dp))
+                                .border(1.dp, palette.line, RoundedCornerShape(18.dp))
                                 .clickable {
                                     renameFolderName = folder.name
                                     showFolderActions = false
                                     showRenameFolder = true
                                 }
-                                .padding(18.dp),
+                                .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Box(
-                                Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(palette.container),
+                                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(palette.container),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Outlined.Edit, null, tint = palette.accent, modifier = Modifier.size(25.dp))
+                                Icon(Icons.Outlined.Edit, null, tint = palette.accent, modifier = Modifier.size(22.dp))
                             }
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Rename Folder", style = MaterialTheme.typography.titleMedium,
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Rename Folder", style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                                 Text("Change this folder's name", style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -3077,13 +3077,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Box(
-                                Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(palette.container),
+                                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(palette.container),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(Icons.Outlined.DriveFileMove, null, tint = palette.accent, modifier = Modifier.size(25.dp))
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Move Folder", style = MaterialTheme.typography.titleMedium,
+                                Text("Move Folder", style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                                 Text("Move with all subfolders and files", style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -3092,9 +3092,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
 
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
                                 .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.42f))
-                                .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.20f), RoundedCornerShape(22.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.20f), RoundedCornerShape(18.dp))
                                 .clickable {
                                     showFolderActions = false
                                     deleteFolderError = null
@@ -3105,7 +3105,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Box(
-                                Modifier.size(48.dp).clip(RoundedCornerShape(16.dp))
+                                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
                                     .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -3113,7 +3113,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     modifier = Modifier.size(25.dp))
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Delete Empty Folder", style = MaterialTheme.typography.titleMedium,
+                                Text("Delete Empty Folder", style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
                                 Text("Available only when no files or subfolders remain",
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
