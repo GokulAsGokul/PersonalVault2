@@ -8,14 +8,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
 
 // Premium Purple palette shared across Personal Vault screens.
-val VaultBlue = Color(0xFF7652C8)
-val VaultNavy = Color(0xFF29213D)
-val VaultBackground = Color(0xFFF7F4FC)
-val VaultSurface = Color(0xFFFFFFFF)
-val VaultText = Color(0xFF241D32)
-val VaultSecondary = Color(0xFF746B83)
-val VaultGreen = Color(0xFF23856D)
-val VaultRed = Color(0xFFD65365)
 
 private val VaultLightColors = lightColorScheme(
     primary = Color(0xFF7652C8),
