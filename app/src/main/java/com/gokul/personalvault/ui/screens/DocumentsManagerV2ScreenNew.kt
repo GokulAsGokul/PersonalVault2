@@ -4628,7 +4628,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 }
                                 drawPath(wave, if (isDarkUi) Color(0xFF573579) else Color(0xFFDCC0F5))
                             }
-                            .padding(18.dp),
+                            .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 52.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top,
