@@ -873,7 +873,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     if (total > 0L) downloadTotalBytes = total
                 }
                 isSavingDownloadedFile = true
-                withContext(Dispatchers.IO) {
+                withContext<Unit>(Dispatchers.IO) {
                     saveDocumentToDownloadsNew(
                         context = context,
                         source = file,
