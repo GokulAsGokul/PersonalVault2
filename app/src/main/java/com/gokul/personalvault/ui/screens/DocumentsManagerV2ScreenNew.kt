@@ -1643,7 +1643,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         DocumentRowV2New(
                             doc, false, memberUid,
                             onClick = { openDocument(doc) },
-                            onMore = { selectedDocument = doc }
+                            onMore = { selectedDocument = doc },
+                            categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
                         )
                     }
                 }
@@ -1975,7 +1976,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             },
                             onMore = { selectedDocument = doc },
                             selectionMode = selectionMode,
-                            selected = doc.id in selectedDocumentIds
+                            selected = doc.id in selectedDocumentIds,
+                            categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
                         )
                     }
                 }
@@ -5597,7 +5599,8 @@ private fun DocumentRowV2New(
     onLongClick: () -> Unit = {},
     onMore: () -> Unit,
     selectionMode: Boolean = false,
-    selected: Boolean = false
+    selected: Boolean = false,
+    categoryLabel: String = "Other"
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val palette = documentPaletteV2New(dark)
@@ -5643,6 +5646,32 @@ private fun DocumentRowV2New(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ScopePillV2New(document, mine, palette)
+                    Spacer(Modifier.width(0.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (dark) Color(0xFF352347) else Color(0xFFF0E5FF)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.FolderOpen,
+                                contentDescription = null,
+                                tint = if (dark) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                categoryLabel,
+                                color = if (dark) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                     if (isRecycleBin) {
                         val remainingDays = document.purgeAt?.toDate()?.time?.let {
                             kotlin.math.ceil(
