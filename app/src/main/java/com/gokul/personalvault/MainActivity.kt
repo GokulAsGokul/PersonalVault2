@@ -247,7 +247,6 @@ LaunchedEffect(currentUid) {
                     },
                     onSignOut = {
                         VaultKeySessionV2.clear()
-                        VaultCrypto.clearSession()
                         HouseholdCrypto.clearSession()
                         auth.signOut()
                         signedInEmail = null
