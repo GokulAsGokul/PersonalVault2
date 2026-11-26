@@ -10,7 +10,6 @@ import android.graphics.Shader
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.input.pointer.pointerInput
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
