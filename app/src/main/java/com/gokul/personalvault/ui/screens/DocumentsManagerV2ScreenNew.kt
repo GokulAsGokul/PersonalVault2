@@ -1274,14 +1274,54 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                         }
                     } else {
-                        IconButton(onClick = { showDocumentSearch = !showDocumentSearch; if (!showDocumentSearch) { search = ""; advancedSearchExpanded = false } }) {
-                            Icon(if (showDocumentSearch) Icons.Outlined.Close else Icons.Outlined.Search,
-                                contentDescription = if (showDocumentSearch) "Close search" else "Search documents")
-                        }
                         Box {
-                            IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "More options") }
-                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                DropdownMenuItem(text = { Text("New folder") }, leadingIcon = { Icon(Icons.Outlined.FolderOpen, null) }, onClick = { menuExpanded = false; startCreateFolder() })
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Search documents", fontWeight = FontWeight.SemiBold)
+                                            Text(
+                                                "Find files by name or details",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        showDocumentSearch = !showDocumentSearch
+                                        if (!showDocumentSearch) {
+                                            search = ""
+                                            advancedSearchExpanded = false
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Create Folder", fontWeight = FontWeight.SemiBold)
+                                            Text(
+                                                "Organize your documents",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        startCreateFolder()
+                                    }
+                                )
                             }
                         }
                     }
@@ -5289,8 +5329,9 @@ private fun DocumentRowV2New(
                     documentDisplayNameV2New(document),
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 3,
+                    softWrap = true,
+                    overflow = TextOverflow.Clip,
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Text(
