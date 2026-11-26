@@ -1345,28 +1345,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         modifier = Modifier
                             .width(380.dp)
                             .height(390.dp)
-                            .drawBehind {
-                                val center = androidx.compose.ui.geometry.Offset(
-                                    x = size.width + 18.dp.toPx(),
-                                    y = size.height + 18.dp.toPx()
-                                )
-                                drawCircle(
-                                    color = Color(0xFF344A78).copy(alpha = 0.42f),
-                                    radius = 350.dp.toPx(),
-                                    center = center
-                                )
-                                drawCircle(
-                                    color = Color(0xFF536B9A).copy(alpha = 0.30f),
-                                    radius = 350.dp.toPx(),
-                                    center = center,
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
-                                )
-                                drawCircle(
-                                    color = documentCardSurface.copy(alpha = 0.98f),
-                                    radius = 205.dp.toPx(),
-                                    center = center
-                                )
-                            }
                     ) {
                         @Composable
                         fun ActionItem(
@@ -1376,59 +1354,52 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             modifier: Modifier = Modifier,
                             onClick: () -> Unit
                         ) {
-                            Row(
-                                modifier = modifier,
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            Column(
+                                modifier = modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable(onClick = onClick)
+                                    .padding(4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 Surface(
-                                    modifier = Modifier
-                                        .clip(actionPillShape)
-                                        .clickable(onClick = onClick),
-                                    color = documentCardSurface.copy(alpha = 0.97f),
-                                    contentColor = MaterialTheme.colorScheme.onSurface,
-                                    shape = actionPillShape,
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        tint.copy(alpha = 0.78f)
-                                    ),
-                                    shadowElevation = 4.dp
-                                ) {
-                                    Text(
-                                        title,
-                                        modifier = Modifier.height(48.dp).padding(horizontal = 16.dp),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1
-                                    )
-                                }
-                                FloatingActionButton(
-                                    onClick = onClick,
-                                    modifier = Modifier.size(60.dp),
-                                    containerColor = tint,
+                                    modifier = Modifier.size(52.dp),
+                                    color = tint,
                                     contentColor = Color.White,
-                                    shape = RoundedCornerShape(50),
-                                    elevation = FloatingActionButtonDefaults.elevation(
-                                        defaultElevation = 5.dp,
-                                        pressedElevation = 8.dp
-                                    )
+                                    shape = RoundedCornerShape(15.dp),
+                                    shadowElevation = 5.dp
                                 ) {
-                                    Icon(icon, contentDescription = title)
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            icon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(27.dp)
+                                        )
+                                    }
                                 }
+                                Text(
+                                    title,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 15.sp,
+                                    maxLines = 2
+                                )
                             }
                         }
 
-                        // Radial order: Take Photo at the bottom, then Scan, Create, Upload.
+                        // Quarter-circle arrangement without a decorative arc or panel.
                         ActionItem(
                             "Take Photo", cameraTint, Icons.Outlined.PhotoCamera,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-115).dp, y = (-8).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-215).dp, y = (-8).dp)
                         ) {
                             showAddOptions = false
                             launchPhotoCapture()
                         }
                         ActionItem(
                             "Scan Document", scanTint, Icons.Outlined.DocumentScanner,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-75).dp, y = (-98).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-165).dp, y = (-112).dp)
                         ) {
                             showAddOptions = false
                             val activity = context as? Activity
@@ -1452,14 +1423,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                         ActionItem(
                             "Create Folder", folderTint, Icons.Outlined.FolderOpen,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-35).dp, y = (-188).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-85).dp, y = (-220).dp)
                         ) {
                             showAddOptions = false
                             startCreateFolder()
                         }
                         ActionItem(
                             "Upload Files", uploadTint, Icons.Outlined.Description,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 0.dp, y = (-278).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-8).dp, y = (-315).dp)
                         ) {
                             showAddOptions = false
                             VaultExternalActivityState.documentPickerActive = true
