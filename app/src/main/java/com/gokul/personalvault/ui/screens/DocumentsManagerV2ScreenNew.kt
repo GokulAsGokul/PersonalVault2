@@ -4607,6 +4607,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     editingDocument?.let { doc ->
+        val isEditBusy = busyDocument || replacingDocument
+        var replacementUploadJob by remember(doc.id) { mutableStateOf<Job?>(null) }
         FullScreenDocumentForm(
             dark = isDarkUi,
             compactDialog = true,
@@ -4636,7 +4638,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             },
             content = {
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     val selectedReplacement = pendingReplacement?.takeIf { replacementTarget?.id == doc.id }
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF493653)),
@@ -4649,25 +4651,28 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     ) {
                         DocumentTypeIconNew(doc.contentType, Modifier.size(42.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(selectedReplacement?.fileName ?: doc.originalFileName,
-                                style = MaterialTheme.typography.bodyMedium, maxLines = 2,
-                                overflow = TextOverflow.Ellipsis)
+                            Text(
+                                selectedReplacement?.fileName ?: doc.originalFileName,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 12.sp,
+                                softWrap = true
+                            )
                             Text(
                                 formatDocumentBytesNew(selectedReplacement?.sizeBytes ?: doc.sizeBytes),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        TextButton(
-                            enabled = !busyDocument && !replacingDocument,
+                        IconButton(
+                            enabled = !isEditBusy,
                             onClick = {
                                 replacementTarget = doc
                                 VaultExternalActivityState.documentPickerActive = true
                                 replacementPicker.launch(arrayOf("*/*"))
                             }
                         ) {
-                            Icon(Icons.Outlined.Edit, null)
-                            Text("Change File")
+                            Icon(Icons.Outlined.Edit, contentDescription = "Change file",
+                                tint = Color(0xFFD9B5FF))
                         }
                     }
                     if (selectedReplacement != null && replacingDocument) {
@@ -4684,20 +4689,23 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                     OutlinedTextField(value = editTitle, onValueChange = { editTitle = it.take(50) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), label = { Text("File Name (max 50)") }, singleLine = true,
+                        enabled = !isEditBusy,
                         trailingIcon = {
-                            if (editTitle.isNotEmpty()) IconButton(onClick = { editTitle = "" }) {
+                            if (editTitle.isNotEmpty()) IconButton(enabled = !isEditBusy, onClick = { editTitle = "" }) {
                                 Icon(Icons.Outlined.Close, contentDescription = "Clear file name")
                             }
                         },
                         supportingText = { Text("${editTitle.length}/50") }, shape = RoundedCornerShape(14.dp))
                     OutlinedTextField(value = editDescription, onValueChange = { editDescription = it.take(50) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), label = { Text("Notes (max 50)") }, singleLine = true,
+                        enabled = !isEditBusy,
                         supportingText = { Text("${editDescription.length}/50") }, shape = RoundedCornerShape(14.dp))
                     Text("Category", style = MaterialTheme.typography.labelLarge)
                     var editCategoryMenuExpanded by remember(doc.id) { mutableStateOf(false) }
                     Box {
                         OutlinedButton(
                             onClick = { editCategoryMenuExpanded = true },
+                            enabled = !isEditBusy,
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             shape = RoundedCornerShape(16.dp)
                         ) {
@@ -4714,30 +4722,31 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             allCategories.forEach { (id, name) ->
                                 DropdownMenuItem(
                                     text = { Text(name) },
-                                    onClick = { editCategory = id; editCategoryMenuExpanded = false }
+                                    onClick = { editCategory = id; editCategoryMenuExpanded = false },
+                                    enabled = !isEditBusy
                                 )
                             }
                         }
                     }
                     Text("Access", style = MaterialTheme.typography.labelLarge)
-                    listOf(Triple("PERSONAL", "Personal", "Only you can access"),
-                        Triple("SHARED", "Shared", "Both household members can access")).forEach { (value, label, description) ->
-                        val selected = editScope == value
-                        val selectorShape = RoundedCornerShape(16.dp)
-                        Row(Modifier.fillMaxWidth().clip(selectorShape)
-                            .background(if (selected) Color(0xFF513363) else Color(0xFF281E34))
-                            .border(1.dp, if (selected) Color(0xFFD3A4FF) else Color(0xFF493653), selectorShape)
-                            .clickable(interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(color = Color(0xFFD9B5FF))) { editScope = value }
-                            .height(56.dp).padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            RadioButton(selected = selected, onClick = { editScope = value })
-                            Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
-                                null, tint = Color(0xFFD9B5FF), modifier = Modifier.size(24.dp))
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(label, fontWeight = FontWeight.SemiBold)
-                                Text(description, style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+listOf("PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
+                            val selected = editScope == value
+                            val selectorShape = RoundedCornerShape(16.dp)
+                            Row(Modifier.weight(1f).height(56.dp).clip(selectorShape)
+                                .background(if (selected) Color(0xFF513363) else Color(0xFF281E34))
+                                .border(1.dp, if (selected) Color(0xFFD3A4FF) else Color(0xFF493653), selectorShape)
+                                .clickable(enabled = !isEditBusy,
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = ripple(color = Color(0xFFD9B5FF))) { editScope = value }
+                                .padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                RadioButton(selected = selected, enabled = !isEditBusy, onClick = { editScope = value })
+                                Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
+                                    null, tint = Color(0xFFD9B5FF), modifier = Modifier.size(21.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(label, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -4764,8 +4773,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                     scope.launch {
                         val replacementJob = currentCoroutineContext()[Job]
+                        replacementUploadJob = replacementJob
                         if (selectedReplacement != null) {
-                            DocumentUploadForegroundService.setCancelAction { replacementJob?.cancel() }
+                            DocumentUploadForegroundService.setCancelAction { replacementUploadJob?.cancel() }
                         }
                         busyDocument = true
                         try {
@@ -4798,6 +4808,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             replacementTarget = null
                             message = error.localizedMessage ?: error.message ?: "Save failed."
                         } finally {
+                            replacementUploadJob = null
                             replacingDocument = false
                             busyDocument = false
                             if (selectedReplacement != null) {
@@ -4807,20 +4818,24 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }, enabled = !busyDocument && !replacingDocument) {
-                    Text(if (replacingDocument) "Uploading…" else "Save", fontWeight = FontWeight.SemiBold)
+                    Text("Save", fontWeight = FontWeight.SemiBold)
                 }
             },
             secondaryAction = {
-                Button(enabled = !busyDocument && !replacingDocument,
+                Button(enabled = replacingDocument || !busyDocument,
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
                     onClick = {
-                    if (replacementTarget?.id == doc.id) {
-                        pendingReplacement = null
-                        replacementTarget = null
-                        editTitle = doc.title
+                    if (replacingDocument) {
+                        replacementUploadJob?.cancel()
+                    } else if (!busyDocument) {
+                        if (replacementTarget?.id == doc.id) {
+                            pendingReplacement = null
+                            replacementTarget = null
+                            editTitle = doc.title
+                        }
+                        editingDocument = null
                     }
-                    editingDocument = null
                 }) { Text("Cancel", fontWeight = FontWeight.SemiBold) }
             }
         )
@@ -4852,7 +4867,7 @@ private fun FullScreenDocumentForm(
                 (if (compactDialog) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
                     .imePadding()
                     .then(
-                        if (compactDialog) Modifier.padding(20.dp)
+                        if (compactDialog) Modifier.padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 52.dp)
                         else Modifier.padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 30.dp)
                     )
             ) {
