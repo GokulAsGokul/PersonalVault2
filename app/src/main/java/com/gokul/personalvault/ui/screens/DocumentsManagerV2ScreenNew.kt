@@ -4608,6 +4608,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     editingDocument?.let { doc ->
         val isEditBusy = busyDocument || replacingDocument
+        val editPalette = documentPaletteV2New(isDarkUi)
         var replacementUploadJob by remember(doc.id) { mutableStateOf<Job?>(null) }
         FullScreenDocumentForm(
             dark = isDarkUi,
@@ -4623,7 +4624,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             header = {
-                val editPalette = documentPaletteV2New(isDarkUi)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp))
