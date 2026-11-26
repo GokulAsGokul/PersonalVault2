@@ -1397,7 +1397,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         // Quarter-circle arrangement without a decorative arc or panel.
                         ActionItem(
                             "Take Photo", cameraTint, Icons.Outlined.PhotoCamera,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-180).dp, y = (-8).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-225).dp, y = (-8).dp)
                         ) {
                             showAddOptions = false
                             launchPhotoCapture()
@@ -1428,7 +1428,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                         ActionItem(
                             "Create Folder", folderTint, Icons.Outlined.FolderOpen,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-70).dp, y = (-109).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-95).dp, y = (-109).dp)
                         ) {
                             showAddOptions = false
                             startCreateFolder()
