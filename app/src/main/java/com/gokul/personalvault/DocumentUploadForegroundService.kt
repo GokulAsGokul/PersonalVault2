@@ -139,21 +139,22 @@ class DocumentUploadForegroundService : Service() {
                     description = notes,
                     scope = visibility,
                     folderId = folderId,
+                    onProgress = { value ->
+                        fileProgress = value.coerceIn(0f, 1f)
+                        val overall = ((index + fileProgress) / total.toFloat()).coerceIn(0f, 1f)
+                        mutableUploadState.value = DocumentUploadUiState.Running(
+                            fileName = fileName,
+                            fileIndex = index + 1,
+                            totalFiles = total,
+                            fileProgress = fileProgress,
+                            overallProgress = overall
+                        )
+                        updateNotification((overall * 100).toInt(), false)
+                    },
                     onUploadTaskCreated = { task ->
                         setCancelAction(task?.let { activeTask -> { activeTask.cancel() } })
                     }
-                ) { value ->
-                    fileProgress = value.coerceIn(0f, 1f)
-                    val overall = ((index + fileProgress) / total.toFloat()).coerceIn(0f, 1f)
-                    mutableUploadState.value = DocumentUploadUiState.Running(
-                        fileName = fileName,
-                        fileIndex = index + 1,
-                        totalFiles = total,
-                        fileProgress = fileProgress,
-                        overallProgress = overall
-                    )
-                    updateNotification((overall * 100).toInt(), false)
-                }
+                )
                 uploadedCount++
             } catch (cancelled: CancellationException) {
                 throw cancelled
