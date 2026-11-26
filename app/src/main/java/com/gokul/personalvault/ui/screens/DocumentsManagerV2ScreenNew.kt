@@ -2165,24 +2165,37 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             header = {
-                VaultCompactHeader(
-                    title = "Add Documents",
-                    subtitle = null,
-                    onBack = {
-                        if (!uploading) {
-                            showAddDocuments = false
-                            pendingUploads.clear()
-                            pendingPhotoFile?.delete()
-                            pendingPhotoFile = null
-                            pendingPhotoUri = null
-                            capturedPhotoUri = null
-                            pendingScanFile?.delete()
-                            pendingScanFile = null
+                Row(
+                    Modifier.fillMaxWidth().offset(x = (-3).dp).height(56.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    IconButton(
+                        modifier = Modifier.offset(x = (-7).dp).size(40.dp),
+                        enabled = !uploading,
+                        onClick = {
+                            if (!uploading) {
+                                showAddDocuments = false
+                                pendingUploads.clear()
+                                pendingPhotoFile?.delete()
+                                pendingPhotoFile = null
+                                pendingPhotoUri = null
+                                capturedPhotoUri = null
+                                pendingScanFile?.delete()
+                                pendingScanFile = null
+                            }
                         }
-                    },
-                    titleIcon = null,
-                    actions = {}
-                )
+                    ) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Add Documents",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
             },
             contentFillsSpace = pendingUploads.isNotEmpty() || uploading,
             content = {
@@ -4899,18 +4912,16 @@ private fun FullScreenDocumentForm(
 ) {
     if (fullScreenPage) {
         androidx.activity.compose.BackHandler(onBack = onDismissRequest)
-        val pagePalette = documentPaletteV2New(dark)
-        Surface(Modifier.fillMaxSize().imePadding(), color = pagePalette.surface) {
+        Surface(Modifier.fillMaxSize().imePadding(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 header()
                 Spacer(Modifier.height(18.dp))
                 Box(Modifier.weight(1f).fillMaxWidth()) { content() }
                 Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center,
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    secondaryAction()
-                    Spacer(Modifier.width(12.dp))
-                    primaryAction()
+                    Box(Modifier.weight(1f)) { secondaryAction() }
+                    Box(Modifier.weight(1f)) { primaryAction() }
                 }
             }
         }
