@@ -140,7 +140,7 @@ class DocumentUploadForegroundService : Service() {
                     scope = visibility,
                     folderId = folderId,
                     onUploadTaskCreated = { task ->
-                        setCancelAction { task?.cancel() }
+                        setCancelAction(task?.let { activeTask -> { activeTask.cancel() } })
                     }
                 ) { value ->
                     fileProgress = value.coerceIn(0f, 1f)
