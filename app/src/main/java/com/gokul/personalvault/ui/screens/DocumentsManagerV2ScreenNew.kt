@@ -4640,11 +4640,32 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     color = MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    softWrap = true
+                                    maxLines = 2,
+                                    softWrap = true,
+                                    overflow = TextOverflow.Clip
                                 )
                             }
                         }
-                        ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = if (isDarkUi) Color(0xFF43285B) else Color(0xFFDDF3EB)
+                            ) {
+                                Text(
+                                    categoryLabel,
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                                    color = if (isDarkUi) Color(0xFFD7B4FF) else Color(0xFF176B4A),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
 
                     Text("File Information", style = MaterialTheme.typography.titleMedium,
@@ -4652,7 +4673,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
                     Column(
                         Modifier.fillMaxWidth()
-                            .weight(1f)
                             .clip(RoundedCornerShape(24.dp))
                             .background(detailsCard)
                             .border(1.dp, palette.line, RoundedCornerShape(24.dp))
