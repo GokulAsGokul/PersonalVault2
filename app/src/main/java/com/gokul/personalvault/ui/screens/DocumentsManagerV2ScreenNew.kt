@@ -3311,7 +3311,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             Box(
                 Modifier.fillMaxWidth(0.92f).clip(dialogShape).background(folderSurface)
                     .drawBehind {
-                        val waveHeight = 72.dp.toPx()
+                        val waveHeight = 48.dp.toPx()
                         val backWave = androidx.compose.ui.graphics.Path().apply {
                             moveTo(0f, size.height - waveHeight * 0.78f)
                             cubicTo(size.width * 0.24f, size.height - waveHeight * 1.35f,
