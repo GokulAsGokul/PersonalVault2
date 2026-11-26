@@ -4633,9 +4633,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     color = MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    maxLines = 5,
-                                    softWrap = true,
-                                    overflow = TextOverflow.Clip
+                                    softWrap = true
                                 )
                                 Text(
                                     "${fileType}  •  ${formatDocumentBytesNew(doc.sizeBytes)}",
