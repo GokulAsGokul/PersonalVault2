@@ -3527,7 +3527,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     value = allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other",
                                     onValueChange = {},
                                     readOnly = true,
-                                    modifier = Modifier.fillMaxWidth().clickable { folderCategoryMenuExpanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
                                     label = { Text("Category") },
                                     leadingIcon = {
                                         Icon(Icons.Outlined.GridView, null, tint = folderAccent)
@@ -3536,6 +3536,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
                                     },
                                     shape = RoundedCornerShape(16.dp)
+                                )
+                                Box(
+                                    Modifier.matchParentSize().clip(RoundedCornerShape(16.dp)).clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { folderCategoryMenuExpanded = true }
                                 )
                                 DropdownMenu(expanded = folderCategoryMenuExpanded,
                                     onDismissRequest = { folderCategoryMenuExpanded = false }) {
