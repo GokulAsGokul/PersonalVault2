@@ -2149,12 +2149,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     if (showAddDocuments) {
         AlertDialog(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().documentDialogWaveBackground(isDarkUi),
             properties = DialogProperties(usePlatformDefaultWidth = false),
 
             shape = RoundedCornerShape(28.dp),
 
-            containerColor = if (isDarkUi) Color(0xFF241B30) else Color(0xFFF8F3FF),
+            containerColor = Color.Transparent,
 
             tonalElevation = 8.dp,
             onDismissRequest = {
@@ -4606,12 +4606,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
     editingDocument?.let { doc ->
         AlertDialog(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().documentDialogWaveBackground(isDarkUi),
             properties = DialogProperties(usePlatformDefaultWidth = false),
 
             shape = RoundedCornerShape(28.dp),
 
-            containerColor = if (isDarkUi) Color(0xFF241B30) else Color(0xFFF8F3FF),
+            containerColor = Color.Transparent,
 
             tonalElevation = 8.dp,
             onDismissRequest = {
@@ -4825,6 +4825,35 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 }
 
 // ───────────────────────── Redesign: palette & helpers ─────────────────────────
+
+private fun Modifier.documentDialogWaveBackground(dark: Boolean): Modifier = this
+    .clip(RoundedCornerShape(28.dp))
+    .drawBehind {
+        drawRect(if (dark) Color(0xFF241B30) else Color(0xFFF8F3FF))
+        val waveHeight = 38.dp.toPx()
+        val back = androidx.compose.ui.graphics.Path().apply {
+            moveTo(0f, size.height - waveHeight * 0.72f)
+            cubicTo(size.width * 0.22f, size.height - waveHeight * 1.35f,
+                size.width * 0.38f, size.height - waveHeight * 0.08f,
+                size.width * 0.60f, size.height - waveHeight * 0.48f)
+            cubicTo(size.width * 0.78f, size.height - waveHeight * 0.88f,
+                size.width * 0.88f, size.height - waveHeight * 1.12f,
+                size.width, size.height - waveHeight * 0.62f)
+            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+        }
+        drawPath(back, if (dark) Color(0xFF63347F) else Color(0xFFDCC0F5))
+        val front = androidx.compose.ui.graphics.Path().apply {
+            moveTo(0f, size.height - waveHeight * 0.36f)
+            cubicTo(size.width * 0.24f, size.height - waveHeight * 0.82f,
+                size.width * 0.42f, size.height - waveHeight * 0.02f,
+                size.width * 0.62f, size.height - waveHeight * 0.30f)
+            cubicTo(size.width * 0.80f, size.height - waveHeight * 0.52f,
+                size.width * 0.90f, size.height - waveHeight * 0.68f,
+                size.width, size.height - waveHeight * 0.30f)
+            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+        }
+        drawPath(front, if (dark) Color(0xFF8D52B4) else Color(0xFFE9D5FA))
+    }
 
 private data class DocPaletteV2New(
     val accent: Color,
