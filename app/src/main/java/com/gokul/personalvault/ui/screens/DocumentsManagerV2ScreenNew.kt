@@ -2152,9 +2152,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             modifier = Modifier.fillMaxSize(),
             properties = DialogProperties(usePlatformDefaultWidth = false),
 
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
 
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = if (isDarkUi) Color(0xFF241B30) else Color(0xFFF8F3FF),
 
             tonalElevation = 8.dp,
             onDismissRequest = {
@@ -2223,8 +2223,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     pendingUploads.forEachIndexed { index, pending ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = documentCardSurface)
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF281E34))
                         ) {
                             Row(
                                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -2440,7 +2440,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             confirmButton = {
-                TextButton(
+                Button(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9137D7), contentColor = Color.White),
                     enabled = !uploading && pendingUploads.any { !it.retryBlocked } &&
                         pendingUploads.filter { !it.retryBlocked }.all { it.title.isNotBlank() },
                     onClick = {
@@ -2471,10 +2473,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             uploads = payload
                         )
                     }
-                ) { Text(if (uploading) "Uploading…" else "Upload") }
+                ) { Text(if (uploading) "Uploading…" else "Upload", fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = {
-                TextButton(
+                Button(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
                     enabled = !uploading,
                     onClick = {
                         showAddDocuments = false
@@ -2486,7 +2490,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         pendingScanFile?.delete()
                         pendingScanFile = null
                     }
-                ) { Text("Cancel") }
+                ) { Text("Cancel", fontWeight = FontWeight.SemiBold) }
             }
         )
     }
@@ -4605,9 +4609,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             modifier = Modifier.fillMaxSize(),
             properties = DialogProperties(usePlatformDefaultWidth = false),
 
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
 
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = if (isDarkUi) Color(0xFF241B30) else Color(0xFFF8F3FF),
 
             tonalElevation = 8.dp,
             onDismissRequest = {
@@ -4746,7 +4750,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                Button(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9137D7), contentColor = Color.White),
+                    onClick = {
                     val selectedReplacement = pendingReplacement
                         ?.takeIf { replacementTarget?.id == doc.id }
                     if (selectedReplacement != null) {
@@ -4797,18 +4804,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                 }, enabled = !busyDocument && !replacingDocument) {
-                    Text(if (replacingDocument) "Uploading…" else "Save")
+                    Text(if (replacingDocument) "Uploading…" else "Save", fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
-                TextButton(enabled = !busyDocument && !replacingDocument, onClick = {
+                Button(enabled = !busyDocument && !replacingDocument,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
+                    onClick = {
                     if (replacementTarget?.id == doc.id) {
                         pendingReplacement = null
                         replacementTarget = null
                         editTitle = doc.title
                     }
                     editingDocument = null
-                }) { Text("Cancel") }
+                }) { Text("Cancel", fontWeight = FontWeight.SemiBold) }
             }
         )
     }
