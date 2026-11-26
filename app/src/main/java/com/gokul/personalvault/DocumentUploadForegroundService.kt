@@ -209,6 +209,9 @@ class DocumentUploadForegroundService : Service() {
 
     override fun onDestroy() {
         if (activeService === this) activeService = null
+        cancelRequested = true
+        activeUploadTask?.cancel()
+        activeUploadTask = null
         uploadJob?.cancel()
         serviceScope?.cancel()
         serviceScope = null
