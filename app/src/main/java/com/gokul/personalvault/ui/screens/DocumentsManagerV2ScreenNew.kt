@@ -4582,7 +4582,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             ) {
                 Column(
                     Modifier.fillMaxWidth(0.94f)
-                        .heightIn(max = 820.dp)
+                        .fillMaxHeight(0.94f)
                         .clip(RoundedCornerShape(30.dp))
                         .background(detailsSurface)
                         .padding(horizontal = 20.dp, vertical = 18.dp),
@@ -4667,8 +4667,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
                     Column(
                         Modifier.fillMaxWidth()
-                            .weight(1f, fill = false)
-                            .heightIn(max = 390.dp)
+                            .weight(1f)
                             .clip(RoundedCornerShape(24.dp))
                             .background(detailsCard)
                             .border(1.dp, palette.line, RoundedCornerShape(24.dp))
@@ -5251,23 +5250,35 @@ private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
 
 @Composable
 private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVector) {
-    ListItem(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp),
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        headlineContent = {
-            Text(label, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        },
-        supportingContent = {
-            Text(value, style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface)
-        },
-        leadingContent = {
-            Icon(icon, contentDescription = null,
-                tint = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
-                    Color(0xFFD2A8FF) else Color(0xFF7136B8))
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 15.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (dark) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                modifier = Modifier.size(28.dp)
+            )
+            Text(
+                label,
+                modifier = Modifier.weight(0.82f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                value,
+                modifier = Modifier.weight(1.18f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                softWrap = true
+            )
         }
-    )
+        Divider(color = if (dark) Color(0xFF493A56) else Color(0xFFDDD2E8), thickness = 1.dp)
+    }
 }
 
 @Composable
