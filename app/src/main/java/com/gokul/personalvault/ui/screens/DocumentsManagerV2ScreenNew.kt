@@ -2165,9 +2165,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             header = {
-                Row(Modifier.fillMaxWidth().offset(x = (-12).dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    IconButton(modifier = Modifier.size(40.dp), enabled = !uploading, onClick = {
+                VaultCompactHeader(
+                    title = "Add Documents",
+                    subtitle = null,
+                    onBack = {
                         if (!uploading) {
                             showAddDocuments = false
                             pendingUploads.clear()
@@ -2178,18 +2179,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             pendingScanFile?.delete()
                             pendingScanFile = null
                         }
-                    }) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Back") }
-                    Box(Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(if (isDarkUi) Color(0xFF4B2A68) else Color(0xFFE9D8FF)),
-                        contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.InsertDriveFile, null, tint = if (isDarkUi) Color(0xFFD9B5FF) else Color(0xFF7B2CBF), modifier = Modifier.size(27.dp))
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Add Documents", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
-                            color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
-                        Text("Add files to your Personal Vault", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+                    },
+                    titleIcon = null,
+                    actions = {}
+                )
             },
             contentFillsSpace = pendingUploads.isNotEmpty() || uploading,
             content = {
