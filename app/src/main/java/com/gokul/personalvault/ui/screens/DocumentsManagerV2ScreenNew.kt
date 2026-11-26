@@ -997,8 +997,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             if (doc.contentType.startsWith("image/")) {
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeFile(file.absolutePath, bounds)
-                val sampleSize = maxOf(
-                    1,
+                val sampleSize = maxOf(                    1,
                     (bounds.outWidth / 1600).coerceAtLeast(1),
                     (bounds.outHeight / 2000).coerceAtLeast(1)
                 )
@@ -1997,8 +1996,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Text("Add to Documents", style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold)
                 ListItem(
-                    headlineContent = { Text("Upload Files", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("From device (PDF, images, documents, etc.)") },
+                    headlineContent = { Text("Upload Files", fontWeight = FontWeight.SemiBold) },                    supportingContent = { Text("From device (PDF, images, documents, etc.)") },
                     leadingContent = { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.clickable {
                         showAddOptions = false
@@ -2187,29 +2185,44 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             contentFillsSpace = pendingUploads.isNotEmpty() || uploading,
             content = {
                 if (pendingUploads.isEmpty() && !uploading) {
-                    Column(
-                        Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        val addPalette = documentPaletteV2New(isDarkUi)
-                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = addPalette.container)) {
-                            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Icon(Icons.Outlined.Info, null, tint = addPalette.accent, modifier = Modifier.size(26.dp))
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text("0 of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected", fontWeight = FontWeight.SemiBold,
-                                        color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
-                                    Text("Limits: 50 MB per file · 200 MB per batch", style = MaterialTheme.typography.labelSmall,
-                                        color = addPalette.muted)
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text("Total", style = MaterialTheme.typography.labelSmall, color = addPalette.muted)
-                                    Text("0 B", color = addPalette.accent, fontWeight = FontWeight.Bold)
+                    val addPalette = documentPaletteV2New(isDarkUi)
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Card(
+                                Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(containerColor = addPalette.container)
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Outlined.Info, null, tint = addPalette.accent,
+                                            modifier = Modifier.size(22.dp))
+                                        Text(
+                                            "0 of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected",
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638)
+                                        )
+                                    }
+                                    Text("Total · 0 B", color = addPalette.accent, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Limits: 50 MB per file · 200 MB per batch",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = addPalette.muted,
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             }
-                        }
-                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                             OutlinedButton(
                                 onClick = {
                                     VaultExternalActivityState.documentPickerActive = true
@@ -2502,7 +2515,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             },
             primaryAction = {
-                Button(
+                if (pendingUploads.isNotEmpty() || uploading) Button(
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9137D7), contentColor = Color.White),
@@ -2539,7 +2552,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 ) { Text(if (uploading) "Uploading…" else "Upload", fontWeight = FontWeight.SemiBold) }
             },
             secondaryAction = {
-                Button(
+                if (pendingUploads.isNotEmpty() || uploading) Button(
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
@@ -2997,8 +3010,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Text(
                                     categoryRenameError.orEmpty(),
                                     color = if (categoryRenameError != null) MaterialTheme.colorScheme.error
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                    else MaterialTheme.colorScheme.onSurfaceVariant                                )
                                 Text("${categoryEditName.length}/30", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -3997,8 +4009,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(title, color = if (tint == danger) danger else MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Text(subtitle, color = muted, style = MaterialTheme.typography.bodySmall)
-                            }
+                                Text(subtitle, color = muted, style = MaterialTheme.typography.bodySmall)                            }
                             if (trailing) Icon(Icons.Outlined.ChevronRight, null, tint = muted)
                         }
                     }
@@ -4998,746 +5009,3 @@ private fun Modifier.documentDialogWaveBackground(dark: Boolean): Modifier = thi
     .clip(RoundedCornerShape(28.dp))
     .drawBehind {
         drawRect(if (dark) Color(0xFF241B30) else Color(0xFFF8F3FF))
-        val waveHeight = 38.dp.toPx()
-        val back = androidx.compose.ui.graphics.Path().apply {
-            moveTo(0f, size.height - waveHeight * 0.72f)
-            cubicTo(size.width * 0.22f, size.height - waveHeight * 1.35f,
-                size.width * 0.38f, size.height - waveHeight * 0.08f,
-                size.width * 0.60f, size.height - waveHeight * 0.48f)
-            cubicTo(size.width * 0.78f, size.height - waveHeight * 0.88f,
-                size.width * 0.88f, size.height - waveHeight * 1.12f,
-                size.width, size.height - waveHeight * 0.62f)
-            lineTo(size.width, size.height); lineTo(0f, size.height); close()
-        }
-        drawPath(back, if (dark) Color(0xFF63347F) else Color(0xFFDCC0F5))
-        val front = androidx.compose.ui.graphics.Path().apply {
-            moveTo(0f, size.height - waveHeight * 0.36f)
-            cubicTo(size.width * 0.24f, size.height - waveHeight * 0.82f,
-                size.width * 0.42f, size.height - waveHeight * 0.02f,
-                size.width * 0.62f, size.height - waveHeight * 0.30f)
-            cubicTo(size.width * 0.80f, size.height - waveHeight * 0.52f,
-                size.width * 0.90f, size.height - waveHeight * 0.68f,
-                size.width, size.height - waveHeight * 0.30f)
-            lineTo(size.width, size.height); lineTo(0f, size.height); close()
-        }
-        drawPath(front, if (dark) Color(0xFF8D52B4) else Color(0xFFE9D5FA))
-    }
-
-private data class DocPaletteV2New(
-    val accent: Color,
-    val onAccent: Color,
-    val container: Color,
-    val surface: Color,
-    val surface2: Color,
-    val muted: Color,
-    val line: Color
-)
-
-private fun documentPaletteV2New(dark: Boolean): DocPaletteV2New =
-    if (dark) DocPaletteV2New(
-        accent = Color(0xFFCBA6FF), onAccent = Color(0xFF1B0B33), container = Color(0xFF2E2145),
-        surface = Color(0xFF1D1925), surface2 = Color(0xFF272131), muted = Color(0xFFB0A8C2), line = Color(0xFF2C2536)
-    ) else DocPaletteV2New(
-        accent = Color(0xFF6F35D5), onAccent = Color.White, container = Color(0xFFF0E8FD),
-        surface = Color.White, surface2 = Color(0xFFF1EEF7), muted = Color(0xFF625B75), line = Color(0xFFE8E2F3)
-    )
-
-private fun categoryStyleV2New(id: String, dark: Boolean): Pair<Color, Color> = if (dark) when (id) {
-    "banking_finance" -> Color(0xFF12372A) to Color(0xFF8FE3B9)
-    "property" -> Color(0xFF45290F) to Color(0xFFFFC38A)
-    "insurance" -> Color(0xFF16324F) to Color(0xFF9CCBFF)
-    "employment" -> Color(0xFF32224F) to Color(0xFFD9C2FF)
-    "vehicle" -> Color(0xFF1B2D52) to Color(0xFFB3C8FF)
-    "travel_visa" -> Color(0xFF0F3534) to Color(0xFF8FE0DC)
-    "medical" -> Color(0xFF4A1E2A) to Color(0xFFFFA9BC)
-    "education" -> Color(0xFF443410) to Color(0xFFFFD98A)
-    "legal_documents" -> Color(0xFF222A55) to Color(0xFFB7C1FF)
-    else -> Color(0xFF2B2142) to Color(0xFFCDB5FF)
-} else when (id) {
-    "banking_finance" -> Color(0xFFE0F5EA) to Color(0xFF087747)
-    "property" -> Color(0xFFFFEBD8) to Color(0xFFB85A00)
-    "insurance" -> Color(0xFFE1F0FF) to Color(0xFF1767B1)
-    "employment" -> Color(0xFFF0E5FF) to Color(0xFF7134BD)
-    "vehicle" -> Color(0xFFE3ECFF) to Color(0xFF2457B5)
-    "travel_visa" -> Color(0xFFDFF4F3) to Color(0xFF087579)
-    "medical" -> Color(0xFFFFE7EC) to Color(0xFFC0304E)
-    "education" -> Color(0xFFFFF2D8) to Color(0xFF8A5A0A)
-    "legal_documents" -> Color(0xFFE8EBFF) to Color(0xFF394B9B)
-    else -> Color(0xFFEDE6FA) to Color(0xFF5B2FB5)
-}
-
-private fun categoryIconV2New(id: String): ImageVector = when (id) {
-    "banking_finance" -> Icons.Filled.AccountBalance
-    "property" -> Icons.Filled.Home
-    "insurance" -> Icons.Filled.HealthAndSafety
-    "employment" -> Icons.Filled.Work
-    "vehicle" -> Icons.Filled.DirectionsCar
-    "travel_visa" -> Icons.Filled.Flight
-    "medical" -> Icons.Filled.MedicalServices
-    "education" -> Icons.Filled.School
-    "legal_documents" -> Icons.Filled.Gavel
-    else -> Icons.Filled.Description
-}
-
-private fun sortLabelV2New(sort: DocumentSortV2New): String = when (sort) {
-    DocumentSortV2New.NAME_ASC -> "Name A–Z"
-    DocumentSortV2New.NAME_DESC -> "Name Z–A"
-    DocumentSortV2New.NEWEST -> "Newest first"
-    DocumentSortV2New.OLDEST -> "Oldest first"
-    DocumentSortV2New.LARGEST -> "Largest first"
-    DocumentSortV2New.SMALLEST -> "Smallest first"
-}
-
-private fun documentMetaV2New(document: DocumentRecordV2): String {
-    val extension = document.originalFileName.substringAfterLast('.', "")
-        .uppercase(Locale.ROOT).take(5)
-        .ifBlank { document.contentType.substringAfter('/', "").uppercase(Locale.ROOT).take(5) }
-    val date = document.uploadedAt?.toDate()?.let {
-        SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(it)
-    }
-    return listOfNotNull(
-        extension.takeIf { it.isNotBlank() },
-        formatDocumentBytesNew(document.sizeBytes),
-        date
-    ).joinToString(", ")
-}
-
-private fun Modifier.dashedBorderV2New(color: Color, radius: androidx.compose.ui.unit.Dp): Modifier =
-    this.drawBehind {
-        drawRoundRect(
-            color = color,
-            cornerRadius = CornerRadius(radius.toPx(), radius.toPx()),
-            style = Stroke(
-                width = 1.5.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
-            )
-        )
-    }
-
-// ───────────────────────── Redesign: components ─────────────────────────
-
-@Composable
-private fun DocumentDashboardStatCardV2New(
-    label: String,
-    value: String,
-    icon: ImageVector,
-    modifier: Modifier,
-    cardColor: Color,
-    iconTint: Color = Color.White
-) {
-    val textColor = if (cardColor.luminance() > 0.5f) Color(0xFF211536) else Color.White
-    Card(
-        modifier = modifier.height(72.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 5.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                label,
-                color = textColor.copy(alpha = 0.82f),
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Clip,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Text(
-                value,
-                color = textColor,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                softWrap = false,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-        }
-    }
-}
-
-private fun documentDisplayNameV2New(document: DocumentRecordV2): String {
-    val displayName = document.title.ifBlank { document.originalFileName }.trim()
-    val originalName = document.originalFileName.trim()
-    val extension = originalName.substringAfterLast('.', "")
-        .takeIf { it.isNotBlank() && originalName.lastIndexOf('.') > 0 }
-        ?: return displayName
-
-    return if (displayName.endsWith(".$extension", ignoreCase = true)) {
-        displayName
-    } else {
-        "$displayName.$extension"
-    }
-}
-
-@Composable
-private fun DocumentSummaryTileV2New(
-    label: String,
-    value: String,
-    icon: ImageVector,
-    palette: DocPaletteV2New,
-    modifier: Modifier,
-    isShared: Boolean? = null
-) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val tileBackground = when (isShared) {
-        true -> if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
-        false -> if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
-        null -> palette.container
-    }
-    val tileAccent = when (isShared) {
-        true -> if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
-        false -> if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
-        null -> palette.accent
-    }
-    Card(modifier = modifier.heightIn(min = 68.dp), shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = tileBackground)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp)
-        ) {
-            Icon(icon, contentDescription = null, tint = tileAccent, modifier = Modifier.size(22.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(label, style = MaterialTheme.typography.labelSmall,
-                    color = if (isShared != null) tileAccent else palette.muted, maxLines = 1)
-                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
-                    color = if (isShared != null) tileAccent else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
-    val shared = scope == "SHARED"
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val background = if (shared) {
-        if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
-    } else {
-        if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
-    }
-    val foreground = if (shared) {
-        if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
-    } else {
-        if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
-    }
-    Surface(shape = RoundedCornerShape(10.dp), color = background) {
-        Row(
-            Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                if (shared) Icons.Outlined.People else Icons.Outlined.Person,
-                contentDescription = null,
-                tint = foreground,
-                modifier = Modifier.size(12.dp)
-            )
-            Text(if (shared) "Shared" else "Personal",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold, color = foreground, maxLines = 1, softWrap = false)
-        }
-    }
-}
-
-@Composable
-private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVector) {
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).padding(horizontal = 8.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            modifier = Modifier.size(22.dp),
-            tint = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
-                Color(0xFFD2A8FF) else Color(0xFF7136B8)
-        )
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                value,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun ScopePillV2New(document: DocumentRecordV2, mine: Boolean, palette: DocPaletteV2New) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val label = when {
-        document.scope != "SHARED" -> "Only Me"
-        mine -> "Shared"
-        else -> "Spouse"
-    }
-    val spouse = label == "Spouse"
-    val shared = label == "Shared"
-    val background = when {
-        spouse -> if (isDark) Color(0xFF4A203B) else Color(0xFFFCE8F5)
-        shared -> if (isDark) Color(0xFF352347) else Color(0xFFF0E5FF)
-        else -> if (isDark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
-    }
-    val foreground = when {
-        spouse -> if (isDark) Color(0xFFFF9ACD) else Color(0xFFD63384)
-        shared -> if (isDark) Color(0xFFD2A8FF) else Color(0xFF7136B8)
-        else -> if (isDark) Color(0xFF8FE0A7) else Color(0xFF21834A)
-    }
-    Surface(shape = RoundedCornerShape(10.dp), color = background) {
-        Row(
-            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                when (label) {
-                    "Only Me" -> Icons.Outlined.Person
-                    "Shared", "Spouse" -> Icons.Outlined.People
-                    else -> Icons.Outlined.Person
-                },
-                contentDescription = null,
-                tint = foreground,
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = foreground,
-                maxLines = 1
-            )
-        }
-    }
-}
-
-@Composable
-private fun DocumentRowV2New(
-    document: DocumentRecordV2,
-    isRecycleBin: Boolean,
-    currentMemberUid: String,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit = {},
-    onMore: () -> Unit,
-    selectionMode: Boolean = false,
-    selected: Boolean = false
-) {
-    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val palette = documentPaletteV2New(dark)
-    val mine = document.ownerUid == currentMemberUid
-    Card(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).combinedClickable(
-            interactionSource = null,
-            indication = ripple(color = palette.accent),
-            onClick = onClick,
-            onLongClick = onLongClick
-        ),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = palette.surface)
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (selectionMode) {
-                Checkbox(checked = selected, onCheckedChange = { onClick() })
-            }
-            DocumentTypeIconNew(document.contentType, Modifier.size(46.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    documentDisplayNameV2New(document),
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    documentMetaV2New(document),
-                    color = palette.muted,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ScopePillV2New(document, mine, palette)
-                    if (isRecycleBin) {
-                        val remainingDays = document.purgeAt?.toDate()?.time?.let {
-                            kotlin.math.ceil(
-                                (it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0
-                            ).toInt()
-                        }
-                        if (remainingDays != null) {
-                            val retentionBackground = if (dark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
-                            val retentionForeground = if (dark) Color(0xFF8FE0A7) else Color(0xFF21834A)
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = retentionBackground
-                            ) {
-                                Text(
-                                    if (remainingDays <= 0) "Due" else "$remainingDays days left",
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    color = retentionForeground,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                    if (document.favouriteUids[currentMemberUid] == true && !isRecycleBin) {
-                        Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
-                            tint = Color(0xFFB45BCE), modifier = Modifier.size(15.dp))
-                    }
-                }
-            }
-            if (!isRecycleBin) IconButton(onClick = onMore) {
-                Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
-            }
-        }
-    }
-}
-
-@Composable
-private fun DocumentGridCardV2New(
-    document: DocumentRecordV2,
-    isRecycleBin: Boolean,
-    currentMemberUid: String,
-    modifier: Modifier,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit = {},
-    onMore: () -> Unit,
-    selectionMode: Boolean = false,
-    selected: Boolean = false
-) {
-    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val palette = documentPaletteV2New(dark)
-    val mine = document.ownerUid == currentMemberUid
-    Card(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).combinedClickable(
-            interactionSource = null,
-            indication = ripple(color = palette.accent),
-            onClick = onClick,
-            onLongClick = onLongClick
-        ),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = palette.surface)
-    ) {
-        Column(Modifier.fillMaxWidth().padding(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (selectionMode) {
-                    Checkbox(checked = selected, onCheckedChange = { onClick() })
-                }
-                DocumentTypeIconNew(document.contentType, Modifier.size(44.dp))
-                Spacer(Modifier.weight(1f))
-                if (!isRecycleBin) IconButton(onClick = onMore) {
-                    Icon(Icons.Outlined.MoreVert, contentDescription = "More document options", tint = palette.muted)
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                documentDisplayNameV2New(document),
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                documentMetaV2New(document),
-                color = palette.muted,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(8.dp))
-            if (!isRecycleBin && document.favouriteUids[currentMemberUid] == true) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(Icons.Outlined.Favorite, contentDescription = "Favourite",
-                        tint = Color(0xFFB45BCE), modifier = Modifier.size(14.dp))
-                    Text("Favourite", color = Color(0xFFB45BCE), style = MaterialTheme.typography.labelSmall)
-                }
-            }
-            ScopePillV2New(document, mine, palette)
-        }
-    }
-}
-
-@Composable
-private fun CategoryCardV2New(
-    name: String,
-    icon: ImageVector,
-    count: Int,
-    tileBg: Color,
-    tileFg: Color,
-    palette: DocPaletteV2New,
-    modifier: Modifier,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
-            interactionSource = null,
-            indication = ripple(color = palette.accent),
-            onClick = onClick
-        ),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = palette.surface)
-    ) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(Modifier.size(36.dp), shape = RoundedCornerShape(11.dp), color = tileBg) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = tileFg, modifier = Modifier.size(20.dp))
-                }
-            }
-            Spacer(Modifier.width(9.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    name,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text("$count files", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
-}
-
-@Composable
-private fun FolderCardV2New(
-    folder: DocumentFolderV2,
-    palette: DocPaletteV2New,
-    fileCount: Int,
-    subfolderCount: Int,
-    modifier: Modifier,
-    onOpen: () -> Unit,
-    onMore: () -> Unit
-) {
-    Card(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
-            interactionSource = null,
-            indication = ripple(color = palette.accent),
-            onClick = onOpen
-        ),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = palette.surface)
-    ) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Outlined.FolderOpen, null, tint = palette.accent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(7.dp))
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                Text(
-                    folder.name,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text("$fileCount files · $subfolderCount folders", color = palette.muted, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
-                ScopeLabelV2New(folder.scope, palette)
-            }
-            IconButton(onClick = onMore, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Outlined.MoreVert, contentDescription = "Folder actions", tint = palette.muted)
-            }
-         }
-    }
-}
-
-@Composable
-private fun NewFolderCardV2New(palette: DocPaletteV2New, modifier: Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .heightIn(min = 64.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(
-                interactionSource = null,
-                indication = ripple(color = palette.accent),
-                onClick = onClick
-            )
-            .dashedBorderV2New(palette.muted, 18.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(Modifier.padding(vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Add, null, tint = palette.accent, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("New folder", color = palette.accent, fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-@Composable
-private fun EmptyStateV2New(
-    palette: DocPaletteV2New,
-    title: String,
-    body: String,
-    actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
-) {
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = palette.surface)
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Surface(Modifier.size(56.dp), shape = RoundedCornerShape(28.dp), color = palette.container) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Description, null, tint = palette.accent)
-                }
-            }
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(body, color = palette.muted, style = MaterialTheme.typography.bodySmall,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            if (actionLabel != null && onAction != null) {
-                Button(
-                    onClick = onAction,
-                    colors = ButtonDefaults.buttonColors(containerColor = palette.accent, contentColor = palette.onAccent),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(actionLabel)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DocumentTypeIconNew(contentType: String, modifier: Modifier = Modifier) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val (tile, tint, image) = when {
-        contentType.contains("pdf", true) ->
-            Triple(if (isDark) Color(0xFF4A2020) else Color(0xFFFFE3E3), if (isDark) Color(0xFFFF9A9A) else Color(0xFFC42020), Icons.Outlined.PictureAsPdf)
-        contentType.startsWith("image/") ->
-            Triple(if (isDark) Color(0xFF1E3350) else Color(0xFFDDEBFF), if (isDark) Color(0xFF9CC4FF) else Color(0xFF1D63C2), Icons.Outlined.Image)
-        contentType.contains("spreadsheet", true) || contentType.contains("excel", true) ||
-            contentType.contains("sheet", true) ->
-            Triple(if (isDark) Color(0xFF1B3A2A) else Color(0xFFDDF4E5), if (isDark) Color(0xFF9BE3BA) else Color(0xFF13733F), Icons.Outlined.Description)
-        else ->
-            Triple(if (isDark) Color(0xFF302447) else Color(0xFFEBE2FF), if (isDark) Color(0xFFCDB5FF) else Color(0xFF5B2FB5), Icons.Outlined.InsertDriveFile)
-    }
-    Surface(modifier = modifier, shape = RoundedCornerShape(14.dp), color = tile) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(image, null, tint = tint, modifier = Modifier.size(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun DocumentActionIconNew(
-    icon: @Composable () -> Unit,
-    label: String,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier.width(66.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp)
-    ) {
-        Surface(
-            onClick = onClick,
-            enabled = enabled,
-            shape = RoundedCornerShape(12.dp),
-            color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF30243D) else Color(0xFFF0E8FF)
-        ) {
-            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { icon() }
-        }
-        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-    }
-}
-
-
-/**
- * Publishes a completed document download into Downloads/Personal Vault without
- * opening the system Save As picker.
- */
-private fun saveDocumentToDownloadsNew(
-    context: Context,
-    source: File,
-    displayName: String,
-    mimeType: String
-) {
-    require(source.isFile && source.length() > 0L) { "The downloaded document is missing or empty." }
-    val safeDisplayName = displayName.substringAfterLast('/').substringAfterLast('\\')
-        .ifBlank { "document" }
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, safeDisplayName)
-            put(MediaStore.MediaColumns.MIME_TYPE, mimeType.ifBlank { "application/octet-stream" })
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Personal Vault")
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
-        val resolver = context.contentResolver
-        val destination = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            ?: throw IllegalStateException("Unable to create the file in Downloads/Personal Vault.")
-        try {
-            val output = resolver.openOutputStream(destination, "w")
-                ?: throw IllegalStateException("Unable to open the destination file.")
-            output.use { stream ->
-                source.inputStream().use { input -> input.copyTo(stream) }
-            }
-            val completedValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.IS_PENDING, 0)
-            }
-            check(resolver.update(destination, completedValues, null, null) > 0) {
-                "The file was copied but could not be published in Downloads."
-            }
-        } catch (error: Exception) {
-            resolver.delete(destination, null, null)
-            throw error
-        }
-    } else {
-        val externalDownloads = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            ?: context.filesDir
-        val downloadsDirectory = File(externalDownloads, "Personal Vault")
-        if (!downloadsDirectory.exists() && !downloadsDirectory.mkdirs()) {
-            throw IllegalStateException("Unable to create the app Downloads folder.")
-        }
-        source.copyTo(File(downloadsDirectory, safeDisplayName), overwrite = true)
-    }
-}
-
-
-private fun formatDocumentBytesNew(bytes: Long): String = when {
-    bytes < 1024 -> "$bytes B"
-    bytes < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
-    bytes < 1024L * 1024L * 1024L -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
-    else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
-}
