@@ -4631,16 +4631,23 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 52.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
                             DocumentTypeIconNew(doc.contentType, Modifier.size(76.dp))
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Column(
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.Center
+                            ) {
                                 Text(
                                     fullFileName,
+                                    modifier = Modifier.fillMaxWidth(),
                                     color = MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
+                                    textAlign = TextAlign.Start,
                                     maxLines = 3,
                                     softWrap = true,
                                     overflow = TextOverflow.Clip
@@ -4648,7 +4655,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
@@ -4678,7 +4686,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             .background(detailsCard)
                             .border(1.dp, palette.line, RoundedCornerShape(24.dp))
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .padding(horizontal = 12.dp, vertical = 3.dp)
                     ) {
                         DocumentDetailRowV2New("File Type", fileType, Icons.Outlined.Description)
                         DocumentDetailRowV2New("File Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
@@ -5253,7 +5261,7 @@ private fun DocumentDetailRowV2New(
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 15.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
