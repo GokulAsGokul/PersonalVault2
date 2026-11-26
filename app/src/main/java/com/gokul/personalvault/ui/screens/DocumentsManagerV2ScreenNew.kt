@@ -4836,8 +4836,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         .wrapContentHeight()
                         .clip(RoundedCornerShape(30.dp))
                         .background(detailsSurface)
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         Modifier.fillMaxWidth(),
