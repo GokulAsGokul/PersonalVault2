@@ -2169,49 +2169,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     title = "Add Documents",
                     subtitle = null,
                     onBack = {
-                        if (!uploading) {
-                            showAddDocuments = false
-                            pendingUploads.clear()
-                            pendingPhotoFile?.delete()
-                            pendingPhotoFile = null
-                            pendingPhotoUri = null
-                            capturedPhotoUri = null
-                            pendingScanFile?.delete()
-                            pendingScanFile = null
-                        }
-                    },
-                    titleIcon = null,
-                    actions = {}
-                )
-            },
-            contentFillsSpace = pendingUploads.isNotEmpty() || uploading,
-            content = {
-                Column(Modifier.fillMaxWidth()
-                    .then(if (pendingUploads.isNotEmpty() || uploading) Modifier.fillMaxHeight() else Modifier.wrapContentHeight())
-                    .verticalScroll(uploadFormScrollState),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    val addPalette = documentPaletteV2New(isDarkUi)
-                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = addPalette.container)) {
-                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Outlined.Info, null, tint = addPalette.accent, modifier = Modifier.size(26.dp))
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("${pendingUploads.size} of $MAX_DOCUMENT_BATCH_COUNT_NEW files selected", fontWeight = FontWeight.SemiBold,
-                                    color = if (isDarkUi) Color(0xFFF7F1FF) else Color(0xFF281638))
-                                Text("Limits: 50 MB per file · 200 MB per batch", style = MaterialTheme.typography.labelSmall,
-                                    color = addPalette.muted)
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("Total", style = MaterialTheme.typography.labelSmall, color = addPalette.muted)
-                                Text(formatDocumentBytesNew(pendingUploads.sumOf { it.sizeBytes }),
-                                    color = addPalette.accent, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                    if (!uploading) {
-                    if (pendingUploads.size < MAX_DOCUMENT_BATCH_COUNT_NEW) {
+                        if (!uploading && pendingUploads.isNotEmpty() &&
+                        pendingUploads.size < MAX_DOCUMENT_BATCH_COUNT_NEW) {
                         OutlinedButton(
                             onClick = {
                                 VaultExternalActivityState.documentPickerActive = true
@@ -2224,9 +2183,31 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         ) {
                             Icon(Icons.Outlined.Add, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text(if (pendingUploads.isEmpty()) "Add Files" else "Add New File")
+                            Text("Add New File")
                         }
                     }
+                    if (!uploading && pendingUploads.isEmpty()) {
+                        Box(
+                            Modifier.fillMaxWidth().weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    VaultExternalActivityState.documentPickerActive = true
+                                    picker.launch(arrayOf("*/*"))
+                                },
+                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = addPalette.accent),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, addPalette.line)
+                            ) {
+                                Icon(Icons.Outlined.Add, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Add New File")
+                            }
+                        }
+                    }
+                    if (!uploading && pendingUploads.isNotEmpty()) {
                     pendingUploads.forEachIndexed { index, pending ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -4902,16 +4883,18 @@ private fun FullScreenDocumentForm(
     if (fullScreenPage) {
         androidx.activity.compose.BackHandler(onBack = onDismissRequest)
         Surface(Modifier.fillMaxSize().imePadding(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().padding(vertical = 12.dp)) {
+            Column(Modifier.fillMaxSize().padding(bottom = 12.dp)) {
                 header()
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(4.dp))
                 Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) { content() }
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { secondaryAction() }
-                    Box(Modifier.weight(1f)) { primaryAction() }
+                if (contentFillsSpace) {
+                    Spacer(Modifier.height(16.dp))
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) { secondaryAction() }
+                        Box(Modifier.weight(1f)) { primaryAction() }
+                    }
                 }
             }
         }
