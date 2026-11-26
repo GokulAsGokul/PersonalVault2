@@ -3410,7 +3410,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 listOf("PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
                                     val selected = newFolderScope == value
-                                    Surface(modifier = Modifier.weight(1f).height(52.dp).clickable { newFolderScope = value },
+                                    Surface(
+                                        modifier = Modifier.weight(1f).height(52.dp).clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = ripple()
+                                        ) { newFolderScope = value },
                                         shape = RoundedCornerShape(16.dp),
                                         color = if (selected) folderAccent.copy(alpha = 0.28f) else palette.surface2,
                                         border = androidx.compose.foundation.BorderStroke(1.dp,
