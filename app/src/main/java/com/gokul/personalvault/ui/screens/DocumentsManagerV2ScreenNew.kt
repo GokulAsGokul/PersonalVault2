@@ -2148,15 +2148,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     if (showAddDocuments) {
-        AlertDialog(
-            modifier = Modifier.fillMaxSize().documentDialogWaveBackground(isDarkUi),
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-
-            shape = RoundedCornerShape(28.dp),
-
-            containerColor = Color.Transparent,
-
-            tonalElevation = 8.dp,
+        FullScreenDocumentForm(
+            dark = isDarkUi,
             onDismissRequest = {
                 if (!uploading) {
                     showAddDocuments = false
@@ -2169,7 +2162,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     pendingScanFile = null
                 }
             },
-            title = {
+            header = {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF4B2A68)),
@@ -2183,9 +2176,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             },
-            text = {
-                Column(
-                    Modifier.fillMaxWidth().heightIn(max = 680.dp).verticalScroll(uploadFormScrollState),
+            content = {
+                Column(Modifier.fillMaxWidth().fillMaxHeight().verticalScroll(uploadFormScrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
@@ -2219,11 +2211,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Text("Add Files")
                         }
                     }
-                    Divider()
                     pendingUploads.forEachIndexed { index, pending ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(18.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF493653)),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF281E34))
                         ) {
                             Row(
@@ -2265,9 +2257,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 },
                                 label = { Text("File name (max 50)") },
                                 supportingText = { Text("${pending.title.length}/50") },
+                                trailingIcon = {
+                                    if (pending.title.isNotEmpty()) IconButton(enabled = !uploading, onClick = {
+                                        pendingUploads[index] = pending.copy(title = "")
+                                    }) { Icon(Icons.Outlined.Close, contentDescription = "Clear file name") }
+                                },
                                 singleLine = true,
                                 enabled = !uploading,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
                             )
                             OutlinedTextField(
                                 value = pending.notes,
@@ -2285,7 +2282,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 listOf("PERSONAL" to "Personal", "SHARED" to "Shared").forEach { (value, label) ->
                                     val selected = pending.scope == value
                                     val selectorShape = RoundedCornerShape(16.dp)
-                                    Row(Modifier.weight(1f).height(52.dp).clip(selectorShape)
+                                    Row(Modifier.weight(1f).height(56.dp).clip(selectorShape)
                                         .background(if (selected) Color(0xFF684080) else Color(0xFF281E34))
                                         .border(1.dp, if (selected) Color(0xFFD3A4FF) else Color(0xFF493653), selectorShape)
                                         .clickable(enabled = !uploading,
@@ -2307,7 +2304,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 OutlinedButton(
                                     onClick = { categoryMenuExpanded = true },
                                     enabled = !uploading,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                    shape = RoundedCornerShape(16.dp)
                                 ) {
                                     Text(allCategories.firstOrNull { it.first == pending.categoryId }?.second ?: "Other")
                                     Spacer(Modifier.weight(1f))
@@ -2338,7 +2336,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 OutlinedButton(
                                     onClick = { folderMenuExpanded = true },
                                     enabled = !uploading,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                                    shape = RoundedCornerShape(16.dp)
                                 ) {
                                     Text(
                                         pending.folderId?.let { id -> eligibleFolders.firstOrNull { it.id == id }?.name }
@@ -2439,7 +2438,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             },
-            confirmButton = {
+            primaryAction = {
                 Button(
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9137D7), contentColor = Color.White),
@@ -2475,7 +2474,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 ) { Text(if (uploading) "Uploading…" else "Upload", fontWeight = FontWeight.SemiBold) }
             },
-            dismissButton = {
+            secondaryAction = {
                 Button(
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
@@ -4605,15 +4604,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     editingDocument?.let { doc ->
-        AlertDialog(
-            modifier = Modifier.fillMaxSize().documentDialogWaveBackground(isDarkUi),
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-
-            shape = RoundedCornerShape(28.dp),
-
-            containerColor = Color.Transparent,
-
-            tonalElevation = 8.dp,
+        FullScreenDocumentForm(
+            dark = isDarkUi,
             onDismissRequest = {
                 if (!replacingDocument && !busyDocument) {
                     if (replacementTarget?.id == doc.id) {
@@ -4624,7 +4616,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     editingDocument = null
                 }
             },
-            title = {
+            header = {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF4B2A68)),
@@ -4638,8 +4630,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            content = {
+                Column(Modifier.fillMaxWidth().fillMaxHeight().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF493653)),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF281E34))) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Document file", style = MaterialTheme.typography.labelLarge)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -4667,6 +4664,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Text("Change File")
                         }
                     }
+                    }
+                    }
                     pendingReplacement?.takeIf { replacementTarget?.id == doc.id }?.let { selected ->
                         Text(
                             "Ready to upload: ${selected.fileName}",
@@ -4685,18 +4684,23 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                     OutlinedTextField(value = editTitle, onValueChange = { editTitle = it.take(50) },
-                        modifier = Modifier.fillMaxWidth(), label = { Text("File Name (max 50)") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), label = { Text("File Name (max 50)") }, singleLine = true,
+                        trailingIcon = {
+                            if (editTitle.isNotEmpty()) IconButton(onClick = { editTitle = "" }) {
+                                Icon(Icons.Outlined.Close, contentDescription = "Clear file name")
+                            }
+                        },
                         supportingText = { Text("${editTitle.length}/50") }, shape = RoundedCornerShape(14.dp))
                     OutlinedTextField(value = editDescription, onValueChange = { editDescription = it.take(50) },
-                        modifier = Modifier.fillMaxWidth(), label = { Text("Notes (max 50)") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), label = { Text("Notes (max 50)") }, singleLine = true,
                         supportingText = { Text("${editDescription.length}/50") }, shape = RoundedCornerShape(14.dp))
                     Text("Category", style = MaterialTheme.typography.labelLarge)
                     var editCategoryMenuExpanded by remember(doc.id) { mutableStateOf(false) }
                     Box {
                         OutlinedButton(
                             onClick = { editCategoryMenuExpanded = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             Text(
                                 allCategories.firstOrNull { it.first == editCategory }?.second ?: "Other",
@@ -4726,7 +4730,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             .border(1.dp, if (selected) Color(0xFFD3A4FF) else Color(0xFF493653), selectorShape)
                             .clickable(interactionSource = remember { MutableInteractionSource() },
                                 indication = ripple(color = Color(0xFFD9B5FF))) { editScope = value }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                            .heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             RadioButton(selected = selected, onClick = { editScope = value })
                             Icon(if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
@@ -4749,7 +4753,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     }
                 }
             },
-            confirmButton = {
+            primaryAction = {
                 Button(
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9137D7), contentColor = Color.White),
@@ -4807,7 +4811,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Text(if (replacingDocument) "Uploading…" else "Save", fontWeight = FontWeight.SemiBold)
                 }
             },
-            dismissButton = {
+            secondaryAction = {
                 Button(enabled = !busyDocument && !replacingDocument,
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCC0F5), contentColor = Color(0xFF30203F)),
@@ -4825,6 +4829,36 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 }
 
 // ───────────────────────── Redesign: palette & helpers ─────────────────────────
+
+@Composable
+private fun FullScreenDocumentForm(
+    dark: Boolean,
+    onDismissRequest: () -> Unit,
+    header: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+    primaryAction: @Composable () -> Unit,
+    secondaryAction: @Composable () -> Unit
+) {
+    Dialog(onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Surface(Modifier.fillMaxSize().documentDialogWaveBackground(dark),
+            color = Color.Transparent, shape = androidx.compose.ui.graphics.RectangleShape) {
+            Column(Modifier.fillMaxSize().imePadding()
+                .padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 30.dp)) {
+                header()
+                Spacer(Modifier.height(18.dp))
+                Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    secondaryAction()
+                    Spacer(Modifier.width(12.dp))
+                    primaryAction()
+                }
+            }
+        }
+    }
+}
 
 private fun Modifier.documentDialogWaveBackground(dark: Boolean): Modifier = this
     .clip(RoundedCornerShape(28.dp))
