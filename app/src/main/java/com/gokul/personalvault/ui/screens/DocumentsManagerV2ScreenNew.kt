@@ -4582,7 +4582,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             ) {
                 Column(
                     Modifier.fillMaxWidth(0.94f)
-                        .fillMaxHeight(0.94f)
+                        .wrapContentHeight()
+                        .heightIn(max = 760.dp)
                         .clip(RoundedCornerShape(30.dp))
                         .background(detailsSurface)
                         .padding(horizontal = 20.dp, vertical = 18.dp),
@@ -4640,7 +4641,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     color = MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    maxLines = 2,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 3,
                                     softWrap = true,
                                     overflow = TextOverflow.Clip
                                 )
