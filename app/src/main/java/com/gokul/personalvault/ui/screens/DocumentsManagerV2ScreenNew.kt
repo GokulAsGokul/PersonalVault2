@@ -4542,10 +4542,37 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val doc = selectedDocument
         if (doc != null) {
             AlertDialog(
-                modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.88f),
+                modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.88f)
+                    .clip(RoundedCornerShape(28.dp))
+                    .drawBehind {
+                        val waveHeight = 52.dp.toPx()
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.72f)
+                            cubicTo(size.width * 0.24f, size.height - waveHeight * 1.28f,
+                                size.width * 0.40f, size.height - waveHeight * 0.08f,
+                                size.width * 0.62f, size.height - waveHeight * 0.48f)
+                            cubicTo(size.width * 0.80f, size.height - waveHeight * 0.88f,
+                                size.width * 0.90f, size.height - waveHeight * 1.12f,
+                                size.width, size.height - waveHeight * 0.58f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.36f)
+                            cubicTo(size.width * 0.22f, size.height - waveHeight * 0.82f,
+                                size.width * 0.42f, size.height - waveHeight * 0.02f,
+                                size.width * 0.64f, size.height - waveHeight * 0.26f)
+                            cubicTo(size.width * 0.82f, size.height - waveHeight * 0.52f,
+                                size.width * 0.90f, size.height - waveHeight * 0.68f,
+                                size.width, size.height - waveHeight * 0.30f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawRect(MaterialTheme.colorScheme.surface)
+                        drawPath(backWave, if (isDarkUi) Color(0xFF63347F) else Color(0xFFDCC0F5))
+                        drawPath(frontWave, if (isDarkUi) Color(0xFF8D52B4) else Color(0xFFE9D5FA))
+                    },
                 properties = DialogProperties(usePlatformDefaultWidth = false),
                 shape = RoundedCornerShape(28.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = Color.Transparent,
                 tonalElevation = 8.dp,
                 onDismissRequest = { showDocumentDetails = false },
                 title = {
@@ -4624,6 +4651,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     )
                                 }
                             }
+
+                            Spacer(Modifier.height(6.dp))
 
                             Column(
                                 Modifier.fillMaxWidth().weight(1f)
