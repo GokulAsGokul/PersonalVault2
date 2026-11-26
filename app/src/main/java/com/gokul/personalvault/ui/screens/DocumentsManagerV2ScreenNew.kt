@@ -5008,8 +5008,8 @@ private fun FullScreenDocumentForm(
 private fun Modifier.documentDialogWaveBackground(dark: Boolean): Modifier = this
     .clip(RoundedCornerShape(28.dp))
     .drawBehind {
-        drawRect(if (dark) Color(0xFF241B30) else Color(0xFFF8F3FF))    }
-}
+        drawRect(if (dark) Color(0xFF241B30) else Color(0xFFF8F3FF))
+    }
 
 private data class DocPaletteV2New(
     val accent: Color,
@@ -5061,68 +5061,9 @@ private fun formatDocumentBytesNew(bytes: Long): String = when {
     else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
 }
 
-// Restored document UI helpers and download utility.
+// ───────────────────────── Redesign: components ─────────────────────────
 
-private fun categoryStyleV2New(id: String, dark: Boolean): Pair<Color, Color> = if (dark) when (id) {
-    "banking_finance" -> Color(0xFF12372A) to Color(0xFF8FE3B9)
-    "property" -> Color(0xFF45290F) to Color(0xFFFFC38A)
-    "insurance" -> Color(0xFF16324F) to Color(0xFF9CCBFF)
-    "employment" -> Color(0xFF32224F) to Color(0xFFD9C2FF)
-    "vehicle" -> Color(0xFF1B2D52) to Color(0xFFB3C8FF)
-    "travel_visa" -> Color(0xFF0F3534) to Color(0xFF8FE0DC)
-    "medical" -> Color(0xFF4A1E2A) to Color(0xFFFFA9BC)
-    "education" -> Color(0xFF443410) to Color(0xFFFFD98A)
-    "legal_documents" -> Color(0xFF222A55) to Color(0xFFB7C1FF)
-    else -> Color(0xFF2B2142) to Color(0xFFCDB5FF)
-} else when (id) {
-    "banking_finance" -> Color(0xFFE0F5EA) to Color(0xFF087747)
-    "property" -> Color(0xFFFFEBD8) to Color(0xFFB85A00)
-    "insurance" -> Color(0xFFE1F0FF) to Color(0xFF1767B1)
-    "employment" -> Color(0xFFF0E5FF) to Color(0xFF7134BD)
-    "vehicle" -> Color(0xFFE3ECFF) to Color(0xFF2457B5)
-    "travel_visa" -> Color(0xFFDFF4F3) to Color(0xFF087579)
-    "medical" -> Color(0xFFFFE7EC) to Color(0xFFC0304E)
-    "education" -> Color(0xFFFFF2D8) to Color(0xFF8A5A0A)
-    "legal_documents" -> Color(0xFFE8EBFF) to Color(0xFF394B9B)
-    else -> Color(0xFFEDE6FA) to Color(0xFF5B2FB5)
-}
-
-private fun categoryIconV2New(id: String): ImageVector = when (id) {
-    "banking_finance" -> Icons.Filled.AccountBalance
-    "property" -> Icons.Filled.Home
-    "insurance" -> Icons.Filled.HealthAndSafety
-    "employment" -> Icons.Filled.Work
-    "vehicle" -> Icons.Filled.DirectionsCar
-    "travel_visa" -> Icons.Filled.Flight
-    "medical" -> Icons.Filled.MedicalServices
-    "education" -> Icons.Filled.School
-    "legal_documents" -> Icons.Filled.Gavel
-    else -> Icons.Filled.Description
-}
-
-private fun sortLabelV2New(sort: DocumentSortV2New): String = when (sort) {
-    DocumentSortV2New.NAME_ASC -> "Name A–Z"
-    DocumentSortV2New.NAME_DESC -> "Name Z–A"
-    DocumentSortV2New.NEWEST -> "Newest first"
-    DocumentSortV2New.OLDEST -> "Oldest first"
-    DocumentSortV2New.LARGEST -> "Largest first"
-    DocumentSortV2New.SMALLEST -> "Smallest first"
-}
-
-private fun documentMetaV2New(document: DocumentRecordV2): String {
-    val extension = document.originalFileName.substringAfterLast('.', "")
-        .uppercase(Locale.ROOT).take(5)
-        .ifBlank { document.contentType.substringAfter('/', "").uppercase(Locale.ROOT).take(5) }
-    val date = document.uploadedAt?.toDate()?.let {
-        SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(it)
-    }
-    return listOfNotNull(
-        extension.takeIf { it.isNotBlank() },
-        formatDocumentBytesNew(document.sizeBytes),
-        date
-    ).joinToString(", ")
-}
-
+@Composable
 private fun DocumentDashboardStatCardV2New(
     label: String,
     value: String,
@@ -5379,6 +5320,7 @@ private fun DocumentGridCardV2New(
     currentMemberUid: String,
     modifier: Modifier,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onMore: () -> Unit,
     selectionMode: Boolean = false,
     selected: Boolean = false
@@ -5387,10 +5329,11 @@ private fun DocumentGridCardV2New(
     val palette = documentPaletteV2New(dark)
     val mine = document.ownerUid == currentMemberUid
     Card(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).combinedClickable(
             interactionSource = null,
             indication = ripple(color = palette.accent),
-            onClick = onClick
+            onClick = onClick,
+            onLongClick = onLongClick
         ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = palette.surface)
@@ -5482,8 +5425,11 @@ private fun CategoryCardV2New(
 private fun FolderCardV2New(
     folder: DocumentFolderV2,
     palette: DocPaletteV2New,
+    fileCount: Int,
+    subfolderCount: Int,
     modifier: Modifier,
-    onOpen: () -> Unit
+    onOpen: () -> Unit,
+    onMore: () -> Unit
 ) {
     Card(
         modifier = modifier.clip(RoundedCornerShape(18.dp)).clickable(
@@ -5508,9 +5454,20 @@ private fun FolderCardV2New(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                ScopeLabelV2New(folder.scope, palette)
+                Text(
+                    buildString {
+                        append("$fileCount files")
+                        if (subfolderCount > 0) append(" · $subfolderCount folders")
+                    },
+                    color = palette.muted,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1
+                )
             }
-         }
+            IconButton(onClick = onMore) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = "Folder options", tint = palette.muted)
+            }
+        }
     }
 }
 
