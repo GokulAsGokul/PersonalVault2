@@ -1271,6 +1271,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val mutedColor = palette.muted
 
     Scaffold(
+        // The parent dashboard Scaffold already applies system-bar insets.
+        // Do not reserve the navigation-bar inset a second time here: that
+        // creates the empty horizontal strip above the dashboard bottom bar.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = if (isDarkUi) Color(0xFF17121D) else MaterialTheme.colorScheme.background,
         topBar = {
             var menuExpanded by remember { mutableStateOf(false) }
