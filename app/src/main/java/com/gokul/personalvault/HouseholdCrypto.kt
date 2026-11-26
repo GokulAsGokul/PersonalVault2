@@ -11,11 +11,8 @@ import java.security.PublicKey
 import java.security.spec.MGF1ParameterSpec
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.OAEPParameterSpec
 import javax.crypto.spec.PSource
-import javax.crypto.spec.SecretKeySpec
 
 /**
  * Household-level encryption helper.
@@ -23,7 +20,7 @@ import javax.crypto.spec.SecretKeySpec
  * - Each app installation has an RSA key pair in Android Keystore, keyed by Firebase UID + device ID.
  * - The household AES-256 key is wrapped separately for each member's public key.
  * - The household AES key is kept in memory only after unwrap/create.
- * - Password record payloads are encrypted with AES-256-GCM and householdId as AAD.
+ * - Password-record encryption is handled by the dedicated password-record crypto layer.
  *
  * This helper does not perform Firestore reads/writes. The caller must store each
  * member's public key and wrappedKey envelope in Firestore, under authenticated rules.
@@ -33,10 +30,7 @@ object HouseholdCrypto {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
     private const val RSA_ALIAS_PREFIX = "personal_vault_household_rsa_"
     private const val RSA_TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
-    private const val AES_TRANSFORMATION = "AES/GCM/NoPadding"
     private const val AES_KEY_SIZE_BITS = 256
-    private const val GCM_NONCE_SIZE_BYTES = 12
-    private const val GCM_TAG_SIZE_BITS = 128
 
     @Volatile
     private var sessionHouseholdId: String? = null
