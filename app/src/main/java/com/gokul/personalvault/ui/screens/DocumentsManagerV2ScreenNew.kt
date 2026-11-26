@@ -1397,14 +1397,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         // Quarter-circle arrangement without a decorative arc or panel.
                         ActionItem(
                             "Take Photo", cameraTint, Icons.Outlined.PhotoCamera,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-225).dp, y = (-8).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-185).dp, y = (16).dp)
                         ) {
                             showAddOptions = false
                             launchPhotoCapture()
                         }
                         ActionItem(
                             "Scan Document", scanTint, Icons.Outlined.DocumentScanner,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-140).dp, y = (-49).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-145).dp, y = (-67).dp)
                         ) {
                             showAddOptions = false
                             val activity = context as? Activity
@@ -1428,14 +1428,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                         ActionItem(
                             "Create Folder", folderTint, Icons.Outlined.FolderOpen,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-95).dp, y = (-109).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-75).dp, y = (-133).dp)
                         ) {
                             showAddOptions = false
                             startCreateFolder()
                         }
                         ActionItem(
                             "Upload Files", uploadTint, Icons.Outlined.Description,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 0.dp, y = (-142).dp)
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-8).dp, y = (-170).dp)
                         ) {
                             showAddOptions = false
                             VaultExternalActivityState.documentPickerActive = true
