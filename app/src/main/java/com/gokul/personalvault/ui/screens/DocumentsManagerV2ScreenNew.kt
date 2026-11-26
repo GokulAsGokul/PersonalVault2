@@ -1285,37 +1285,24 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 DropdownMenuItem(
                                     text = {
                                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text("Search documents", fontWeight = FontWeight.SemiBold)
                                             Text(
-                                                "Find files by name or details",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                "Create Folder",
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = documentAccent
                                             )
-                                        }
-                                    },
-                                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                                    onClick = {
-                                        menuExpanded = false
-                                        showDocumentSearch = !showDocumentSearch
-                                        if (!showDocumentSearch) {
-                                            search = ""
-                                            advancedSearchExpanded = false
-                                        }
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = {
-                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text("Create Folder", fontWeight = FontWeight.SemiBold)
                                             Text(
                                                 "Organize your documents",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                color = documentAccent.copy(alpha = 0.82f)
                                             )
                                         }
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                                        Icon(
+                                            Icons.Outlined.FolderOpen,
+                                            contentDescription = null,
+                                            tint = documentAccent
+                                        )
                                     },
                                     onClick = {
                                         menuExpanded = false
