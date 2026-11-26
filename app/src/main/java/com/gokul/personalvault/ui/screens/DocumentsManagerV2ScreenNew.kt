@@ -4836,7 +4836,56 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         .wrapContentHeight()
                         .clip(RoundedCornerShape(30.dp))
                         .background(detailsSurface)
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                        .drawBehind {
+                                .drawBehind {
+                                    val width = size.width
+                                    val height = size.height
+    
+                                    val backWave = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(0f, height - 34.dp.toPx())
+                                        cubicTo(
+                                            width * 0.18f, height - 48.dp.toPx(),
+                                            width * 0.34f, height - 2.dp.toPx(),
+                                            width * 0.55f, height - 20.dp.toPx()
+                                        )
+                                        cubicTo(
+                                            width * 0.76f, height - 34.dp.toPx(),
+                                            width * 0.88f, height - 50.dp.toPx(),
+                                            width, height - 34.dp.toPx()
+                                        )
+                                        lineTo(width, height)
+                                        lineTo(0f, height)
+                                        close()
+                                    }
+                                    drawPath(
+                                        backWave,
+                                        if (isDarkUi) Color(0xFF542A73) else Color(0xFFD7B8EF)
+                                    )
+    
+                                    val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(0f, height - 16.dp.toPx())
+                                        cubicTo(
+                                            width * 0.2f, height - 30.dp.toPx(),
+                                            width * 0.38f, height - 2.dp.toPx(),
+                                            width * 0.56f, height - 12.dp.toPx()
+                                        )
+                                        cubicTo(
+                                            width * 0.78f, height - 22.dp.toPx(),
+                                            width * 0.9f, height - 28.dp.toPx(),
+                                            width, height - 16.dp.toPx()
+                                        )
+                                        lineTo(width, height)
+                                        lineTo(0f, height)
+                                        close()
+                                    }
+                                    drawPath(
+                                        frontWave,
+                                        if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+                                    )
+                                }
+    
+                        }
+                        .padding(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
@@ -4863,52 +4912,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
                             .background(detailsCard)
-                            .drawBehind {
-                                val width = size.width
-                                val height = size.height
-
-                                val backWave = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(0f, height - 34.dp.toPx())
-                                    cubicTo(
-                                        width * 0.18f, height - 48.dp.toPx(),
-                                        width * 0.34f, height - 2.dp.toPx(),
-                                        width * 0.55f, height - 20.dp.toPx()
-                                    )
-                                    cubicTo(
-                                        width * 0.76f, height - 34.dp.toPx(),
-                                        width * 0.88f, height - 50.dp.toPx(),
-                                        width, height - 34.dp.toPx()
-                                    )
-                                    lineTo(width, height)
-                                    lineTo(0f, height)
-                                    close()
-                                }
-                                drawPath(
-                                    backWave,
-                                    if (isDarkUi) Color(0xFF542A73) else Color(0xFFD7B8EF)
-                                )
-
-                                val frontWave = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(0f, height - 16.dp.toPx())
-                                    cubicTo(
-                                        width * 0.2f, height - 30.dp.toPx(),
-                                        width * 0.38f, height - 2.dp.toPx(),
-                                        width * 0.56f, height - 12.dp.toPx()
-                                    )
-                                    cubicTo(
-                                        width * 0.78f, height - 22.dp.toPx(),
-                                        width * 0.9f, height - 28.dp.toPx(),
-                                        width, height - 16.dp.toPx()
-                                    )
-                                    lineTo(width, height)
-                                    lineTo(0f, height)
-                                    close()
-                                }
-                                drawPath(
-                                    frontWave,
-                                    if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
-                                )
-                            }
                             .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 42.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
