@@ -4918,7 +4918,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 modifier = Modifier.size(32.dp))
                         }
                         Text(
-                            "Delete permanently?",
+                            "Delete Permanently?",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -5020,7 +5020,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             contentAlignment = Alignment.Center) {
                             Icon(Icons.Outlined.DeleteForever, null, tint = deleteAccent, modifier = Modifier.size(32.dp))
                         }
-                        Text("Delete permanently?", style = MaterialTheme.typography.headlineSmall,
+                        Text("Delete Permanently?", style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Text("Selected documents will be permanently deleted.",
