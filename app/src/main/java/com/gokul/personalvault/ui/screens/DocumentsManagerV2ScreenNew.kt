@@ -3692,48 +3692,135 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     if (showDeleteFolderConfirm) {
-        AlertDialog(
-
-            shape = RoundedCornerShape(24.dp),
-
-            containerColor = MaterialTheme.colorScheme.surface,
-
-            tonalElevation = 8.dp,
+        Dialog(
             onDismissRequest = { showDeleteFolderConfirm = false; deleteFolderError = null },
-            title = { Text("Delete Empty Folder?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Only an empty folder can be deleted. Documents and subfolders must be moved first.")
-                    deleteFolderError?.let { errorText ->
-                        Text(
-                            errorText,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            val deleteDialogDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+            val deleteDialogSurface = if (deleteDialogDark) Color(0xFF241B30) else Color(0xFFF8F3FF)
+            val deleteDialogBackWave = if (deleteDialogDark) Color(0xFF542A73) else Color(0xFFD7B8EF)
+            val deleteDialogFrontWave = if (deleteDialogDark) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.90f)
+                    .widthIn(max = 420.dp)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(deleteDialogSurface)
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 34.dp.toPx())
+                            cubicTo(width * 0.18f, height - 48.dp.toPx(),
+                                width * 0.34f, height - 2.dp.toPx(), width * 0.55f, height - 20.dp.toPx())
+                            cubicTo(width * 0.76f, height - 34.dp.toPx(),
+                                width * 0.88f, height - 50.dp.toPx(), width, height - 34.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(backWave, deleteDialogBackWave)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 16.dp.toPx())
+                            cubicTo(width * 0.20f, height - 30.dp.toPx(),
+                                width * 0.38f, height - 2.dp.toPx(), width * 0.56f, height - 12.dp.toPx())
+                            cubicTo(width * 0.78f, height - 22.dp.toPx(),
+                                width * 0.90f, height - 28.dp.toPx(), width, height - 16.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(frontWave, deleteDialogFrontWave)
+                    }
+                    .padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 54.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                            .background(if (deleteDialogDark) Color(0xFF583174) else Color(0xFFEAD8FA)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.Delete,
+                            contentDescription = null,
+                            tint = if (deleteDialogDark) Color(0xFFE8C8FF) else Color(0xFF7025A8),
+                            modifier = Modifier.size(30.dp)
                         )
                     }
+                    Text(
+                        "Delete Empty Folder?",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
-            },
-            confirmButton = {
-                TextButton(enabled = !busyDocument, onClick = {
-                    val folder = selectedFolder ?: return@TextButton
-                    scope.launch {
-                        busyDocument = true
-                        try {
-                            repository.deleteEmptyFolder(vaultId, folder.id)
-                            showDeleteFolderConfirm = false
-                            if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
-                            message = "Folder deleted."
-                        } catch (error: Exception) {
-                            val failure = error.localizedMessage ?: error.message ?: "Folder could not be deleted."
-                            showDeleteFolderConfirm = false
-                            deleteFolderError = null
-                            VaultSnackbarController.show(failure, VaultSnackbarType.ERROR)
-                        } finally { busyDocument = false }
-                    }
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { showDeleteFolderConfirm = false; deleteFolderError = null }) { Text("Cancel") } }
-        )
+
+                Text(
+                    "Only an empty folder can be deleted. Documents and subfolders must be moved first.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                deleteFolderError?.let { errorText ->
+                    Text(errorText, color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { showDeleteFolderConfirm = false; deleteFolderError = null },
+                        modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50.dp)),
+                        shape = RoundedCornerShape(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (deleteDialogDark) Color(0xFFDDB8F2) else Color(0xFFEAD8FA),
+                            contentColor = Color(0xFF281936)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                    ) { Text("Cancel", fontWeight = FontWeight.Medium) }
+
+                    Button(
+                        enabled = !busyDocument,
+                        onClick = {
+                            val folder = selectedFolder ?: return@Button
+                            scope.launch {
+                                busyDocument = true
+                                isEmptyingRecycleBin = true
+                                recycleBinProgressTitle = "Deleting Folder"
+                                recycleBinMoveFileName = folder.name
+                                try {
+                                    repository.deleteEmptyFolder(vaultId, folder.id)
+                                    showDeleteFolderConfirm = false
+                                    if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
+                                    message = "Folder deleted."
+                                } catch (error: Exception) {
+                                    val failure = error.localizedMessage ?: error.message ?: "Folder could not be deleted."
+                                    showDeleteFolderConfirm = false
+                                    deleteFolderError = null
+                                    VaultSnackbarController.show(failure, VaultSnackbarType.ERROR)
+                                } finally {
+                                    isEmptyingRecycleBin = false
+                                    recycleBinMoveFileName = ""
+                                    busyDocument = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50.dp)),
+                        shape = RoundedCornerShape(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF9700E8),
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                    ) { Text("Delete", fontWeight = FontWeight.Medium) }
+                }
+            }
+        }
     }
 
     if (showCreateFolder) {
@@ -4753,7 +4840,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     color = moveAccent, trackColor = moveTrack
                 )
                 Text(
-                    if (isRestoringFromRecycleBin) "Restoring…" else "Please wait…",
+                    when {
+                        isRestoringFromRecycleBin -> "Restoring…"
+                        isEmptyingRecycleBin && recycleBinProgressTitle == "Deleting Folder" -> "Deleting folder…"
+                        else -> "Please wait…"
+                    },
                     style = MaterialTheme.typography.labelLarge, color = moveAccent
                 )
             }
