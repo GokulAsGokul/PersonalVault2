@@ -282,7 +282,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var isDownloadingFile by remember { mutableStateOf(false) }
     var isPreparingShare by remember { mutableStateOf(false) }
     var isMovingToRecycleBin by remember { mutableStateOf(false) }
+    var isRestoringFromRecycleBin by remember { mutableStateOf(false) }
+    var isEmptyingRecycleBin by remember { mutableStateOf(false) }
     var recycleBinMoveFileName by remember { mutableStateOf("") }
+    var recycleBinProgressTitle by remember { mutableStateOf("Moving to Recycle Bin") }
     var downloadingFileName by remember { mutableStateOf("") }
     var downloadingFileType by remember { mutableStateOf("DOCUMENT") }
     var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
@@ -1177,9 +1180,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val skipped = selectedDocumentIds.size - targets.size
         scope.launch {
             busyDocument = true
+            isRestoringFromRecycleBin = true
+            recycleBinProgressTitle = "Restoring documents"
+            recycleBinMoveFileName = "Preparing to restore ${targets.size} documents"
             var succeeded = 0
             try {
                 targets.forEach { doc ->
+                    recycleBinMoveFileName = if (targets.size > 1) "Restoring ${succeeded + 1} of ${targets.size} documents" else doc.originalFileName.ifBlank { doc.title }
                     repository.restore(vaultId, doc.id)
                     succeeded++
                 }
@@ -1190,6 +1197,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } finally {
                 selectedDocumentIds.clear()
                 selectionMode = false
+                isRestoringFromRecycleBin = false
+                recycleBinMoveFileName = ""
                 busyDocument = false
             }
         }
@@ -4112,7 +4121,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
                                 Text(
-                                    documentDisplayNameV2New(doc),
+                                    doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) },
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 4,
@@ -4256,13 +4265,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 onClick = {
                                     scope.launch {
                                         busyDocument = true
+                                        isRestoringFromRecycleBin = true
+                                        recycleBinProgressTitle = "Restoring document"
+                                        recycleBinMoveFileName = doc.originalFileName.ifBlank { doc.title }
                                         try {
                                             repository.restore(vaultId, doc.id)
                                             selectedDocument = null
                                             message = "Document restored."
                                         } catch (error: Exception) {
                                             message = error.localizedMessage ?: error.message ?: "Restore failed."
-                                        } finally { busyDocument = false }
+                                        } finally {
+                                            isRestoringFromRecycleBin = false
+                                            recycleBinMoveFileName = ""
+                                            busyDocument = false
+                                        }
                                     }
                                 }
                             ) {
@@ -4562,7 +4578,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         )
     }
 
-    if (isMovingToRecycleBin) {
+    if (isMovingToRecycleBin || isRestoringFromRecycleBin || isEmptyingRecycleBin) {
         Dialog(
             onDismissRequest = { },
             properties = DialogProperties(
@@ -4580,8 +4596,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Moving to Recycle Bin", style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    when {
+                        isRestoringFromRecycleBin || isEmptyingRecycleBin -> recycleBinProgressTitle
+                        else -> "Moving to Recycle Bin"
+                    },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface
+                )
                 Text(recycleBinMoveFileName, style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
                     overflow = TextOverflow.Ellipsis)
@@ -4589,8 +4611,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
                     color = moveAccent, trackColor = moveTrack
                 )
-                Text("Please wait…", style = MaterialTheme.typography.labelLarge,
-                    color = moveAccent)
+                Text(
+                    if (isRestoringFromRecycleBin) "Restoring…" else "Please wait…",
+                    style = MaterialTheme.typography.labelLarge, color = moveAccent
+                )
             }
         }
     }
@@ -4801,6 +4825,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     onClick = {
                         scope.launch {
                             busyDocument = true
+                            isEmptyingRecycleBin = true
+                            recycleBinProgressTitle = "Emptying Recycle Bin"
+                            recycleBinMoveFileName = "Deleting all recycled documents"
                             try {
                                 val count = repository.emptyRecycleBin(vaultId)
                                 showEmptyRecycleBinConfirm = false
@@ -4817,6 +4844,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             } catch (error: Exception) {
                                 message = error.localizedMessage ?: error.message ?: "Unable to empty Recycle Bin."
                             } finally {
+                                isEmptyingRecycleBin = false
+                                recycleBinMoveFileName = ""
                                 busyDocument = false
                             }
                         }
