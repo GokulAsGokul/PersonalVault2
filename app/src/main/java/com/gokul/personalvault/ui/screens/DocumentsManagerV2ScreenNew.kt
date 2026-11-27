@@ -4520,13 +4520,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 actionCard(Icons.Outlined.Restore, "Restore Document", "Return this document to its original location") {
                                     scope.launch {
                                         busyDocument = true
+                                        isRestoringFromRecycleBin = true
+                                        recycleBinProgressTitle = "Restoring document"
+                                        recycleBinMoveFileName = doc.originalFileName.ifBlank { doc.title }
                                         try {
                                             repository.restore(vaultId, doc.id)
                                             selectedDocument = null
                                             message = "Document restored."
                                         } catch (error: Exception) {
                                             message = error.localizedMessage ?: error.message ?: "Restore failed."
-                                        } finally { busyDocument = false }
+                                        } finally {
+                                            isRestoringFromRecycleBin = false
+                                            recycleBinMoveFileName = ""
+                                            busyDocument = false
+                                        }
                                     }
                                 }
                                 actionCard(Icons.Outlined.DeleteForever, "Delete Permanently", "This action cannot be undone", tint = danger) {
@@ -4813,10 +4820,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("All deleted documents owned by you will be permanently removed, including their stored files. This cannot be undone.")
-                    if (busyDocument) {
-                        LinearProgressIndicator(Modifier.fillMaxWidth())
-                        Text("Emptying Recycle Bin…", style = MaterialTheme.typography.bodySmall)
-                    }
                 }
             },
             confirmButton = {
