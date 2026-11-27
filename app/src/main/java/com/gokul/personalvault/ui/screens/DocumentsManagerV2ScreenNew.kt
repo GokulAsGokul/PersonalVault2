@@ -1477,7 +1477,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                                     Icon(Icons.Outlined.Close, contentDescription = "Close add actions")
                                                 }
                                             }
-                                        }
                                 } else {
                                     ExtendedFloatingActionButton(
                                         onClick = { showAddOptions = true },
