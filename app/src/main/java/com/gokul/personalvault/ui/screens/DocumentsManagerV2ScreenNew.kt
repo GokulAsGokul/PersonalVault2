@@ -280,6 +280,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var editScope by remember { mutableStateOf("PERSONAL") }
     var busyDocument by remember { mutableStateOf(false) }
     var isDownloadingFile by remember { mutableStateOf(false) }
+    var isPreparingShare by remember { mutableStateOf(false) }
+    var isMovingToRecycleBin by remember { mutableStateOf(false) }
+    var recycleBinMoveFileName by remember { mutableStateOf("") }
     var downloadingFileName by remember { mutableStateOf("") }
     var downloadingFileType by remember { mutableStateOf("DOCUMENT") }
     var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
@@ -1065,8 +1068,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     fun shareDocument(doc: DocumentRecordV2) {
         scope.launch {
             busyDocument = true
+            isPreparingShare = true
+            isDownloadingFile = true
+            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileType = doc.contentType.substringAfterLast('/').uppercase(Locale.ROOT)
+                .takeIf { it.isNotBlank() } ?: "DOCUMENT"
+            downloadTransferredBytes = 0L
+            downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
-                val file = repository.downloadToCache(context.cacheDir, vaultId, doc)
+                val file = repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
+                    downloadTransferredBytes = transferred.coerceAtLeast(0L)
+                    if (total > 0L) downloadTotalBytes = total
+                }
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                 val mimeType = doc.contentType.takeIf {
                     it.isNotBlank() && it != "application/octet-stream"
@@ -1079,9 +1092,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     clipData = ClipData.newUri(context.contentResolver, doc.originalFileName, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
+                isDownloadingFile = false
+                isPreparingShare = false
                 context.startActivity(Intent.createChooser(sendIntent, "Share document"))
                 selectedDocument = null
             } catch (error: Exception) {
+                isDownloadingFile = false
+                isPreparingShare = false
                 message = error.localizedMessage ?: error.message ?: "Unable to share document."
             } finally {
                 busyDocument = false
@@ -1186,6 +1203,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             var succeeded = 0
             try {
                 targets.forEach { doc ->
+                    isMovingToRecycleBin = true
+                    recycleBinMoveFileName = if (targets.size > 1) "Moving ${succeeded + 1} of ${targets.size} documents" else doc.title.ifBlank { doc.originalFileName }
                     repository.moveToRecycleBin(vaultId, doc)
                     succeeded++
                 }
@@ -1196,6 +1215,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } finally {
                 selectedDocumentIds.clear()
                 selectionMode = false
+                isMovingToRecycleBin = false
+                recycleBinMoveFileName = ""
                 busyDocument = false
             }
         }
@@ -4464,13 +4485,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     ) {
                                         scope.launch {
                                             busyDocument = true
+                                            isMovingToRecycleBin = true
+                                            recycleBinMoveFileName = doc.title.ifBlank { doc.originalFileName }
                                             try {
                                                 repository.moveToRecycleBin(vaultId, doc)
                                                 selectedDocument = null
                                                 message = "Moved to Recycle Bin. Retained for 30 days."
                                             } catch (error: Exception) {
                                                 message = error.localizedMessage ?: error.message ?: "Delete failed."
-                                            } finally { busyDocument = false }
+                                            } finally {
+                                                isMovingToRecycleBin = false
+                                                busyDocument = false
+                                            }
                                         }
                                     }
                                 }
@@ -4534,6 +4560,39 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 TextButton(onClick = { showDocumentPreview = false }) { Text("Close") }
             }
         )
+    }
+
+    if (isMovingToRecycleBin) {
+        Dialog(
+            onDismissRequest = { },
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            val darkMoveUi = MaterialTheme.colorScheme.background.luminance() < 0.5f
+            val moveAccent = if (darkMoveUi) Color(0xFFD6A5FF) else Color(0xFF7438B8)
+            val moveTrack = if (darkMoveUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
+            Column(
+                Modifier.fillMaxWidth(0.88f).clip(RoundedCornerShape(28.dp))
+                    .background(if (darkMoveUi) Color(0xFF211B2B) else Color(0xFFF8F3FF))
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text("Moving to Recycle Bin", style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(recycleBinMoveFileName, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis)
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
+                    color = moveAccent, trackColor = moveTrack
+                )
+                Text("Please wait…", style = MaterialTheme.typography.labelLarge,
+                    color = moveAccent)
+            }
+        }
     }
 
     if (isDownloadingFile) {
@@ -4631,7 +4690,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Text(
-                                "Downloading Document",
+                                if (isPreparingShare) "Preparing Document to Share" else "Downloading Document",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -4674,7 +4733,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                if (total > 0L) "${(progressValue * 100).toInt()}% Downloaded" else "Downloading…",
+                                if (total > 0L) "${(progressValue * 100).toInt()}% ${if (isPreparingShare) "Ready to share soon" else "Downloaded"}" else if (isPreparingShare) "Preparing to share…" else "Downloading…",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = downloadAccent
@@ -4712,7 +4771,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         } else {
                             Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(22.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Cancel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(if (isPreparingShare) "Cancel" else "Cancel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
