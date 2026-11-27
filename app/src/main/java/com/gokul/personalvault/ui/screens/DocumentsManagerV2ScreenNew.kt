@@ -3811,92 +3811,215 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
                 appendChildren(null)
             }
-            AlertDialog(
+            val moveSurface = if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF)
+            val moveWaveBack = if (isDarkUi) Color(0xFF63347F) else Color(0xFFDCC0F5)
+            val moveWaveFront = if (isDarkUi) Color(0xFF8D52B4) else Color(0xFFE9D5FA)
+            val moveAccent = if (isDarkUi) Color(0xFFD7B5FF) else Color(0xFF7136B8)
+            val moveDialogShape = RoundedCornerShape(30.dp)
 
-                shape = RoundedCornerShape(24.dp),
-
-                containerColor = MaterialTheme.colorScheme.surface,
-
-                tonalElevation = 8.dp,
-                onDismissRequest = { showMoveDocument = false; documentToMove = null },
-                title = { Text("Move Document") },
-                text = {
+            Dialog(
+                onDismissRequest = { if (!busyDocument) { showMoveDocument = false; documentToMove = null } },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Box(
+                    Modifier.fillMaxWidth(0.92f)
+                        .clip(moveDialogShape)
+                        .background(moveSurface)
+                        .drawBehind {
+                            val waveHeight = 48.dp.toPx()
+                            val backWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, size.height - waveHeight * 0.78f)
+                                cubicTo(size.width * 0.24f, size.height - waveHeight * 1.35f,
+                                    size.width * 0.36f, size.height - waveHeight * 0.05f,
+                                    size.width * 0.58f, size.height - waveHeight * 0.45f)
+                                cubicTo(size.width * 0.78f, size.height - waveHeight * 0.85f,
+                                    size.width * 0.86f, size.height - waveHeight * 1.18f,
+                                    size.width, size.height - waveHeight * 0.62f)
+                                lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                            }
+                            drawPath(backWave, moveWaveBack)
+                            val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, size.height - waveHeight * 0.38f)
+                                cubicTo(size.width * 0.22f, size.height - waveHeight * 0.85f,
+                                    size.width * 0.42f, size.height - waveHeight * 0.02f,
+                                    size.width * 0.62f, size.height - waveHeight * 0.28f)
+                                cubicTo(size.width * 0.80f, size.height - waveHeight * 0.50f,
+                                    size.width * 0.88f, size.height - waveHeight * 0.68f,
+                                    size.width, size.height - waveHeight * 0.32f)
+                                lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                            }
+                            drawPath(frontWave, moveWaveFront)
+                        }
+                ) {
                     Column(
-                        Modifier.fillMaxWidth().heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        Modifier.fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .padding(top = 26.dp, bottom = 58.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                                    .background(if (isDarkUi) Color(0xFF594078) else Color(0xFFE9DDFB)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.DriveFileMove, null, tint = moveAccent,
+                                    modifier = Modifier.size(32.dp))
+                            }
+                            Text(
+                                "Move Document",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                         Text(
                             "Choose a folder in ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "this category"}. Personal and Shared access cannot be mixed inside a folder.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
+
+                        Column(
+                            Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val rootSelected = moveDocumentTargetChosen && moveDocumentTargetId == null
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = ripple()
+                                    ) {
+                                        moveDocumentTargetId = null
+                                        moveDocumentTargetChosen = true
+                                    },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (rootSelected) moveAccent.copy(alpha = 0.16f)
+                                    else if (isDarkUi) Color(0xFF30263B) else Color(0xFFF1EAF8),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, if (rootSelected) moveAccent else moveAccent.copy(alpha = 0.16f)
+                                )
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = rootSelected,
+                                        onClick = { moveDocumentTargetId = null; moveDocumentTargetChosen = true },
+                                        colors = RadioButtonDefaults.colors(selectedColor = moveAccent)
+                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text("Category root", fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface)
+                                        Text("Move out of the current folder",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+
+                            orderedEligibleFolders.forEach { folder ->
+                                val depth = generateSequence(folder.parentFolderId) { parentId ->
+                                    eligibleFolders.firstOrNull { it.id == parentId }?.parentFolderId
+                                }.take(8).count()
+                                val selected = moveDocumentTargetChosen && moveDocumentTargetId == folder.id
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = ripple()
+                                        ) {
+                                            moveDocumentTargetId = folder.id
+                                            moveDocumentTargetChosen = true
+                                        },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (selected) moveAccent.copy(alpha = 0.16f)
+                                        else if (isDarkUi) Color(0xFF30263B) else Color(0xFFF1EAF8),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp, if (selected) moveAccent else moveAccent.copy(alpha = 0.16f)
+                                    )
+                                ) {
+                                    Row(
+                                        Modifier.fillMaxWidth()
+                                            .padding(start = (12 + depth * 14).dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = selected,
+                                            onClick = { moveDocumentTargetId = folder.id; moveDocumentTargetChosen = true },
+                                            colors = RadioButtonDefaults.colors(selectedColor = moveAccent)
+                                        )
+                                        Icon(Icons.Outlined.FolderOpen, null, tint = moveAccent)
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(folder.name, color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                            if (eligibleFolders.isEmpty()) {
+                                Text(
+                                    "No eligible folders. Create a folder in this category first.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+
                         Row(
-                            Modifier.fillMaxWidth().clickable {
-                                moveDocumentTargetId = null
-                                moveDocumentTargetChosen = true
-                            }.padding(vertical = 8.dp),
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(
-                                selected = moveDocumentTargetChosen && moveDocumentTargetId == null,
-                                onClick = { moveDocumentTargetId = null; moveDocumentTargetChosen = true }
-                            )
-                            Column {
-                                Text("Category root", fontWeight = FontWeight.SemiBold)
-                                Text("Move out of the current folder", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        orderedEligibleFolders.forEach { folder ->
-                            val depth = generateSequence(folder.parentFolderId) { parentId ->
-                                eligibleFolders.firstOrNull { it.id == parentId }?.parentFolderId
-                            }.take(8).count()
-                            Row(
-                                Modifier.fillMaxWidth().clickable {
-                                    moveDocumentTargetId = folder.id
-                                    moveDocumentTargetChosen = true
-                                }.padding(
-    start = (depth * 14).dp,
-    top = 7.dp,
-    bottom = 7.dp
-),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = moveDocumentTargetChosen && moveDocumentTargetId == folder.id,
-                                    onClick = { moveDocumentTargetId = folder.id; moveDocumentTargetChosen = true }
+                            Button(
+                                onClick = { showMoveDocument = false; documentToMove = null },
+                                enabled = !busyDocument,
+                                modifier = Modifier.weight(1f).height(54.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDarkUi) Color(0xFFDCC0F5) else Color(0xFFE9D5FA),
+                                    contentColor = if (isDarkUi) Color(0xFF30203F) else Color(0xFF54217F)
                                 )
-                                Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.width(8.dp))
-                                Text(folder.name)
+                            ) {
+                                Text("Cancel", fontWeight = FontWeight.SemiBold)
                             }
-                        }
-                        if (eligibleFolders.isEmpty()) {
-                            Text("No eligible folders. Create a folder in this category first.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        busyDocument = true
+                                        try {
+                                            repository.moveDocumentToFolder(vaultId, doc, moveDocumentTargetId)
+                                            showMoveDocument = false
+                                            documentToMove = null
+                                            message = if (moveDocumentTargetId == null) "Document moved to category root."
+                                                else "Document moved to folder."
+                                        } catch (error: Exception) {
+                                            message = error.localizedMessage ?: error.message ?: "Unable to move document."
+                                        } finally { busyDocument = false }
+                                    }
+                                },
+                                enabled = moveDocumentTargetChosen && !busyDocument,
+                                modifier = Modifier.weight(1f).height(54.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDarkUi) Color(0xFF9B28F4) else Color(0xFF8A35D1),
+                                    contentColor = Color.White,
+                                    disabledContainerColor = if (isDarkUi) Color(0xFF51445C) else Color(0xFFE5DCEB),
+                                    disabledContentColor = if (isDarkUi) Color(0xFF9B8FA5) else Color(0xFF9A8FA3)
+                                )
+                            ) {
+                                if (busyDocument) CircularProgressIndicator(Modifier.size(20.dp),
+                                    color = Color.White, strokeWidth = 2.dp)
+                                else Text("Move", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
-                },
-                confirmButton = {
-                    TextButton(enabled = moveDocumentTargetChosen && !busyDocument, onClick = {
-                        scope.launch {
-                            busyDocument = true
-                            try {
-                                repository.moveDocumentToFolder(vaultId, doc, moveDocumentTargetId)
-                                showMoveDocument = false
-                                documentToMove = null
-                                message = if (moveDocumentTargetId == null) "Document moved to category root."
-                                    else "Document moved to folder."
-                            } catch (error: Exception) {
-                                message = error.localizedMessage ?: error.message ?: "Unable to move document."
-                            } finally { busyDocument = false }
-                        }
-                    }) { Text("Move") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showMoveDocument = false; documentToMove = null }) { Text("Cancel") }
                 }
-            )
+            }
         }
     }
 
