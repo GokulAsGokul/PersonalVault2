@@ -1338,147 +1338,141 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
                         if (showAddOptions) {
-                    val uploadTint = Color(0xFF9B45D5)
-                    val folderTint = Color(0xFF3478D4)
-                    val scanTint = Color(0xFF269B62)
-                    val cameraTint = Color(0xFFD58A2B)
-                    val pillColor = if (isDarkUi) Color(0xFF2B2135) else Color.White
-                    val pillTextColor = if (isDarkUi) Color(0xFFF2ECF8) else Color(0xFF211536)
+                            val uploadTint = Color(0xFF9B45D5)
+                            val folderTint = Color(0xFF3478D4)
+                            val scanTint = Color(0xFF269B62)
+                            val cameraTint = Color(0xFFD58A2B)
+                            val pillColor = if (isDarkUi) Color(0xFF2B2135) else Color.White
+                            val pillTextColor = if (isDarkUi) Color(0xFFF2ECF8) else Color(0xFF211536)
 
-                    // Fan geometry (dp). Angles are measured from the Close button centre:
-                    // 180° = straight left, 90° = straight up.
-                    val fanRadius = 195f
-                    val closeSize = 60f
-                    val actionSize = 52f
+                            // Fan geometry (dp), measured from the Close button centre.
+                            val fanRadius = 195f
+                            val closeSize = 60f
+                            val actionSize = 52f
 
-                    Box(
-                        modifier = Modifier
-                            .width(380.dp)
-                            .height(260.dp)
-                    ) {
-                        @Composable
-                        fun FanAction(
-                            title: String,
-                            tint: Color,
-                            icon: ImageVector,
-                            angleDeg: Float,
-                            modifier: Modifier = Modifier,
-                            onClick: () -> Unit
-                        ) {
-                            val rad = Math.toRadians(angleDeg.toDouble())
-                            // Circle centre relative to the Close button centre (Compose y points down).
-                            val dx = (fanRadius * cos(rad)).toFloat()
-                            val dy = (-fanRadius * sin(rad)).toFloat()
-                            // Correct for the 52 dp action circle vs 60 dp close button.
-                            val offsetX = dx + (actionSize - closeSize) / 2f
-                            val offsetY = dy + (actionSize - closeSize) / 2f
-
-                            Row(
-                                modifier = modifier
-                                    .offset(x = offsetX.dp, y = offsetY.dp)
-                                    .clip(RoundedCornerShape(26.dp))
-                                    .clickable(onClick = onClick),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            Box(
+                                modifier = Modifier
+                                    .width(380.dp)
+                                    .height(260.dp)
                             ) {
-                                Surface(
-                                    modifier = Modifier.height(24.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = pillColor
+                                @Composable
+                                fun FanAction(
+                                    title: String,
+                                    tint: Color,
+                                    icon: ImageVector,
+                                    angleDeg: Float,
+                                    modifier: Modifier = Modifier,
+                                    onClick: () -> Unit
                                 ) {
-                                    Box(
-                                        modifier = Modifier.padding(horizontal = 10.dp),
-                                        contentAlignment = Alignment.Center
+                                    val rad = Math.toRadians(angleDeg.toDouble())
+                                    val dx = (fanRadius * cos(rad)).toFloat()
+                                    val dy = (-fanRadius * sin(rad)).toFloat()
+                                    val offsetX = dx + (actionSize - closeSize) / 2f
+                                    val offsetY = dy + (actionSize - closeSize) / 2f
+
+                                    Row(
+                                        modifier = modifier
+                                            .offset(x = offsetX.dp, y = offsetY.dp)
+                                            .clip(RoundedCornerShape(26.dp))
+                                            .clickable(onClick = onClick),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text(
-                                            title,
-                                            color = pillTextColor,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
+                                        Surface(
+                                            modifier = Modifier.height(24.dp),
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = pillColor
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.padding(horizontal = 10.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    title,
+                                                    color = pillTextColor,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                            }
+                                        }
+                                        Surface(
+                                            modifier = Modifier.size(actionSize.dp),
+                                            shape = CircleShape,
+                                            color = tint,
+                                            contentColor = Color.White,
+                                            shadowElevation = 5.dp
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    icon,
+                                                    contentDescription = title,
+                                                    modifier = Modifier.size(27.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
-                                Surface(
-                                    modifier = Modifier.size(actionSize.dp),
-                                    shape = CircleShape,
-                                    color = tint,
-                                    contentColor = Color.White,
-                                    shadowElevation = 5.dp
+
+                                FanAction(
+                                    "Upload Files", uploadTint, Icons.Outlined.Description, 112.5f,
+                                    modifier = Modifier.align(Alignment.BottomEnd)
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            icon,
-                                            contentDescription = title,
-                                            modifier = Modifier.size(27.dp)
-                                        )
+                                    showAddOptions = false
+                                    VaultExternalActivityState.documentPickerActive = true
+                                    picker.launch(arrayOf("*/*"))
+                                }
+                                FanAction(
+                                    "Create Folder", folderTint, Icons.Outlined.FolderOpen, 135f,
+                                    modifier = Modifier.align(Alignment.BottomEnd)
+                                ) {
+                                    showAddOptions = false
+                                    startCreateFolder()
+                                }
+                                FanAction(
+                                    "Scan Document", scanTint, Icons.Outlined.DocumentScanner, 157.5f,
+                                    modifier = Modifier.align(Alignment.BottomEnd)
+                                ) {
+                                    showAddOptions = false
+                                    val activity = context as? Activity
+                                    if (activity == null) {
+                                        message = "Unable to open the document scanner from this screen."
+                                    } else {
+                                        VaultExternalActivityState.documentPickerActive = true
+                                        GmsDocumentScanning.getClient(scannerOptions)
+                                            .getStartScanIntent(activity)
+                                            .addOnSuccessListener { intentSender ->
+                                                scannerLauncher.launch(
+                                                    IntentSenderRequest.Builder(intentSender).build()
+                                                )
+                                            }
+                                            .addOnFailureListener { error ->
+                                                VaultExternalActivityState.documentPickerActive = false
+                                                message = error.localizedMessage
+                                                    ?: "Unable to start document scanning. Check Google Play services and try again."
+                                            }
                                     }
+                                }
+                                FanAction(
+                                    "Take Photo", cameraTint, Icons.Outlined.PhotoCamera, 180f,
+                                    modifier = Modifier.align(Alignment.BottomEnd)
+                                ) {
+                                    showAddOptions = false
+                                    launchPhotoCapture()
+                                }
+
+                                FloatingActionButton(
+                                    onClick = { showAddOptions = false },
+                                    modifier = Modifier.align(Alignment.BottomEnd).size(closeSize.dp),
+                                    containerColor = documentAccent,
+                                    contentColor = palette.onAccent,
+                                    shape = CircleShape
+                                ) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Close add actions")
                                 }
                             }
                         }
-
-                        // Evenly spaced on one quarter-circle arc: 112.5°, 135°, 157.5°, 180°.
-                        FanAction(
-                            "Upload Files", uploadTint, Icons.Outlined.Description, 112.5f,
-                            modifier = Modifier.align(Alignment.BottomEnd)
-                        ) {
-                            showAddOptions = false
-                            VaultExternalActivityState.documentPickerActive = true
-                            picker.launch(arrayOf("*/*"))
-                        }
-                        FanAction(
-                            "Create Folder", folderTint, Icons.Outlined.FolderOpen, 135f,
-                            modifier = Modifier.align(Alignment.BottomEnd)
-                        ) {
-                            showAddOptions = false
-                            startCreateFolder()
-                        }
-                        FanAction(
-                            "Scan Document", scanTint, Icons.Outlined.DocumentScanner, 157.5f,
-                            modifier = Modifier.align(Alignment.BottomEnd)
-                        ) {
-                            showAddOptions = false
-                            val activity = context as? Activity
-                            if (activity == null) {
-                                message = "Unable to open the document scanner from this screen."
-                            } else {
-                                VaultExternalActivityState.documentPickerActive = true
-                                GmsDocumentScanning.getClient(scannerOptions)
-                                    .getStartScanIntent(activity)
-                                    .addOnSuccessListener { intentSender ->
-                                        scannerLauncher.launch(
-                                            IntentSenderRequest.Builder(intentSender).build()
-                                        )
-                                    }
-                                    .addOnFailureListener { error ->
-                                        VaultExternalActivityState.documentPickerActive = false
-                                        message = error.localizedMessage
-                                            ?: "Unable to start document scanning. Check Google Play services and try again."
-                                    }
-                            }
-                        }
-                        FanAction(
-                            "Take Photo", cameraTint, Icons.Outlined.PhotoCamera, 180f,
-                            modifier = Modifier.align(Alignment.BottomEnd)
-                        ) {
-                            showAddOptions = false
-                            launchPhotoCapture()
-                        }
-
-                        FloatingActionButton(
-                            onClick = { showAddOptions = false },
-                            modifier = Modifier.align(Alignment.BottomEnd).size(closeSize.dp),
-                            containerColor = documentAccent,
-                            contentColor = palette.onAccent,
-                            shape = CircleShape
-                        ) {
-                            Icon(Icons.Outlined.Close, contentDescription = "Close add actions")
-                        }
-                    }
-d.Close, contentDescription = "Close add actions")
-                        }
-                    }
                 } else {
                     ExtendedFloatingActionButton(
                         onClick = { showAddOptions = true },
