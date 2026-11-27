@@ -1337,7 +1337,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
                     }
-                    }
                 }
             )
         },
@@ -1491,9 +1490,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     )
                                 }
                             }
-                        }
             }
-        }
+        },
     ) { padding ->
         Box(
             Modifier
