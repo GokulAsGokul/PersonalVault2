@@ -1489,7 +1489,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         shape = RoundedCornerShape(18.dp)
                                     )
                                 }
-                            }
             }
         },
     ) { padding ->
