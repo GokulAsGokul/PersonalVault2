@@ -6006,16 +6006,8 @@ private fun DocumentDashboardStatCardV2New(
 }
 
 private fun documentDisplayNameV2New(document: DocumentRecordV2): String {
-    val displayName = document.title.ifBlank { document.originalFileName }.trim()
-    val originalName = document.originalFileName.trim()
-    val extension = originalName.substringAfterLast('.', "")
-        .takeIf { it.isNotBlank() && originalName.lastIndexOf('.') > 0 }
-        ?: return displayName
-
-    return if (displayName.endsWith(".$extension", ignoreCase = true)) {
-        displayName
-    } else {
-        "$displayName.$extension"
+    return document.originalFileName.trim().ifBlank {
+        document.title.trim()
     }
 }
 
@@ -6136,7 +6128,7 @@ private fun DocumentRowV2New(
                     documentDisplayNameV2New(document),
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 3,
+                    maxLines = Int.MAX_VALUE,
                     softWrap = true,
                     overflow = TextOverflow.Clip,
                     style = MaterialTheme.typography.bodyLarge
@@ -6255,7 +6247,7 @@ private fun DocumentGridCardV2New(
             Text(
                 documentDisplayNameV2New(document),
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 3,
+                maxLines = Int.MAX_VALUE,
                 softWrap = true,
                 overflow = TextOverflow.Clip,
                 style = MaterialTheme.typography.bodyMedium
