@@ -44,6 +44,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlin.math.sin
+import kotlin.math.cos
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
@@ -1334,78 +1337,106 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             }
                         }
                     }
-                }
-            )
-        },
-        floatingActionButton = {
-            if (!recycleBin) {
-                if (showAddOptions) {
+                        if (showAddOptions) {
                     val uploadTint = Color(0xFF9B45D5)
                     val folderTint = Color(0xFF3478D4)
                     val scanTint = Color(0xFF269B62)
                     val cameraTint = Color(0xFFD58A2B)
-                    val actionPillShape = RoundedCornerShape(18.dp)
+                    val pillColor = if (isDarkUi) Color(0xFF2B2135) else Color.White
+                    val pillTextColor = if (isDarkUi) Color(0xFFF2ECF8) else Color(0xFF211536)
+
+                    // Fan geometry (dp). Angles are measured from the Close button centre:
+                    // 180° = straight left, 90° = straight up.
+                    val fanRadius = 195f
+                    val closeSize = 60f
+                    val actionSize = 52f
 
                     Box(
                         modifier = Modifier
                             .width(380.dp)
-                            .height(390.dp)
+                            .height(260.dp)
                     ) {
                         @Composable
-                        fun ActionItem(
+                        fun FanAction(
                             title: String,
                             tint: Color,
                             icon: ImageVector,
+                            angleDeg: Float,
                             modifier: Modifier = Modifier,
                             onClick: () -> Unit
                         ) {
-                            Column(
+                            val rad = Math.toRadians(angleDeg.toDouble())
+                            // Circle centre relative to the Close button centre (Compose y points down).
+                            val dx = (fanRadius * cos(rad)).toFloat()
+                            val dy = (-fanRadius * sin(rad)).toFloat()
+                            // Correct for the 52 dp action circle vs 60 dp close button.
+                            val offsetX = dx + (actionSize - closeSize) / 2f
+                            val offsetY = dy + (actionSize - closeSize) / 2f
+
+                            Row(
                                 modifier = modifier
-                                    .size(width = 96.dp, height = 95.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .clickable(onClick = onClick)
-                                    .padding(4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                                    .offset(x = offsetX.dp, y = offsetY.dp)
+                                    .clip(RoundedCornerShape(26.dp))
+                                    .clickable(onClick = onClick),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Surface(
-                                    modifier = Modifier.size(52.dp),
+                                    modifier = Modifier.height(24.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = pillColor
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(horizontal = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            title,
+                                            color = pillTextColor,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                }
+                                Surface(
+                                    modifier = Modifier.size(actionSize.dp),
+                                    shape = CircleShape,
                                     color = tint,
                                     contentColor = Color.White,
-                                    shape = RoundedCornerShape(15.dp),
                                     shadowElevation = 5.dp
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             icon,
-                                            contentDescription = null,
+                                            contentDescription = title,
                                             modifier = Modifier.size(27.dp)
                                         )
                                     }
                                 }
-                                Text(
-                                    title,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = 15.sp,
-                                    maxLines = 2
-                                )
                             }
                         }
 
-                        // Quarter-circle arrangement without a decorative arc or panel.
-                        ActionItem(
-                            "Take Photo", cameraTint, Icons.Outlined.PhotoCamera,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 18.dp, y = 35.dp)
+                        // Evenly spaced on one quarter-circle arc: 112.5°, 135°, 157.5°, 180°.
+                        FanAction(
+                            "Upload Files", uploadTint, Icons.Outlined.Description, 112.5f,
+                            modifier = Modifier.align(Alignment.BottomEnd)
                         ) {
                             showAddOptions = false
-                            launchPhotoCapture()
+                            VaultExternalActivityState.documentPickerActive = true
+                            picker.launch(arrayOf("*/*"))
                         }
-                        ActionItem(
-                            "Scan Document", scanTint, Icons.Outlined.DocumentScanner,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-111.9).dp, y = (-40).dp)
+                        FanAction(
+                            "Create Folder", folderTint, Icons.Outlined.FolderOpen, 135f,
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                        ) {
+                            showAddOptions = false
+                            startCreateFolder()
+                        }
+                        FanAction(
+                            "Scan Document", scanTint, Icons.Outlined.DocumentScanner, 157.5f,
+                            modifier = Modifier.align(Alignment.BottomEnd)
                         ) {
                             showAddOptions = false
                             val activity = context as? Activity
@@ -1427,30 +1458,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     }
                             }
                         }
-                        ActionItem(
-                            "Create Folder", folderTint, Icons.Outlined.FolderOpen,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = (-57).dp, y = (-94.9).dp)
+                        FanAction(
+                            "Take Photo", cameraTint, Icons.Outlined.PhotoCamera, 180f,
+                            modifier = Modifier.align(Alignment.BottomEnd)
                         ) {
                             showAddOptions = false
-                            startCreateFolder()
-                        }
-                        ActionItem(
-                            "Upload Files", uploadTint, Icons.Outlined.Description,
-                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 18.dp, y = (-115).dp)
-                        ) {
-                            showAddOptions = false
-                            VaultExternalActivityState.documentPickerActive = true
-                            picker.launch(arrayOf("*/*"))
+                            launchPhotoCapture()
                         }
 
                         FloatingActionButton(
                             onClick = { showAddOptions = false },
-                            modifier = Modifier.align(Alignment.BottomEnd).size(60.dp),
+                            modifier = Modifier.align(Alignment.BottomEnd).size(closeSize.dp),
                             containerColor = documentAccent,
                             contentColor = palette.onAccent,
-                            shape = RoundedCornerShape(18.dp)
+                            shape = CircleShape
                         ) {
                             Icon(Icons.Outlined.Close, contentDescription = "Close add actions")
+                        }
+                    }
+d.Close, contentDescription = "Close add actions")
                         }
                     }
                 } else {
