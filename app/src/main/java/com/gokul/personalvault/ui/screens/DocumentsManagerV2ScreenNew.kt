@@ -4832,28 +4832,113 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     if (showBulkPermanentDeleteConfirm) {
-        AlertDialog(
-            shape = RoundedCornerShape(24.dp),
-            containerColor = MaterialTheme.colorScheme.surface,
+        val deleteSurface = if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF)
+        val deleteWaveBack = if (isDarkUi) Color(0xFF63347F) else Color(0xFFDCC0F5)
+        val deleteWaveFront = if (isDarkUi) Color(0xFF8D52B4) else Color(0xFFE9D5FA)
+        val deleteAccent = if (isDarkUi) Color(0xFFD7B5FF) else Color(0xFF7136B8)
+        Dialog(
             onDismissRequest = { if (!busyDocument) showBulkPermanentDeleteConfirm = false },
-            title = { Text("Delete selected documents permanently?") },
-            text = { Text("The selected personal documents owned by you and their stored files will be permanently deleted. This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    enabled = !busyDocument,
-                    onClick = {
-                        showBulkPermanentDeleteConfirm = false
-                        runBulkPermanentDelete()
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                Modifier.fillMaxWidth(0.92f)
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(deleteSurface)
+                    .drawBehind {
+                        val waveHeight = 48.dp.toPx()
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.78f)
+                            cubicTo(size.width * 0.24f, size.height - waveHeight * 1.35f,
+                                size.width * 0.36f, size.height - waveHeight * 0.05f,
+                                size.width * 0.58f, size.height - waveHeight * 0.45f)
+                            cubicTo(size.width * 0.78f, size.height - waveHeight * 0.85f,
+                                size.width * 0.86f, size.height - waveHeight * 1.18f,
+                                size.width, size.height - waveHeight * 0.62f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawPath(backWave, deleteWaveBack)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.38f)
+                            cubicTo(size.width * 0.22f, size.height - waveHeight * 0.85f,
+                                size.width * 0.42f, size.height - waveHeight * 0.02f,
+                                size.width * 0.62f, size.height - waveHeight * 0.28f)
+                            cubicTo(size.width * 0.80f, size.height - waveHeight * 0.50f,
+                                size.width * 0.88f, size.height - waveHeight * 0.68f,
+                                size.width, size.height - waveHeight * 0.32f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawPath(frontWave, deleteWaveFront)
                     }
-                ) { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !busyDocument,
-                    onClick = { showBulkPermanentDeleteConfirm = false }
-                ) { Text("Cancel") }
+            ) {
+                Column(
+                    Modifier.fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 26.dp, bottom = 58.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                                .background(if (isDarkUi) Color(0xFF594078) else Color(0xFFE9DDFB)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.DeleteForever, null, tint = deleteAccent,
+                                modifier = Modifier.size(32.dp))
+                        }
+                        Text(
+                            "Delete permanently?",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Text(
+                        "Selected documents will be permanently deleted.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = { showBulkPermanentDeleteConfirm = false },
+                            enabled = !busyDocument,
+                            modifier = Modifier.weight(1f).height(54.dp)
+                                .clip(RoundedCornerShape(50)),
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFFDCC0F5) else Color(0xFFE9D5FA),
+                                contentColor = if (isDarkUi) Color(0xFF30203F) else Color(0xFF54217F)
+                            )
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
+                        }
+                        Button(
+                            onClick = {
+                                showBulkPermanentDeleteConfirm = false
+                                runBulkPermanentDelete()
+                            },
+                            enabled = !busyDocument,
+                            modifier = Modifier.weight(1.35f).height(54.dp)
+                                .clip(RoundedCornerShape(50)),
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFF9B28F4) else Color(0xFF8A35D1),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Text("Delete Permanently", fontWeight = FontWeight.Bold,
+                                maxLines = 1, softWrap = false)
+                        }
+                    }
+                }
             }
-        )
+        }
     }
 
     permanentDeleteTarget?.let { doc ->
