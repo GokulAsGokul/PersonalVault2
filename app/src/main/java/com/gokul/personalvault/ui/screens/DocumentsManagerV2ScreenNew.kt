@@ -1213,7 +1213,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             try {
                 targets.forEach { doc ->
                     isMovingToRecycleBin = true
-                    recycleBinMoveFileName = if (targets.size > 1) "Moving ${succeeded + 1} of ${targets.size} documents" else doc.title.ifBlank { doc.originalFileName }
+                    recycleBinMoveFileName = if (targets.size > 1) "Moving ${succeeded + 1} of ${targets.size} documents" else doc.originalFileName.ifBlank { doc.title }
                     repository.moveToRecycleBin(vaultId, doc)
                     succeeded++
                 }
@@ -4502,7 +4502,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         scope.launch {
                                             busyDocument = true
                                             isMovingToRecycleBin = true
-                                            recycleBinMoveFileName = doc.title.ifBlank { doc.originalFileName }
+                                            recycleBinMoveFileName = doc.originalFileName.ifBlank { doc.title }
                                             try {
                                                 repository.moveToRecycleBin(vaultId, doc)
                                                 selectedDocument = null
