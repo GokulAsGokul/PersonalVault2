@@ -232,6 +232,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var deleteFolderError by remember { mutableStateOf<String?>(null) }
     var permanentDeleteTarget by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var showBulkPermanentDeleteConfirm by remember { mutableStateOf(false) }
+    var permanentlyDeletingSelected by remember { mutableStateOf(false) }
+    var permanentDeleteSelectedProgress by remember { mutableIntStateOf(0) }
+    var permanentDeleteSelectedTotal by remember { mutableIntStateOf(0) }
     var showEmptyRecycleBinConfirm by remember { mutableStateOf(false) }
     var showRecycleBinSearch by remember { mutableStateOf(false) }
     var showDocumentSearch by remember { mutableStateOf(false) }
@@ -1155,11 +1158,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val skipped = selectedDocumentIds.size - targets.size
         scope.launch {
             busyDocument = true
+            permanentlyDeletingSelected = true
+            permanentDeleteSelectedProgress = 0
+            permanentDeleteSelectedTotal = targets.size
             var succeeded = 0
             try {
                 targets.forEach { doc ->
                     repository.permanentlyDelete(vaultId, doc.id)
                     succeeded++
+                    permanentDeleteSelectedProgress = succeeded
                 }
                 message = "$succeeded document(s) permanently deleted." +
                     if (skipped > 0) " $skipped skipped: only personal documents owned by you can be permanently deleted." else ""
@@ -1168,6 +1175,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } finally {
                 selectedDocumentIds.clear()
                 selectionMode = false
+                permanentlyDeletingSelected = false
                 busyDocument = false
             }
         }
@@ -4861,6 +4869,51 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
             }
         )
+    }
+
+    if (permanentlyDeletingSelected) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.88f),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text("Deleting Documents", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        if (permanentDeleteSelectedTotal == 1)
+                            "Permanently deleting document..."
+                        else
+                            "Permanently deleting selected documents...",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    LinearProgressIndicator(
+                        progress = {
+                            if (permanentDeleteSelectedTotal > 0)
+                                permanentDeleteSelectedProgress.toFloat() / permanentDeleteSelectedTotal
+                            else 0f
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "$permanentDeleteSelectedProgress of $permanentDeleteSelectedTotal completed",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 
     if (showBulkPermanentDeleteConfirm) {
