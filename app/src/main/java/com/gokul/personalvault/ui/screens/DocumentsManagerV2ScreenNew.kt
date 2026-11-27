@@ -3438,42 +3438,171 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     if (showRenameFolder) {
-        AlertDialog(
-
-            shape = RoundedCornerShape(24.dp),
-
-            containerColor = MaterialTheme.colorScheme.surface,
-
-            tonalElevation = 8.dp,
+        Dialog(
             onDismissRequest = { showRenameFolder = false },
-            title = { Text("Rename Folder") },
-            text = {
-                OutlinedTextField(
-                    value = renameFolderName,
-                    onValueChange = { renameFolderName = it.take(30) },
-                    label = { Text("Folder name") },
-                    supportingText = { Text(renameFolderName.length.toString() + "/30") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(enabled = renameFolderName.trim().isNotEmpty() && !busyDocument, onClick = {
-                    val folder = selectedFolder ?: return@TextButton
-                    scope.launch {
-                        busyDocument = true
-                        try {
-                            repository.renameFolder(vaultId, folder, renameFolderName)
-                            showRenameFolder = false
-                            message = "Folder renamed."
-                        } catch (error: Exception) {
-                            showRenameFolder = false
-                            message = error.localizedMessage ?: error.message ?: "Unable to rename folder."
-                        } finally { busyDocument = false }
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = true
+            )
+        ) {
+            val dialogDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+            val dialogSurface = if (dialogDark) Color(0xFF241B30) else Color(0xFFF8F3FF)
+            val dialogAccent = if (dialogDark) Color(0xFFB979E8) else Color(0xFF7622C8)
+            val dialogButtonText = if (dialogDark) Color(0xFF24152F) else Color.White
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.90f)
+                    .widthIn(max = 420.dp)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(dialogSurface)
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 34.dp.toPx())
+                            cubicTo(
+                                width * 0.18f, height - 48.dp.toPx(),
+                                width * 0.34f, height - 2.dp.toPx(),
+                                width * 0.55f, height - 20.dp.toPx()
+                            )
+                            cubicTo(
+                                width * 0.76f, height - 34.dp.toPx(),
+                                width * 0.88f, height - 50.dp.toPx(),
+                                width, height - 34.dp.toPx()
+                            )
+                            lineTo(width, height)
+                            lineTo(0f, height)
+                            close()
+                        }
+                        drawPath(backWave, if (dialogDark) Color(0xFF542A73) else Color(0xFFD7B8EF))
+
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 16.dp.toPx())
+                            cubicTo(
+                                width * 0.20f, height - 30.dp.toPx(),
+                                width * 0.38f, height - 2.dp.toPx(),
+                                width * 0.56f, height - 12.dp.toPx()
+                            )
+                            cubicTo(
+                                width * 0.78f, height - 22.dp.toPx(),
+                                width * 0.90f, height - 28.dp.toPx(),
+                                width, height - 16.dp.toPx()
+                            )
+                            lineTo(width, height)
+                            lineTo(0f, height)
+                            close()
+                        }
+                        drawPath(frontWave, if (dialogDark) Color(0xFF8846AC) else Color(0xFFE8D1F8))
                     }
-                }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { showRenameFolder = false }) { Text("Cancel") } }
-        )
+                    .padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 54.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(58.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(if (dialogDark) Color(0xFF583174) else Color(0xFFEAD8FA)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.FolderOpen,
+                            contentDescription = null,
+                            tint = if (dialogDark) Color(0xFFE8C8FF) else Color(0xFF7025A8),
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                    Text(
+                        "Rename Folder",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedTextField(
+                        value = renameFolderName,
+                        onValueChange = { renameFolderName = it.take(30) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Folder name") },
+                        trailingIcon = {
+                            if (renameFolderName.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { renameFolderName = "" },
+                                    modifier = Modifier.clip(CircleShape)
+                                ) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear folder name")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    Text(
+                        "${renameFolderName.length}/30",
+                        modifier = Modifier.padding(start = 16.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { showRenameFolder = false },
+                        modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50)),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (dialogDark) Color(0xFFDDB8F2) else Color(0xFFEAD8FA),
+                            contentColor = Color(0xFF281936)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                    ) {
+                        Text("Cancel", fontWeight = FontWeight.Medium)
+                    }
+                    Button(
+                        enabled = renameFolderName.trim().isNotEmpty() && !busyDocument,
+                        onClick = {
+                            val folder = selectedFolder ?: return@Button
+                            scope.launch {
+                                busyDocument = true
+                                try {
+                                    repository.renameFolder(vaultId, folder, renameFolderName)
+                                    showRenameFolder = false
+                                    message = "Folder renamed."
+                                } catch (error: Exception) {
+                                    showRenameFolder = false
+                                    message = error.localizedMessage ?: error.message ?: "Unable to rename folder."
+                                } finally {
+                                    busyDocument = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50)),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF9700E8),
+                            contentColor = Color.White,
+                            disabledContainerColor = dialogAccent.copy(alpha = 0.35f),
+                            disabledContentColor = Color.White.copy(alpha = 0.7f)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                    ) {
+                        Text("Save", fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
     }
 
     if (showMoveFolder) {
