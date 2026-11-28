@@ -5972,6 +5972,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         if (doc != null) {
             val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
                 ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+            val locationPath = buildString {
+                append("My Documents / ")
+                append(categoryLabel)
+                val folderNames = mutableListOf<String>()
+                var folderCursor = doc.folderId
+                val visitedFolderIds = mutableSetOf<String>()
+                while (folderCursor != null && visitedFolderIds.add(folderCursor)) {
+                    val folder = folders.firstOrNull { it.id == folderCursor } ?: break
+                    folderNames.add(0, folder.name)
+                    folderCursor = folder.parentFolderId
+                }
+                folderNames.forEach { append(" / "); append(it) }
+            }
             val fullFileName = doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) }
             val fileType = documentTypeDisplayNameV2New(doc)
             val detailsSurface = if (isDarkUi) Color(0xFF21182B) else Color(0xFFF8F3FF)
@@ -6165,17 +6178,32 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1
                                 )
-                                Text(
-                                    value,
-                                    modifier = Modifier.weight(1.6f),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                                    fontWeight = FontWeight.Medium,
-                                    textAlign = TextAlign.End,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                if (label == "Location") {
+                                    Text(
+                                        value,
+                                        modifier = Modifier.weight(1.6f)
+                                            .horizontalScroll(rememberScrollState()),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip
+                                    )
+                                } else {
+                                    Text(
+                                        value,
+                                        modifier = Modifier.weight(1.6f),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                             if (showDivider) HorizontalDivider(
                                 Modifier.padding(start = 42.dp),
@@ -6185,7 +6213,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
                         fileInformationRow("File Type", fileType, Icons.Outlined.Description)
                         fileInformationRow("File Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
-                        fileInformationRow("Location", "My Documents / ${categoryLabel}", Icons.Outlined.FolderOpen)
+                        fileInformationRow("Location", locationPath, Icons.Outlined.FolderOpen)
                         fileInformationRow(
                             "Date Added",
                             doc.uploadedAt?.toDate()?.let {
