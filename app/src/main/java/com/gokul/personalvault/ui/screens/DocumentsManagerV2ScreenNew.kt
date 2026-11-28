@@ -1875,44 +1875,121 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 if (recycleBin) {
                     item(key = "recycle_bin_overview") {
                         val totalBytes = deleted.sumOf { it.sizeBytes }
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                            shape = RoundedCornerShape(26.dp),
-                            colors = CardDefaults.cardColors(containerColor = palette.surface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, documentAccent.copy(alpha = 0.22f))
+                        val overviewSurface = if (isDarkUi) Color(0xFF21152B) else Color(0xFFF8F2FF)
+                        val statSurface = if (isDarkUi) Color(0xFF34213F) else Color(0xFFEFE3FA)
+                        val overviewAccent = if (isDarkUi) Color(0xFFD59AFF) else Color(0xFF7835B5)
+                        val backWaveColor = if (isDarkUi) Color(0xFF633184) else Color(0xFFD9B9F0)
+                        val frontWaveColor = if (isDarkUi) Color(0xFF9A49C5) else Color(0xFFE9D2FA)
+
+                        Column(
+                            Modifier.fillMaxWidth().padding(top = 6.dp)
+                                .clip(RoundedCornerShape(28.dp))
+                                .background(overviewSurface)
+                                .border(1.dp, overviewAccent.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                                .drawBehind {
+                                    val width = size.width
+                                    val height = size.height
+                                    val backWave = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(0f, height - 48.dp.toPx())
+                                        cubicTo(width * 0.18f, height - 72.dp.toPx(),
+                                            width * 0.34f, height - 4.dp.toPx(),
+                                            width * 0.56f, height - 34.dp.toPx())
+                                        cubicTo(width * 0.76f, height - 58.dp.toPx(),
+                                            width * 0.88f, height - 72.dp.toPx(),
+                                            width, height - 46.dp.toPx())
+                                        lineTo(width, height)
+                                        lineTo(0f, height)
+                                        close()
+                                    }
+                                    drawPath(backWave, backWaveColor)
+                                    val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(0f, height - 24.dp.toPx())
+                                        cubicTo(width * 0.20f, height - 44.dp.toPx(),
+                                            width * 0.38f, height - 4.dp.toPx(),
+                                            width * 0.57f, height - 22.dp.toPx())
+                                        cubicTo(width * 0.78f, height - 38.dp.toPx(),
+                                            width * 0.90f, height - 48.dp.toPx(),
+                                            width, height - 24.dp.toPx())
+                                        lineTo(width, height)
+                                        lineTo(0f, height)
+                                        close()
+                                    }
+                                    drawPath(frontWave, frontWaveColor)
+                                }
+                                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 58.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Column(Modifier.fillMaxWidth().padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(Modifier.size(58.dp), shape = RoundedCornerShape(18.dp),
-                                        color = if (isDarkUi) Color(0xFF40252D) else Color(0xFFFFE8E8)) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Outlined.Delete, null, tint = Color(0xFFE36A75),
-                                                modifier = Modifier.size(30.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                @Composable
+                                fun RecycleStat(
+                                    icon: ImageVector,
+                                    value: String,
+                                    label: String
+                                ) {
+                                    Row(
+                                        Modifier.weight(1f)
+                                            .clip(RoundedCornerShape(22.dp))
+                                            .background(statSurface)
+                                            .border(1.dp, overviewAccent.copy(alpha = 0.55f), RoundedCornerShape(22.dp))
+                                            .padding(horizontal = 12.dp, vertical = 16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Box(
+                                            Modifier.size(48.dp).clip(CircleShape)
+                                                .background(overviewAccent.copy(alpha = 0.16f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(icon, null, tint = overviewAccent, modifier = Modifier.size(26.dp))
+                                        }
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                value,
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                label,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = palette.muted,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
                                         }
                                     }
-                                    Spacer(Modifier.width(14.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text("Recycle Bin", style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold)
-                                        Text("Deleted files stay here for 30 days",
-                                            color = palette.muted, style = MaterialTheme.typography.bodySmall)
-                                    }
                                 }
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(deleted.size.toString(), style = MaterialTheme.typography.headlineSmall,
-                                            fontWeight = FontWeight.Bold)
-                                        Text("Deleted items", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-                                    }
-                                    Column(Modifier.weight(1f)) {
-                                        Text(formatDocumentBytesNew(totalBytes), style = MaterialTheme.typography.headlineSmall,
-                                            fontWeight = FontWeight.Bold)
-                                        Text("Storage used", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-                                    }
-                                }
-                                Text("Items are automatically and permanently deleted 30 days after they were moved here.",
-                                    color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                                RecycleStat(Icons.Outlined.Description, deleted.size.toString(), "Deleted items")
+                                RecycleStat(Icons.Outlined.Storage, formatDocumentBytesNew(totalBytes), "Storage used")
+                            }
+
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Info,
+                                    contentDescription = null,
+                                    tint = overviewAccent,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                                Box(
+                                    Modifier.width(2.dp).height(48.dp)
+                                        .background(overviewAccent.copy(alpha = 0.65f))
+                                )
+                                Text(
+                                    "Items are automatically and permanently deleted 30 days after they were moved here.",
+                                    Modifier.weight(1f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
                         }
                     }
