@@ -4462,8 +4462,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 color = if (isDarkUi) Color(0xFF512331) else Color(0xFFFFE1E6)
                             ) {
                                 Text(
-                                    if (doc.contentType.contains("pdf", true)) "PDF Document"
-                                    else doc.contentType.substringAfter('/').uppercase() + " File",
+                                    documentTypeDisplayNameV2New(doc),
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                                     color = if (isDarkUi) Color(0xFFFFA0B4) else Color(0xFFB42345),
                                     style = MaterialTheme.typography.labelMedium,
@@ -4598,14 +4597,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     val remainingDays = doc.purgeAt?.toDate()?.time?.let {
                         kotlin.math.ceil((it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0).toInt()
                     }
-                    val typeLabel = when {
-                        doc.contentType.contains("pdf", true) -> "PDF Document"
-                        doc.contentType.startsWith("image/") -> "${doc.contentType.substringAfter('/').uppercase()} Image"
-                        doc.contentType.contains("word", true) -> "Word Document"
-                        doc.contentType.contains("sheet", true) || doc.contentType.contains("excel", true) -> "Spreadsheet"
-                        else -> doc.contentType.substringAfter('/').replace('-', ' ').replace('_', ' ')
-                            .replaceFirstChar { it.uppercase() } + " File"
-                    }
+                    val typeLabel = documentTypeDisplayNameV2New(doc)
                     Column(
                         Modifier.fillMaxWidth().padding(horizontal = 4.dp).padding(bottom = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -4990,7 +4982,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         overflow = TextOverflow.Clip
                                     )
                                     Text(
-                                        "${formatDocumentBytesNew(doc.sizeBytes)}  •  ${doc.contentType.substringAfter('/').uppercase()}",
+                                        "${formatDocumentBytesNew(doc.sizeBytes)}  •  ${doc.originalFileName.substringAfterLast('.', "").uppercase(Locale.ROOT).ifBlank { documentTypeDisplayNameV2New(doc) }}",
                                         color = muted,
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 1
@@ -5938,7 +5930,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
                 ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
             val fullFileName = doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) }
-            val fileType = doc.contentType.substringAfter('/').uppercase().ifBlank { "File" }
+            val fileType = documentTypeDisplayNameV2New(doc)
             val detailsSurface = if (isDarkUi) Color(0xFF21182B) else Color(0xFFF8F3FF)
             val detailsCard = if (isDarkUi) Color(0xFF30243D) else Color(0xFFEFE6F8)
             val detailsAccent = if (isDarkUi) Color(0xFFD3A0FF) else Color(0xFF7136B8)
@@ -6497,6 +6489,45 @@ private fun sortLabelV2New(sort: DocumentSortV2New): String = when (sort) {
     DocumentSortV2New.OLDEST -> "Oldest first"
     DocumentSortV2New.LARGEST -> "Largest first"
     DocumentSortV2New.SMALLEST -> "Smallest first"
+}
+
+private fun documentTypeDisplayNameV2New(document: DocumentRecordV2): String {
+    val extension = document.originalFileName.substringAfterLast('.', "")
+        .lowercase(Locale.ROOT)
+    val mimeType = document.contentType.lowercase(Locale.ROOT)
+
+    return when (extension) {
+        "pdf" -> "PDF Document"
+        "xlsx", "xls", "xlsm", "xlsb" -> "Excel Spreadsheet"
+        "docx", "doc", "rtf" -> "Word Document"
+        "pptx", "ppt" -> "PowerPoint Presentation"
+        "jpg", "jpeg" -> "JPEG Image"
+        "png" -> "PNG Image"
+        "gif" -> "GIF Image"
+        "bmp" -> "Bitmap Image"
+        "webp" -> "WebP Image"
+        "svg" -> "SVG Image"
+        "txt" -> "Text File"
+        "csv" -> "CSV Spreadsheet"
+        "mp3", "wav", "m4a", "aac", "ogg", "flac" -> "Audio File"
+        "mp4", "m4v", "mov", "avi", "mkv", "webm" -> "Video File"
+        "zip" -> "ZIP Archive"
+        "rar" -> "RAR Archive"
+        "7z" -> "7Z Archive"
+        else -> when {
+            mimeType == "application/pdf" -> "PDF Document"
+            mimeType.contains("spreadsheet") || mimeType.contains("excel") -> "Excel Spreadsheet"
+            mimeType.contains("word") || mimeType.contains("msword") -> "Word Document"
+            mimeType.contains("presentation") || mimeType.contains("powerpoint") -> "PowerPoint Presentation"
+            mimeType.startsWith("image/") -> "${mimeType.substringAfter('/').substringBefore(';').uppercase(Locale.ROOT)} Image"
+            mimeType.startsWith("audio/") -> "Audio File"
+            mimeType.startsWith("video/") -> "Video File"
+            mimeType == "text/plain" -> "Text File"
+            mimeType == "text/csv" -> "CSV Spreadsheet"
+            mimeType.contains("zip") -> "ZIP Archive"
+            else -> "File"
+        }
+    }
 }
 
 private fun documentMetaV2New(document: DocumentRecordV2): String {
