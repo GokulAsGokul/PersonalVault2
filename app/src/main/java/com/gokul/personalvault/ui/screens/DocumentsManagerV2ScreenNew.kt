@@ -4651,17 +4651,52 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Modifier.fillMaxWidth()
                             .background(sheetBackground)
                             .drawBehind {
-                                val wave = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(0f, size.height * 0.965f)
-                                    cubicTo(size.width * 0.24f, size.height, size.width * 0.38f, size.height * 0.975f,
-                                        size.width * 0.58f, size.height * 0.965f)
-                                    cubicTo(size.width * 0.78f, size.height * 0.94f, size.width * 0.88f,
-                                        size.height * 0.95f, size.width, size.height * 0.975f)
-                                    lineTo(size.width, size.height)
-                                    lineTo(0f, size.height)
+                                val width = size.width
+                                val height = size.height
+
+                                // Back wave: deeper purple layer with a gentle center dip.
+                                val backWave = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, height * 0.945f)
+                                    cubicTo(
+                                        width * 0.18f, height * 0.905f,
+                                        width * 0.34f, height * 0.995f,
+                                        width * 0.55f, height * 0.955f
+                                    )
+                                    cubicTo(
+                                        width * 0.75f, height * 0.925f,
+                                        width * 0.88f, height * 0.905f,
+                                        width, height * 0.95f
+                                    )
+                                    lineTo(width, height)
+                                    lineTo(0f, height)
                                     close()
                                 }
-                                drawPath(wave, if (isDarkUi) Color(0xFF563273) else Color(0xFFE5D1F7))
+                                drawPath(
+                                    backWave,
+                                    if (isDarkUi) Color(0xFF542A73) else Color(0xFFD7B8EF)
+                                )
+
+                                // Front wave: lighter layer flowing just below the back wave.
+                                val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, height * 0.972f)
+                                    cubicTo(
+                                        width * 0.20f, height * 0.945f,
+                                        width * 0.38f, height * 0.995f,
+                                        width * 0.57f, height * 0.975f
+                                    )
+                                    cubicTo(
+                                        width * 0.78f, height * 0.955f,
+                                        width * 0.90f, height * 0.94f,
+                                        width, height * 0.972f
+                                    )
+                                    lineTo(width, height)
+                                    lineTo(0f, height)
+                                    close()
+                                }
+                                drawPath(
+                                    frontWave,
+                                    if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+                                )
                             }
                     ) {
                         Column(
