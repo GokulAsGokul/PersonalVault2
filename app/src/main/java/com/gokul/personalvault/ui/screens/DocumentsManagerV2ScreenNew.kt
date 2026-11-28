@@ -5391,17 +5391,17 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .background(dialogBackground)
                     .drawBehind {
                         val backWave = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(0f, size.height * 0.84f)
-                            cubicTo(size.width * 0.20f, size.height * 0.77f, size.width * 0.38f, size.height * 0.91f, size.width * 0.56f, size.height * 0.87f)
-                            cubicTo(size.width * 0.75f, size.height * 0.82f, size.width * 0.88f, size.height * 0.83f, size.width, size.height * 0.88f)
+                            moveTo(0f, size.height - 58.dp.toPx())
+                            cubicTo(size.width * 0.20f, size.height - 76.dp.toPx(), size.width * 0.38f, size.height - 42.dp.toPx(), size.width * 0.56f, size.height - 50.dp.toPx())
+                            cubicTo(size.width * 0.75f, size.height - 64.dp.toPx(), size.width * 0.88f, size.height - 68.dp.toPx(), size.width, size.height - 54.dp.toPx())
                             lineTo(size.width, size.height)
                             lineTo(0f, size.height)
                             close()
                         }
                         val frontWave = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(0f, size.height * 0.90f)
-                            cubicTo(size.width * 0.20f, size.height * 0.85f, size.width * 0.39f, size.height * 0.98f, size.width * 0.57f, size.height * 0.94f)
-                            cubicTo(size.width * 0.76f, size.height * 0.89f, size.width * 0.89f, size.height * 0.90f, size.width, size.height * 0.94f)
+                            moveTo(0f, size.height - 30.dp.toPx())
+                            cubicTo(size.width * 0.20f, size.height - 44.dp.toPx(), size.width * 0.39f, size.height - 18.dp.toPx(), size.width * 0.57f, size.height - 26.dp.toPx())
+                            cubicTo(size.width * 0.76f, size.height - 38.dp.toPx(), size.width * 0.89f, size.height - 42.dp.toPx(), size.width, size.height - 28.dp.toPx())
                             lineTo(size.width, size.height)
                             lineTo(0f, size.height)
                             close()
@@ -5419,7 +5419,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 34.dp),
+                        .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 90.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Row(
