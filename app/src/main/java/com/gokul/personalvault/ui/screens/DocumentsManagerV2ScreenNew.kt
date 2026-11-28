@@ -4340,7 +4340,217 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         }
     }
 
-    selectedDocument?.let { doc ->
+    selectedDocument?.takeIf { it.isDeleted }?.let { doc ->
+        val categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second
+            ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+        val locationText = buildString {
+            append("Documents / ")
+            append(if (doc.scope == "SHARED") "Shared" else "Personal")
+            val names = mutableListOf<String>()
+            var cursor = doc.folderId
+            val visited = mutableSetOf<String>()
+            while (cursor != null && visited.add(cursor)) {
+                val folder = folders.firstOrNull { it.id == cursor } ?: break
+                names.add(0, folder.name)
+                cursor = folder.parentFolderId
+            }
+            names.forEach { append(" / "); append(it) }
+        }
+        val deletedText = doc.deletedAt?.toDate()?.let {
+            SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+        } ?: "—"
+        val autoDeleteText = doc.purgeAt?.toDate()?.let {
+            SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+        } ?: "—"
+        val daysLeft = doc.purgeAt?.toDate()?.time?.let {
+            kotlin.math.ceil((it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0).toInt()
+        }
+        val fileName = doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) }
+        val dialogSurface = if (isDarkUi) Color(0xFF21182B) else Color(0xFFF8F3FF)
+        val dialogPanel = if (isDarkUi) Color(0xFF2B2036) else Color(0xFFEFE6F8)
+        val dialogAccent = if (isDarkUi) Color(0xFFD3A0FF) else Color(0xFF7136B8)
+
+        Dialog(
+            onDismissRequest = { if (!busyDocument) selectedDocument = null },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = true
+            )
+        ) {
+            Column(
+                Modifier.fillMaxWidth(0.94f).widthIn(max = 560.dp)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(dialogSurface)
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 34.dp.toPx())
+                            cubicTo(width * 0.18f, height - 48.dp.toPx(), width * 0.34f, height - 2.dp.toPx(),
+                                width * 0.55f, height - 20.dp.toPx())
+                            cubicTo(width * 0.76f, height - 34.dp.toPx(), width * 0.88f, height - 50.dp.toPx(),
+                                width, height - 34.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(backWave, if (isDarkUi) Color(0xFF542A73) else Color(0xFFD7B8EF))
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 16.dp.toPx())
+                            cubicTo(width * 0.20f, height - 30.dp.toPx(), width * 0.38f, height - 2.dp.toPx(),
+                                width * 0.56f, height - 12.dp.toPx())
+                            cubicTo(width * 0.78f, height - 22.dp.toPx(), width * 0.90f, height - 28.dp.toPx(),
+                                width, height - 16.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(frontWave, if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8))
+                    }
+                    .padding(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 54.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "File Information",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    IconButton(
+                        onClick = { selectedDocument = null },
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
+                        Icon(Icons.Outlined.Close, contentDescription = "Close file information",
+                            tint = dialogAccent)
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
+                        .background(dialogPanel).padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    DocumentTypeIconNew(doc.contentType, Modifier.size(76.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            fileName,
+                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = true
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                            Surface(
+                                shape = RoundedCornerShape(50.dp),
+                                color = if (isDarkUi) Color(0xFF512331) else Color(0xFFFFE1E6)
+                            ) {
+                                Text(
+                                    if (doc.contentType.contains("pdf", true)) "PDF Document"
+                                    else doc.contentType.substringAfter('/').uppercase() + " File",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    color = if (isDarkUi) Color(0xFFFFA0B4) else Color(0xFFB42345),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
+                        .background(dialogPanel)
+                        .border(1.dp, dialogAccent.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    @Composable
+                    fun recycleInfoRow(label: String, value: String, icon: ImageVector, divider: Boolean = true) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(icon, contentDescription = null, tint = dialogAccent, modifier = Modifier.size(24.dp))
+                            Text(
+                                label,
+                                modifier = Modifier.weight(1f),
+                                color = dialogAccent,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1
+                            )
+                            Text(
+                                value,
+                                modifier = Modifier.weight(1.55f),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.End,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (divider) HorizontalDivider(
+                            Modifier.padding(start = 42.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                        )
+                    }
+                    recycleInfoRow("Deleted On", deletedText, Icons.Outlined.CalendarToday)
+                    recycleInfoRow("Auto Delete On", autoDeleteText, Icons.Outlined.History)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Outlined.History, null, tint = dialogAccent, modifier = Modifier.size(24.dp))
+                        Text("Days Left", Modifier.weight(1f), color = dialogAccent,
+                            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        val urgent = daysLeft != null && daysLeft < 5
+                        Surface(
+                            shape = RoundedCornerShape(50.dp),
+                            color = when {
+                                daysLeft == null -> MaterialTheme.colorScheme.surfaceVariant
+                                urgent -> if (isDarkUi) Color(0xFF512331) else Color(0xFFFFE1E6)
+                                else -> if (isDarkUi) Color(0xFF174D24) else Color(0xFFE1F5E7)
+                            }
+                        ) {
+                            Text(
+                                daysLeft?.let { if (it <= 0) "Due" else "$it days left" } ?: "—",
+                                Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                color = when {
+                                    daysLeft == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    urgent -> if (isDarkUi) Color(0xFFFFA0B4) else Color(0xFFB42345)
+                                    else -> if (isDarkUi) Color(0xFF8BEA9B) else Color(0xFF21834A)
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                    HorizontalDivider(Modifier.padding(start = 42.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    recycleInfoRow("Location", locationText, Icons.Outlined.FolderOpen)
+                    recycleInfoRow("Category", categoryName, Icons.Outlined.FolderOpen)
+                    recycleInfoRow("Size", formatDocumentBytesNew(doc.sizeBytes),
+                        Icons.Outlined.Description, divider = false)
+                }
+            }
+        }
+    }
+
+    selectedDocument?.takeUnless { it.isDeleted }?.let { doc ->
         ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
             containerColor = if (isDarkUi) Color(0xFF1D1725) else Color(0xFFF7F1FC),
