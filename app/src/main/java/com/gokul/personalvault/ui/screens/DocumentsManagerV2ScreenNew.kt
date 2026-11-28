@@ -4407,12 +4407,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
+                                val displayFileName = doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) }
                                 Text(
-                                    doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) },
-                                    style = MaterialTheme.typography.titleLarge,
+                                    displayFileName,
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontSize = when {
+                                            displayFileName.length > 50 -> 15.sp
+                                            displayFileName.length > 38 -> 17.sp
+                                            else -> MaterialTheme.typography.titleLarge.fontSize
+                                        }
+                                    ),
                                     fontWeight = FontWeight.Bold,
-                                    maxLines = 4,
-                                    overflow = TextOverflow.Clip,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
                                     softWrap = true
                                 )
                                 Row(
@@ -4492,12 +4499,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     )
                                     Text(
                                         value,
-                                        modifier = Modifier.weight(1.35f),
-                                        style = MaterialTheme.typography.bodyLarge,
+                                        modifier = Modifier.weight(1.6f),
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                                         color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.Medium,
                                         textAlign = TextAlign.End,
-                                        softWrap = true
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                                 if (showDivider) HorizontalDivider(
