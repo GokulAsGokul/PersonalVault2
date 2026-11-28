@@ -6767,7 +6767,9 @@ private fun Modifier.dashedBorderV2New(
 private fun formatDashboardStorageV2New(bytes: Long): String = when {
     bytes < 1024 -> "$bytes B"
     bytes < 1024L * 1024L -> String.format(Locale.US, "%.0f KB", bytes / 1024.0)
-    bytes < 1024L * 1024L * 1024L -> String.format(Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
+    // Switch to GB once the rounded MB value would reach 1,000 MB.
+    bytes < (999.5 * 1024.0 * 1024.0).toLong() ->
+        String.format(Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
     else -> String.format(Locale.US, "%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0))
 }
 
