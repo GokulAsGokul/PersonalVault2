@@ -4527,18 +4527,27 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     color = if (isDarkUi) Color(0xFFD2A8FF) else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium
                                 )
+                                val isUrgentRetention = remainingDays != null && remainingDays < 5
+                                val retentionBadgeBackground = when {
+                                    remainingDays == null -> MaterialTheme.colorScheme.surfaceVariant
+                                    isUrgentRetention -> if (isDarkUi) Color(0xFF512331) else Color(0xFFFFE1E6)
+                                    else -> if (isDarkUi) Color(0xFF174D24) else Color(0xFFE1F5E7)
+                                }
+                                val retentionBadgeForeground = when {
+                                    remainingDays == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    isUrgentRetention -> if (isDarkUi) Color(0xFFFFA0B4) else Color(0xFFB42345)
+                                    else -> if (isDarkUi) Color(0xFF8BEA9B) else Color(0xFF21834A)
+                                }
                                 Surface(
                                     shape = RoundedCornerShape(50.dp),
-                                    color = if (remainingDays != null && remainingDays > 0)
-                                        Color(0xFF174D24) else Color(0xFF512331)
+                                    color = retentionBadgeBackground
                                 ) {
                                     Text(
                                         remainingDays?.let {
                                             if (it <= 0) "Due" else "$it days left"
                                         } ?: "—",
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                        color = if (remainingDays != null && remainingDays > 0)
-                                            Color(0xFF8BEA9B) else Color(0xFFFFA0B4),
+                                        color = retentionBadgeForeground,
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
@@ -4550,7 +4559,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Modifier.padding(start = 54.dp),
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                             )
-                            detailRow("Original Location", originalLocation, Icons.Outlined.FolderOpen)
+                            detailRow("Location", originalLocation, Icons.Outlined.FolderOpen)
                             detailRow("Category", categoryName, Icons.Outlined.FolderOpen)
                             detailRow(
                                 "Size",
@@ -6546,8 +6555,15 @@ private fun DocumentRowV2New(
                             ).toInt()
                         }
                         if (remainingDays != null) {
-                            val retentionBackground = if (dark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
-                            val retentionForeground = if (dark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+                            val isUrgentRetention = remainingDays < 5
+                            val retentionBackground = when {
+                                isUrgentRetention -> if (dark) Color(0xFF512331) else Color(0xFFFFE1E6)
+                                else -> if (dark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+                            }
+                            val retentionForeground = when {
+                                isUrgentRetention -> if (dark) Color(0xFFFFA0B4) else Color(0xFFB42345)
+                                else -> if (dark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+                            }
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = retentionBackground
