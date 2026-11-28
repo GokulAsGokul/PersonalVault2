@@ -4515,7 +4515,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Icon(
-                                    Icons.Outlined.HourglassEmpty,
+                                    Icons.Outlined.History,
                                     contentDescription = null,
                                     tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
                                     modifier = Modifier.size(24.dp)
