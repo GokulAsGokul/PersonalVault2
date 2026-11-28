@@ -4432,10 +4432,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 ) {
                     DocumentTypeIconNew(doc.contentType, Modifier.size(76.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        val fileNameFontSize = when {
+                            fileName.length > 60 -> 12.sp
+                            fileName.length > 50 -> 13.sp
+                            fileName.length > 40 -> 14.sp
+                            fileName.length > 30 -> 16.sp
+                            else -> MaterialTheme.typography.titleLarge.fontSize
+                        }
                         Text(
                             fileName,
                             modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontSize = fileNameFontSize,
+                                lineHeight = (fileNameFontSize.value * 1.22f).sp
+                            ),
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 2,
