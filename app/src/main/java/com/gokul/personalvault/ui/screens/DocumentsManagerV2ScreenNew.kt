@@ -4512,10 +4512,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     DocumentTypeIconNew(doc.contentType, Modifier.size(76.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         val fileNameFontSize = when {
-                            fileName.length > 60 -> 12.sp
-                            fileName.length > 50 -> 13.sp
-                            fileName.length > 40 -> 14.sp
-                            fileName.length > 30 -> 16.sp
+                            fileName.length > 60 -> 10.sp
+                            fileName.length > 50 -> 11.sp
+                            fileName.length > 40 -> 12.sp
+                            fileName.length > 30 -> 14.sp
                             else -> MaterialTheme.typography.titleLarge.fontSize
                         }
                         Text(
@@ -6105,10 +6105,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 val fileNameFontSize = when {
-                                    fullFileName.length > 60 -> 12.sp
-                                    fullFileName.length > 50 -> 13.sp
-                                    fullFileName.length > 40 -> 14.sp
-                                    fullFileName.length > 30 -> 16.sp
+                                    fullFileName.length > 60 -> 10.sp
+                                    fullFileName.length > 50 -> 11.sp
+                                    fullFileName.length > 40 -> 12.sp
+                                    fullFileName.length > 30 -> 14.sp
                                     else -> MaterialTheme.typography.titleMedium.fontSize
                                 }
                                 Text(
@@ -6132,11 +6132,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 ) {
                                     ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
                                     Surface(
-                                        shape = RoundedCornerShape(50.dp),
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(12.dp),
                                         color = if (isDarkUi) Color(0xFF352347) else Color(0xFFF0E5FF)
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(5.dp)
                                         ) {
@@ -6148,11 +6150,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             )
                                             Text(
                                                 categoryLabel,
+                                                modifier = Modifier.weight(1f),
                                                 color = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                maxLines = 2,
+                                                softWrap = true,
+                                                overflow = TextOverflow.Clip
                                             )
                                         }
                                     }
