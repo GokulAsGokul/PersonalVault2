@@ -1673,7 +1673,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 DocumentDashboardStatCardV2New("Document", dashboardOverviewDocs.size.toString(),
                                     Icons.Outlined.Description, Modifier.weight(1f), Color(0xFFF0E5FF), Color(0xFF7136B8))
-                                DocumentDashboardStatCardV2New("Storage", formatDocumentBytesNew(dashboardOverviewDocs.sumOf { it.sizeBytes }),
+                                DocumentDashboardStatCardV2New("Storage", formatDashboardStorageV2New(dashboardOverviewDocs.sumOf { it.sizeBytes }),
                                     Icons.Outlined.Storage, Modifier.weight(1f), Color(0xFFE3F0FF), Color(0xFF2875D0))
                                 DocumentDashboardStatCardV2New("Only Me", personalCount.toString(),
                                     Icons.Outlined.Person, Modifier.weight(1f), Color(0xFFE7F7E9), Color(0xFF269B52))
@@ -6762,6 +6762,13 @@ private fun Modifier.dashedBorderV2New(
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
         )
     )
+}
+
+private fun formatDashboardStorageV2New(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024L * 1024L -> String.format(Locale.US, "%.0f KB", bytes / 1024.0)
+    bytes < 1024L * 1024L * 1024L -> String.format(Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
+    else -> String.format(Locale.US, "%.0f GB", bytes / (1024.0 * 1024.0 * 1024.0))
 }
 
 private fun formatDocumentBytesNew(bytes: Long): String = when {
