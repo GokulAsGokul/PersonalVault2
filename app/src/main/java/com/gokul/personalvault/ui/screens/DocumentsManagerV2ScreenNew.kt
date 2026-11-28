@@ -4588,17 +4588,35 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1
                             )
-                            Text(
-                                value,
-                                modifier = Modifier.weight(1.55f),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.End,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            if (label == "Location") {
+                                Box(
+                                    Modifier.weight(1.55f).horizontalScroll(rememberScrollState()),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        value,
+                                        modifier = Modifier.wrapContentWidth(),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    value,
+                                    modifier = Modifier.weight(1.55f),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                         if (divider) HorizontalDivider(
                             Modifier.padding(start = 42.dp),
@@ -6179,18 +6197,21 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     maxLines = 1
                                 )
                                 if (label == "Location") {
-                                    Text(
-                                        value,
-                                        modifier = Modifier.weight(1.6f)
-                                            .horizontalScroll(rememberScrollState()),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                                        fontWeight = FontWeight.Medium,
-                                        textAlign = TextAlign.End,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Clip
-                                    )
+                                    Box(
+                                        Modifier.weight(1.6f).horizontalScroll(rememberScrollState()),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Text(
+                                            value,
+                                            modifier = Modifier.wrapContentWidth(),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Clip
+                                        )
+                                    }
                                 } else {
                                     Text(
                                         value,
