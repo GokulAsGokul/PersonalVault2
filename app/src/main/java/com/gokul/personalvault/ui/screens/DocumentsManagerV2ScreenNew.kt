@@ -1874,7 +1874,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 // ── Category / folder / all / recycle bin ──
                 if (recycleBin) {
                     item(key = "recycle_bin_overview") {
-                        val totalBytes = deleted.sumOf { it.sizeBytes }
+                        // Keep the overview statistics in sync with the exact list shown below.
+                        val recycleBinItems = visible
+                        val totalBytes = recycleBinItems.sumOf { it.sizeBytes }
                         val overviewSurface = if (isDarkUi) Color(0xFF21152B) else Color(0xFFF8F2FF)
                         val statSurface = if (isDarkUi) Color(0xFF34213F) else Color(0xFFEFE3FA)
                         val overviewAccent = if (isDarkUi) Color(0xFFD59AFF) else Color(0xFF7835B5)
@@ -1965,7 +1967,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         }
                                     }
                                 }
-                                RecycleStat(Icons.Outlined.Description, deleted.size.toString(), "Deleted items")
+                                RecycleStat(Icons.Outlined.Description, recycleBinItems.size.toString(), "Deleted items")
                                 RecycleStat(Icons.Outlined.Storage, formatDocumentBytesNew(totalBytes), "Storage used")
                             }
 
