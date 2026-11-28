@@ -257,11 +257,16 @@ class DocumentRepositoryV2(
             }
         }
 
-        val siblings = folderCollection(vaultId)
+        var siblingsQuery = folderCollection(vaultId)
             .whereEqualTo("categoryId", folder.categoryId)
             .whereEqualTo("parentFolderId", newParentFolderId)
             .whereEqualTo("scope", folder.scope)
-            .get().await()
+        // Firestore rules only allow PERSONAL folder queries when they are
+        // constrained to the signed-in owner's records.
+        if (folder.scope == "PERSONAL") {
+            siblingsQuery = siblingsQuery.whereEqualTo("ownerUid", folder.ownerUid)
+        }
+        val siblings = siblingsQuery.get().await()
         require(siblings.documents.none {
             it.id != folder.id && it.getString("nameLower") == folder.nameLower
         }) { "A folder with this name already exists at the destination." }
