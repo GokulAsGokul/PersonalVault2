@@ -284,6 +284,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var isMovingToRecycleBin by remember { mutableStateOf(false) }
     var isRestoringFromRecycleBin by remember { mutableStateOf(false) }
     var isEmptyingRecycleBin by remember { mutableStateOf(false) }
+    var isMovingFolder by remember { mutableStateOf(false) }
+    var isRenamingFolder by remember { mutableStateOf(false) }
     var recycleBinMoveFileName by remember { mutableStateOf("") }
     var recycleBinProgressTitle by remember { mutableStateOf("Moving to Recycle Bin") }
     var downloadingFileName by remember { mutableStateOf("") }
@@ -3576,6 +3578,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             val folder = selectedFolder ?: return@Button
                             scope.launch {
                                 busyDocument = true
+                                isRenamingFolder = true
+                                recycleBinProgressTitle = "Renaming Folder"
+                                recycleBinMoveFileName = renameFolderName.trim()
                                 try {
                                     repository.renameFolder(vaultId, folder, renameFolderName)
                                     showRenameFolder = false
@@ -3584,6 +3589,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     showRenameFolder = false
                                     message = error.localizedMessage ?: error.message ?: "Unable to rename folder."
                                 } finally {
+                                    isRenamingFolder = false
+                                    recycleBinMoveFileName = ""
                                     busyDocument = false
                                 }
                             }
@@ -3624,70 +3631,129 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     (folder.scope == "SHARED" || it.ownerUid == folder.ownerUid) &&
                     it.id != folder.parentFolderId
             }
-            AlertDialog(
+            Dialog(
+                onDismissRequest = { if (!busyDocument) showMoveFolder = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                val moveDialogDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+                val moveDialogSurface = if (moveDialogDark) Color(0xFF241B30) else Color(0xFFF8F3FF)
+                val moveDialogBackWave = if (moveDialogDark) Color(0xFF542A73) else Color(0xFFD7B8EF)
+                val moveDialogFrontWave = if (moveDialogDark) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+                val rootLabel = allCategories.firstOrNull { it.first == folder.categoryId }?.second ?: "Category"
 
-                shape = RoundedCornerShape(24.dp),
+                Column(
+                    modifier = Modifier.fillMaxWidth(0.90f).widthIn(max = 420.dp)
+                        .wrapContentHeight().clip(RoundedCornerShape(28.dp))
+                        .background(moveDialogSurface)
+                        .drawBehind {
+                            val width = size.width
+                            val height = size.height
+                            val backWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, height - 34.dp.toPx())
+                                cubicTo(width * 0.18f, height - 48.dp.toPx(), width * 0.34f, height - 2.dp.toPx(), width * 0.55f, height - 20.dp.toPx())
+                                cubicTo(width * 0.76f, height - 34.dp.toPx(), width * 0.88f, height - 50.dp.toPx(), width, height - 34.dp.toPx())
+                                lineTo(width, height); lineTo(0f, height); close()
+                            }
+                            drawPath(backWave, moveDialogBackWave)
+                            val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, height - 16.dp.toPx())
+                                cubicTo(width * 0.20f, height - 30.dp.toPx(), width * 0.38f, height - 2.dp.toPx(), width * 0.56f, height - 12.dp.toPx())
+                                cubicTo(width * 0.78f, height - 22.dp.toPx(), width * 0.90f, height - 28.dp.toPx(), width, height - 16.dp.toPx())
+                                lineTo(width, height); lineTo(0f, height); close()
+                            }
+                            drawPath(frontWave, moveDialogFrontWave)
+                        }
+                        .padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 54.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                            .background(if (moveDialogDark) Color(0xFF583174) else Color(0xFFEAD8FA)),
+                            contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.DriveFileMove, null,
+                                tint = if (moveDialogDark) Color(0xFFE8C8FF) else Color(0xFF7025A8),
+                                modifier = Modifier.size(30.dp))
+                        }
+                        Text("Move Folder", modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Text("Choose a destination. All subfolders and documents will move with this folder.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                containerColor = MaterialTheme.colorScheme.surface,
-
-                tonalElevation = 8.dp,
-                onDismissRequest = { showMoveFolder = false },
-                title = { Text("Move Folder") },
-                text = {
-                    Column(
-                        Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text("Choose a destination. All subfolders and documents will move with this folder.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        val rootLabel = allCategories.firstOrNull { it.first == folder.categoryId }?.second ?: "Category"
-                        Row(
-                            Modifier.fillMaxWidth().clickable {
-                                moveParentFolderId = null
-                                moveTargetChosen = true
-                            }.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = moveTargetChosen && moveParentFolderId == null, onClick = {
-                                moveParentFolderId = null
-                                moveTargetChosen = true
-                            })
-                            Text(rootLabel + " (Root)")
+                    Column(Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        @Composable
+                        fun DestinationOption(label: String, selected: Boolean, onSelect: () -> Unit) {
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                    .background(if (selected) moveDialogBackWave.copy(alpha = 0.20f) else Color.Transparent)
+                                    .border(if (selected) 1.dp else 0.dp,
+                                        if (selected) moveDialogBackWave else Color.Transparent, RoundedCornerShape(16.dp))
+                                    .clickable(onClick = onSelect).padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                RadioButton(selected = selected, onClick = onSelect)
+                                Text(label, color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+                        DestinationOption(rootLabel + " (Root)", moveTargetChosen && moveParentFolderId == null) {
+                            moveParentFolderId = null
+                            moveTargetChosen = true
                         }
                         destinations.forEach { destination ->
-                            Row(
-                                Modifier.fillMaxWidth().clickable {
-                                    moveParentFolderId = destination.id
-                                    moveTargetChosen = true
-                                }.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(selected = moveTargetChosen && moveParentFolderId == destination.id, onClick = {
-                                    moveParentFolderId = destination.id
-                                    moveTargetChosen = true
-                                })
-                                Text(destination.name)
+                            DestinationOption(destination.name, moveTargetChosen && moveParentFolderId == destination.id) {
+                                moveParentFolderId = destination.id
+                                moveTargetChosen = true
                             }
                         }
                     }
-                },
-                confirmButton = {
-                    TextButton(enabled = moveTargetChosen && !busyDocument, onClick = {
-                        scope.launch {
-                            busyDocument = true
-                            try {
-                                repository.moveFolder(vaultId, folder, moveParentFolderId)
-                                showMoveFolder = false
-                                if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
-                                message = "Folder moved."
-                            } catch (error: Exception) {
-                                message = error.localizedMessage ?: error.message ?: "Unable to move folder."
-                            } finally { busyDocument = false }
-                        }
-                    }) { Text("Move") }
-                },
-                dismissButton = { TextButton(onClick = { showMoveFolder = false }) { Text("Cancel") } }
-            )
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = { showMoveFolder = false },
+                            modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50.dp)),
+                            shape = RoundedCornerShape(50.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (moveDialogDark) Color(0xFFDDB8F2) else Color(0xFFEAD8FA),
+                                contentColor = Color(0xFF281936)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                        ) { Text("Cancel", fontWeight = FontWeight.Medium) }
+                        Button(
+                            enabled = moveTargetChosen && !busyDocument,
+                            onClick = {
+                                scope.launch {
+                                    busyDocument = true
+                                    isMovingFolder = true
+                                    recycleBinProgressTitle = "Moving Folder"
+                                    recycleBinMoveFileName = folder.name
+                                    try {
+                                        repository.moveFolder(vaultId, folder, moveParentFolderId)
+                                        showMoveFolder = false
+                                        if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
+                                        message = "Folder moved."
+                                    } catch (error: Exception) {
+                                        message = error.localizedMessage ?: error.message ?: "Unable to move folder."
+                                    } finally {
+                                        isMovingFolder = false
+                                        recycleBinMoveFileName = ""
+                                        busyDocument = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50.dp)),
+                            shape = RoundedCornerShape(50.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF9700E8), contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                        ) { Text("Move", fontWeight = FontWeight.Medium) }
+                    }
+                }
+            }
         }
     }
 
@@ -4806,7 +4872,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         )
     }
 
-    if (isMovingToRecycleBin || isRestoringFromRecycleBin || isEmptyingRecycleBin) {
+    if (isMovingToRecycleBin || isRestoringFromRecycleBin || isEmptyingRecycleBin || isMovingFolder || isRenamingFolder) {
         Dialog(
             onDismissRequest = { },
             properties = DialogProperties(
@@ -4826,7 +4892,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             ) {
                 Text(
                     when {
-                        isRestoringFromRecycleBin || isEmptyingRecycleBin -> recycleBinProgressTitle
+                        isMovingFolder || isRenamingFolder || isRestoringFromRecycleBin || isEmptyingRecycleBin -> recycleBinProgressTitle
                         else -> "Moving to Recycle Bin"
                     },
                     style = MaterialTheme.typography.titleLarge,
@@ -4841,6 +4907,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 )
                 Text(
                     when {
+                        isMovingFolder -> "Moving folder…"
+                        isRenamingFolder -> "Renaming folder…"
                         isRestoringFromRecycleBin -> "Restoring…"
                         isEmptyingRecycleBin && recycleBinProgressTitle == "Deleting Folder" -> "Deleting folder…"
                         else -> "Please wait…"
