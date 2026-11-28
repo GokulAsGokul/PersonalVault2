@@ -253,6 +253,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var progress by remember { mutableFloatStateOf(0f) }
     var currentFileProgress by remember { mutableFloatStateOf(0f) }
     var currentUploadIndex by remember { mutableIntStateOf(-1) }
+    var uploadTotalFiles by remember { mutableIntStateOf(0) }
+    var uploadCompletedFiles by remember { mutableIntStateOf(0) }
+    var uploadFailedFiles by remember { mutableIntStateOf(0) }
+    var uploadCurrentFileName by remember { mutableStateOf("") }
+    var showUploadDetailsDialog by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var categoryDialog by remember { mutableStateOf(false) }
     var newCategory by remember { mutableStateOf("") }
@@ -327,11 +332,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     progress = uploadState.overallProgress
                     currentFileProgress = uploadState.fileProgress
                     currentUploadIndex = uploadState.fileIndex - 1
+                    uploadTotalFiles = uploadState.totalFiles
+                    uploadCompletedFiles = (uploadState.fileIndex - 1).coerceAtLeast(0)
+                    uploadFailedFiles = 0
+                    uploadCurrentFileName = uploadState.fileName
                     message = "Uploading ${uploadState.fileIndex} of ${uploadState.totalFiles}: ${uploadState.fileName}"
                 }
                 is DocumentUploadUiState.Completed -> {
                     uploading = false
                     progress = 1f
+                    uploadCompletedFiles = uploadState.uploadedCount
+                    uploadFailedFiles = uploadState.failures.size
+                    uploadTotalFiles = uploadState.uploadedCount + uploadState.failures.size
+                    uploadCurrentFileName = if (uploadState.failures.isEmpty()) "All uploads completed" else "Upload finished with failures"
                     val previouslyBlocked = pendingUploads.filter { it.retryBlocked }
                     val failedItems = uploadState.failures.map { failure ->
                         PendingDocumentUploadV2New(
@@ -371,11 +384,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
                 is DocumentUploadUiState.Failed -> {
                     uploading = false
+                    uploadFailedFiles = (uploadTotalFiles - uploadCompletedFiles).coerceAtLeast(1)
+                    uploadCurrentFileName = "Upload failed"
                     message = "Upload failed: ${uploadState.message}"
                     DocumentUploadForegroundService.acknowledgeResult()
                 }
                 is DocumentUploadUiState.Cancelled -> {
                     uploading = false
+                    uploadCurrentFileName = "Upload cancelled"
                     message = "Upload cancelled because the app was closed."
                     DocumentUploadForegroundService.acknowledgeResult()
                 }
@@ -1561,7 +1577,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             if (uploading) {
                 item(key = "uploading") {
                     Card(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .clickable { showUploadDetailsDialog = true },
                         shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(containerColor = palette.container)
                     ) {
@@ -6004,6 +6022,178 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                         }
                 )
+            }
+        }
+    }
+
+    if (showUploadDetailsDialog) {
+        val totalFiles = uploadTotalFiles.coerceAtLeast(uploadCompletedFiles + uploadFailedFiles)
+        val completedFiles = uploadCompletedFiles.coerceAtMost(totalFiles)
+        val failedFiles = uploadFailedFiles.coerceAtMost((totalFiles - completedFiles).coerceAtLeast(0))
+        val remainingFiles = (totalFiles - completedFiles - failedFiles).coerceAtLeast(0)
+        val percent = (progress.coerceIn(0f, 1f) * 100f).toInt()
+        val uploadDialogSurface = if (isDarkUi) Color(0xFF21152B) else Color(0xFFF8F2FF)
+        val uploadDialogCard = if (isDarkUi) Color(0xFF34213F) else Color(0xFFEFE3FA)
+        val uploadDialogAccent = if (isDarkUi) Color(0xFFD59AFF) else Color(0xFF7835B5)
+
+        Dialog(
+            onDismissRequest = { showUploadDetailsDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                Modifier.fillMaxWidth(0.94f)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(uploadDialogSurface)
+                    .border(1.dp, uploadDialogAccent.copy(alpha = 0.55f), RoundedCornerShape(30.dp))
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 54.dp.toPx())
+                            cubicTo(width * 0.18f, height - 78.dp.toPx(), width * 0.36f, height - 8.dp.toPx(),
+                                width * 0.56f, height - 34.dp.toPx())
+                            cubicTo(width * 0.76f, height - 60.dp.toPx(), width * 0.9f, height - 76.dp.toPx(),
+                                width, height - 48.dp.toPx())
+                            lineTo(width, height)
+                            lineTo(0f, height)
+                            close()
+                        }
+                        drawPath(backWave, if (isDarkUi) Color(0xFF633184) else Color(0xFFD9B9F0))
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 28.dp.toPx())
+                            cubicTo(width * 0.2f, height - 48.dp.toPx(), width * 0.38f, height - 8.dp.toPx(),
+                                width * 0.58f, height - 24.dp.toPx())
+                            cubicTo(width * 0.78f, height - 42.dp.toPx(), width * 0.9f, height - 50.dp.toPx(),
+                                width, height - 26.dp.toPx())
+                            lineTo(width, height)
+                            lineTo(0f, height)
+                            close()
+                        }
+                        drawPath(frontWave, if (isDarkUi) Color(0xFF9A49C5) else Color(0xFFE9D2FA))
+                    }
+                    .padding(start = 20.dp, top = 22.dp, end = 20.dp, bottom = 66.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    "Uploading Documents",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Column(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(uploadDialogCard)
+                        .border(1.dp, uploadDialogAccent.copy(alpha = 0.45f), RoundedCornerShape(24.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            Modifier.size(54.dp).clip(RoundedCornerShape(16.dp))
+                                .background(uploadDialogAccent.copy(alpha = 0.16f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.CloudUpload, null, tint = uploadDialogAccent, modifier = Modifier.size(32.dp))
+                        }
+                        Text(
+                            "Upload Progress",
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(50.dp),
+                            color = uploadDialogAccent.copy(alpha = 0.22f)
+                        ) {
+                            Text("$percent%", Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                color = uploadDialogAccent, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50.dp)),
+                        color = uploadDialogAccent,
+                        trackColor = uploadDialogAccent.copy(alpha = 0.22f)
+                    )
+                    Text(
+                        "$completedFiles of $totalFiles files uploaded",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                Column(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(uploadDialogCard)
+                        .border(1.dp, uploadDialogAccent, RoundedCornerShape(24.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        "Upload Details",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    @Composable
+                    fun UploadDetailRow(
+                        label: String,
+                        value: String,
+                        icon: ImageVector,
+                        tint: Color,
+                        divider: Boolean = true
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(icon, null, tint = tint, modifier = Modifier.size(27.dp))
+                            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                value,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.End,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (divider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    }
+                    UploadDetailRow("Completed", "$completedFiles files", Icons.Outlined.CheckCircle, Color(0xFF4DD782))
+                    UploadDetailRow("Remaining", "$remainingFiles files", Icons.Outlined.Schedule, Color(0xFF55B9F2))
+                    UploadDetailRow("Failed", "$failedFiles files", Icons.Outlined.ErrorOutline, Color(0xFFFF625F))
+                    UploadDetailRow(
+                        "Current file",
+                        uploadCurrentFileName.ifBlank { if (uploading) "Preparing upload…" else "—" },
+                        Icons.Outlined.Description,
+                        uploadDialogAccent,
+                        divider = false
+                    )
+                }
+
+                Button(
+                    onClick = { showUploadDetailsDialog = false },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                        .fillMaxWidth(0.42f)
+                        .height(54.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFDCC0F5),
+                        contentColor = Color(0xFF30203F)
+                    )
+                ) {
+                    Text("Close", fontWeight = FontWeight.Medium)
+                }
             }
         }
     }
