@@ -5389,15 +5389,30 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .clip(RoundedCornerShape(34.dp))
                     .background(dialogBackground)
                     .drawBehind {
-                        val wave = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(0f, size.height * 0.88f)
-                            cubicTo(size.width * 0.22f, size.height * 0.99f, size.width * 0.42f, size.height * 0.94f, size.width * 0.58f, size.height * 0.92f)
-                            cubicTo(size.width * 0.76f, size.height * 0.87f, size.width * 0.88f, size.height * 0.88f, size.width, size.height * 0.93f)
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height * 0.84f)
+                            cubicTo(size.width * 0.20f, size.height * 0.77f, size.width * 0.38f, size.height * 0.91f, size.width * 0.56f, size.height * 0.87f)
+                            cubicTo(size.width * 0.75f, size.height * 0.82f, size.width * 0.88f, size.height * 0.83f, size.width, size.height * 0.88f)
                             lineTo(size.width, size.height)
                             lineTo(0f, size.height)
                             close()
                         }
-                        drawPath(wave, waveColor)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height * 0.90f)
+                            cubicTo(size.width * 0.20f, size.height * 0.85f, size.width * 0.39f, size.height * 0.98f, size.width * 0.57f, size.height * 0.94f)
+                            cubicTo(size.width * 0.76f, size.height * 0.89f, size.width * 0.89f, size.height * 0.90f, size.width, size.height * 0.94f)
+                            lineTo(size.width, size.height)
+                            lineTo(0f, size.height)
+                            close()
+                        }
+                        drawPath(
+                            backWave,
+                            if (darkDownloadUi) Color(0xFF633184) else Color(0xFFD9B9F0)
+                        )
+                        drawPath(
+                            frontWave,
+                            if (darkDownloadUi) Color(0xFF9A49C5) else Color(0xFFE9D2FA)
+                        )
                     }
             ) {
                 Column(
