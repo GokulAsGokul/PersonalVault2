@@ -4461,13 +4461,25 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 shape = RoundedCornerShape(50.dp),
                                 color = if (isDarkUi) Color(0xFF512331) else Color(0xFFFFE1E6)
                             ) {
+                                val fileTypeLabel = documentTypeDisplayNameV2New(doc)
+                                val fileTypeFontSize = when {
+                                    fileTypeLabel.length > 16 -> 9.sp
+                                    fileTypeLabel.length > 12 -> 10.sp
+                                    fileTypeLabel.length > 9 -> 11.sp
+                                    else -> 12.sp
+                                }
                                 Text(
-                                    documentTypeDisplayNameV2New(doc),
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    fileTypeLabel,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
                                     color = if (isDarkUi) Color(0xFFFFA0B4) else Color(0xFFB42345),
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontSize = fileTypeFontSize,
+                                        lineHeight = (fileTypeFontSize.value * 1.15f).sp
+                                    ),
                                     fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Clip
                                 )
                             }
                         }
