@@ -6857,14 +6857,25 @@ private fun DocumentRowV2New(
             DocumentTypeIconNew(document.contentType, Modifier.size(46.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                val displayName = documentDisplayNameV2New(document)
+                val displayNameFontSize = when {
+                    displayName.length > 60 -> 11.sp
+                    displayName.length > 50 -> 12.sp
+                    displayName.length > 40 -> 13.sp
+                    displayName.length > 30 -> 14.sp
+                    else -> MaterialTheme.typography.bodyLarge.fontSize
+                }
                 Text(
-                    documentDisplayNameV2New(document),
+                    displayName,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = Int.MAX_VALUE,
+                    maxLines = 2,
                     softWrap = true,
-                    overflow = TextOverflow.Clip,
-                    style = MaterialTheme.typography.bodyLarge
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = displayNameFontSize,
+                        lineHeight = (displayNameFontSize.value * 1.22f).sp
+                    )
                 )
                 Text(
                     documentMetaV2New(document),
@@ -6984,13 +6995,24 @@ private fun DocumentGridCardV2New(
                 }
             }
             Spacer(Modifier.height(6.dp))
+            val displayName = documentDisplayNameV2New(document)
+            val displayNameFontSize = when {
+                displayName.length > 60 -> 10.sp
+                displayName.length > 50 -> 11.sp
+                displayName.length > 40 -> 12.sp
+                displayName.length > 30 -> 13.sp
+                else -> MaterialTheme.typography.bodyMedium.fontSize
+            }
             Text(
-                documentDisplayNameV2New(document),
+                displayName,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = Int.MAX_VALUE,
+                maxLines = 2,
                 softWrap = true,
-                overflow = TextOverflow.Clip,
-                style = MaterialTheme.typography.bodyMedium
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = displayNameFontSize,
+                    lineHeight = (displayNameFontSize.value * 1.22f).sp
+                )
             )
             Text(
                 documentMetaV2New(document),
