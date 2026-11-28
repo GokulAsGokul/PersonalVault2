@@ -6102,7 +6102,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             DocumentTypeIconNew(doc.contentType, Modifier.size(76.dp))
                             Column(
                                 Modifier.weight(1f),
-                                verticalArrangement = Arrangement.Center
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 val fileNameFontSize = when {
                                     fullFileName.length > 60 -> 10.sp
@@ -6131,13 +6131,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                                    val categoryFontSize = when {
+                                        categoryLabel.length > 22 -> 9.sp
+                                        categoryLabel.length > 16 -> 10.sp
+                                        else -> MaterialTheme.typography.labelSmall.fontSize
+                                    }
                                     Surface(
-                                        modifier = Modifier.weight(1f),
+                                        modifier = Modifier.wrapContentWidth(),
                                         shape = RoundedCornerShape(12.dp),
                                         color = if (isDarkUi) Color(0xFF352347) else Color(0xFFF0E5FF)
                                     ) {
                                         Row(
-                                            modifier = Modifier.fillMaxWidth()
+                                            modifier = Modifier.wrapContentWidth()
                                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -6150,12 +6155,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             )
                                             Text(
                                                 categoryLabel,
-                                                modifier = Modifier.weight(1f),
                                                 color = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
-                                                style = MaterialTheme.typography.labelSmall,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontSize = categoryFontSize
+                                                ),
                                                 fontWeight = FontWeight.SemiBold,
-                                                maxLines = 2,
-                                                softWrap = true,
+                                                maxLines = 1,
+                                                softWrap = false,
                                                 overflow = TextOverflow.Clip
                                             )
                                         }
