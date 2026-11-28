@@ -1556,8 +1556,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 0.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Upload progress is shown only inside Add Documents, not on the dashboard.
-            if (uploading && !isHome) {
+            // Keep the foreground upload status visible in both the Documents dashboard
+            // and Add Documents while the background upload service is running.
+            if (uploading) {
                 item(key = "uploading") {
                     Card(
                         Modifier.fillMaxWidth(),
