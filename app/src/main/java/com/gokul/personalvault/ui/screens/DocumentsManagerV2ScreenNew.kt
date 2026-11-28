@@ -1090,7 +1090,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     fun shareDocument(doc: DocumentRecordV2) {
-        scope.launch {
+        activeDocumentTransferJob?.cancel()
+        activeDocumentTransferJob = scope.launch {
             busyDocument = true
             isPreparingShare = true
             isDownloadingFile = true
@@ -1104,6 +1105,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     downloadTransferredBytes = transferred.coerceAtLeast(0L)
                     if (total > 0L) downloadTotalBytes = total
                 }
+                currentCoroutineContext().ensureActive()
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                 val mimeType = doc.contentType.takeIf {
                     it.isNotBlank() && it != "application/octet-stream"
@@ -1120,12 +1122,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 isPreparingShare = false
                 context.startActivity(Intent.createChooser(sendIntent, "Share document"))
                 selectedDocument = null
+            } catch (error: CancellationException) {
+                message = "Preparing document to share cancelled."
             } catch (error: Exception) {
-                isDownloadingFile = false
-                isPreparingShare = false
                 message = error.localizedMessage ?: error.message ?: "Unable to share document."
             } finally {
                 busyDocument = false
+                isDownloadingFile = false
+                isPreparingShare = false
+                activeDocumentTransferJob = null
             }
         }
     }
