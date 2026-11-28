@@ -6119,49 +6119,58 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Modifier.weight(1f),
                                 verticalArrangement = Arrangement.Center
                             ) {
+                                val fileNameFontSize = when {
+                                    fullFileName.length > 60 -> 12.sp
+                                    fullFileName.length > 50 -> 13.sp
+                                    fullFileName.length > 40 -> 14.sp
+                                    fullFileName.length > 30 -> 16.sp
+                                    else -> MaterialTheme.typography.titleMedium.fontSize
+                                }
                                 Text(
                                     fullFileName,
                                     modifier = Modifier.fillMaxWidth(),
                                     color = MaterialTheme.colorScheme.onSurface,
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = fileNameFontSize,
+                                        lineHeight = (fileNameFontSize.value * 1.22f).sp
+                                    ),
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Start,
-                                    maxLines = 3,
+                                    maxLines = 2,
                                     softWrap = true,
-                                    overflow = TextOverflow.Clip
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                            }
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
-                            Spacer(Modifier.width(8.dp))
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isDarkUi) Color(0xFF352347) else Color(0xFFF0E5FF)
-                            ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        Icons.Outlined.FolderOpen,
-                                        contentDescription = null,
-                                        tint = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        categoryLabel,
-                                        color = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                    ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                                    Surface(
+                                        shape = RoundedCornerShape(50.dp),
+                                        color = if (isDarkUi) Color(0xFF352347) else Color(0xFFF0E5FF)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.FolderOpen,
+                                                contentDescription = null,
+                                                tint = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                categoryLabel,
+                                                color = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -6173,21 +6182,64 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
                             .background(detailsCard)
-                            .border(1.dp, palette.line, RoundedCornerShape(24.dp))
-                            .verticalScroll(rememberScrollState())
+                            .border(1.dp, detailsAccent.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
                             .padding(horizontal = 12.dp, vertical = 3.dp)
                     ) {
-                        DocumentDetailRowV2New("File Type", fileType, Icons.Outlined.Description)
-                        DocumentDetailRowV2New("File Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
-                        DocumentDetailRowV2New("Location", "My Documents / ${categoryLabel}", Icons.Outlined.FolderOpen)
-                        DocumentDetailRowV2New(
+                        @Composable
+                        fun fileInformationRow(
+                            label: String,
+                            value: String,
+                            icon: ImageVector,
+                            showDivider: Boolean = true
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = null,
+                                    tint = detailsAccent,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Text(
+                                    label,
+                                    modifier = Modifier.weight(1f),
+                                    color = detailsAccent,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    value,
+                                    modifier = Modifier.weight(1.6f),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                    fontWeight = FontWeight.Medium,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (showDivider) HorizontalDivider(
+                                Modifier.padding(start = 42.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                            )
+                        }
+
+                        fileInformationRow("File Type", fileType, Icons.Outlined.Description)
+                        fileInformationRow("File Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
+                        fileInformationRow("Location", "My Documents / ${categoryLabel}", Icons.Outlined.FolderOpen)
+                        fileInformationRow(
                             "Date Added",
                             doc.uploadedAt?.toDate()?.let {
                                 SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
                             } ?: "—",
                             Icons.Outlined.CalendarToday
                         )
-                        DocumentDetailRowV2New(
+                        fileInformationRow(
                             "Last Modified",
                             doc.updatedAt?.toDate()?.let {
                                 SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
