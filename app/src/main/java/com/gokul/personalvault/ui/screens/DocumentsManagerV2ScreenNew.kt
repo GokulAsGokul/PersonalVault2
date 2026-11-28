@@ -90,6 +90,9 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Info
@@ -6169,7 +6172,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                         if (divider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
                     }
-                    UploadDetailRow("Completed", "$completedFiles files", Icons.Outlined.CheckCircle, Color(0xFF4DD782))
+                    UploadDetailRow("Completed", "$completedFiles files", Icons.Filled.CheckCircle, Color(0xFF4DD782))
                     UploadDetailRow("Remaining", "$remainingFiles files", Icons.Outlined.Schedule, Color(0xFF55B9F2))
                     UploadDetailRow("Failed", "$failedFiles files", Icons.Outlined.ErrorOutline, Color(0xFFFF625F))
                     UploadDetailRow(
