@@ -4884,10 +4884,32 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             val darkMoveUi = MaterialTheme.colorScheme.background.luminance() < 0.5f
             val moveAccent = if (darkMoveUi) Color(0xFFD6A5FF) else Color(0xFF7438B8)
             val moveTrack = if (darkMoveUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
+            val progressSurface = if (darkMoveUi) Color(0xFF241B30) else Color(0xFFF8F3FF)
+            val progressWaveBack = if (darkMoveUi) Color(0xFF542A73) else Color(0xFFD7B8EF)
+            val progressWaveFront = if (darkMoveUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
             Column(
-                Modifier.fillMaxWidth(0.88f).clip(RoundedCornerShape(28.dp))
-                    .background(if (darkMoveUi) Color(0xFF211B2B) else Color(0xFFF8F3FF))
-                    .padding(24.dp),
+                Modifier.fillMaxWidth(0.88f).widthIn(max = 420.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(progressSurface)
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 34.dp.toPx())
+                            cubicTo(width * 0.18f, height - 48.dp.toPx(), width * 0.34f, height - 2.dp.toPx(), width * 0.55f, height - 20.dp.toPx())
+                            cubicTo(width * 0.76f, height - 34.dp.toPx(), width * 0.88f, height - 50.dp.toPx(), width, height - 34.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(backWave, progressWaveBack)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 16.dp.toPx())
+                            cubicTo(width * 0.20f, height - 30.dp.toPx(), width * 0.38f, height - 2.dp.toPx(), width * 0.56f, height - 12.dp.toPx())
+                            cubicTo(width * 0.78f, height - 22.dp.toPx(), width * 0.90f, height - 28.dp.toPx(), width, height - 16.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(frontWave, progressWaveFront)
+                    }
+                    .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 54.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
