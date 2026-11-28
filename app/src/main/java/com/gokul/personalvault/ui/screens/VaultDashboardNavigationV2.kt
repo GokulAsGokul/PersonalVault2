@@ -1,5 +1,8 @@
 package com.gokul.personalvault.ui.screens
 
+import android.app.Activity
+import android.content.ContextWrapper
+import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import com.gokul.personalvault.data.firebase.RecoveryBackupRepositoryV2
 import com.gokul.personalvault.data.local.VaultKeyLocalStoreV2
 import com.gokul.personalvault.data.local.VaultKeySessionV2
@@ -71,6 +75,34 @@ fun VaultDashboardNavigationV2(
         VaultSnackbarController.clear(notice.id)
     }
 
+    val documentsSurface = Color(0xFF17121D)
+    val dashboardBackground = if (selected == VaultV2Destination.DOCUMENTS) {
+        documentsSurface
+    } else {
+        MaterialTheme.colorScheme.background
+    }
+    val rootView = LocalView.current
+
+    // Keep the Android gesture-navigation area in sync with the selected screen.
+    // The root background below also covers this area on Android 15+, where
+    // navigationBarColor is no longer used for edge-to-edge windows.
+    SideEffect {
+        val activity = generateSequence(rootView.context) { context ->
+            (context as? ContextWrapper)?.baseContext
+        }.filterIsInstance<Activity>().firstOrNull()
+        activity?.window?.let { window ->
+            window.navigationBarColor = if (selected == VaultV2Destination.DOCUMENTS) {
+                AndroidColor.rgb(23, 18, 29)
+            } else {
+                AndroidColor.TRANSPARENT
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxSize().background(dashboardBackground)) {
     Scaffold(
         snackbarHost = {
             VaultSnackbarHost(
@@ -78,12 +110,12 @@ fun VaultDashboardNavigationV2(
                 type = activeNotice?.type ?: VaultSnackbarType.INFO
             )
         },
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = dashboardBackground,
         bottomBar = {
             NavigationBar(
                 modifier = Modifier.height(80.dp),
-                // Match the app background visible behind the transparent status bar.
-                containerColor = MaterialTheme.colorScheme.background,
+                // Keep the Documents screen and its bottom navigation on one continuous surface.
+                containerColor = dashboardBackground,
                 contentColor = MaterialTheme.colorScheme.onBackground,
                 tonalElevation = 0.dp
             ) {
@@ -114,7 +146,12 @@ fun VaultDashboardNavigationV2(
             }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(dashboardBackground)
+        ) {
             when {
                 selected == VaultV2Destination.HOME -> DashboardOverviewV2(
                     email = email,
@@ -220,6 +257,7 @@ fun VaultDashboardNavigationV2(
                 }
             }
         }
+    }
     }
 }
 

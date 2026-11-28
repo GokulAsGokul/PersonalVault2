@@ -5,6 +5,12 @@ import com.gokul.personalvault.ui.components.VaultCompactHeader
 import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.RenderEffect as PlatformRenderEffect
+import android.graphics.Shader
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.content.Context
@@ -38,6 +44,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlin.math.sin
+import kotlin.math.cos
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
@@ -81,6 +90,9 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Info
@@ -139,6 +151,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 import com.google.firebase.functions.FirebaseFunctionsException
@@ -244,6 +257,11 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var progress by remember { mutableFloatStateOf(0f) }
     var currentFileProgress by remember { mutableFloatStateOf(0f) }
     var currentUploadIndex by remember { mutableIntStateOf(-1) }
+    var uploadTotalFiles by remember { mutableIntStateOf(0) }
+    var uploadCompletedFiles by remember { mutableIntStateOf(0) }
+    var uploadFailedFiles by remember { mutableIntStateOf(0) }
+    var uploadCurrentFileName by remember { mutableStateOf("") }
+    var showUploadDetailsDialog by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var categoryDialog by remember { mutableStateOf(false) }
     var newCategory by remember { mutableStateOf("") }
@@ -260,9 +278,10 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var categoryRenameValidationAttempt by remember { mutableIntStateOf(0) }
     val categoryRenameShake = remember { Animatable(0f) }
     var categoryDeletingId by remember { mutableStateOf<String?>(null) }
-    val addOptionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var customCategories by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var selectedDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
+    var accessDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
+    var accessScope by remember { mutableStateOf("PERSONAL") }
     var editingDocument by remember { mutableStateOf<DocumentRecordV2?>(null) }
     var editTitle by remember { mutableStateOf("") }
     var editDescription by remember { mutableStateOf("") }
@@ -270,6 +289,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     var editScope by remember { mutableStateOf("PERSONAL") }
     var busyDocument by remember { mutableStateOf(false) }
     var isDownloadingFile by remember { mutableStateOf(false) }
+    var isPreparingShare by remember { mutableStateOf(false) }
+    var isMovingToRecycleBin by remember { mutableStateOf(false) }
+    var isRestoringFromRecycleBin by remember { mutableStateOf(false) }
+    var isEmptyingRecycleBin by remember { mutableStateOf(false) }
+    var isMovingFolder by remember { mutableStateOf(false) }
+    var isRenamingFolder by remember { mutableStateOf(false) }
+    var recycleBinMoveFileName by remember { mutableStateOf("") }
+    var recycleBinProgressTitle by remember { mutableStateOf("Moving to Recycle Bin") }
     var downloadingFileName by remember { mutableStateOf("") }
     var downloadingFileType by remember { mutableStateOf("DOCUMENT") }
     var downloadTransferredBytes by remember { mutableLongStateOf(0L) }
@@ -309,11 +336,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     progress = uploadState.overallProgress
                     currentFileProgress = uploadState.fileProgress
                     currentUploadIndex = uploadState.fileIndex - 1
+                    uploadTotalFiles = uploadState.totalFiles
+                    uploadCompletedFiles = (uploadState.fileIndex - 1).coerceAtLeast(0)
+                    uploadFailedFiles = 0
+                    uploadCurrentFileName = uploadState.fileName
                     message = "Uploading ${uploadState.fileIndex} of ${uploadState.totalFiles}: ${uploadState.fileName}"
                 }
                 is DocumentUploadUiState.Completed -> {
                     uploading = false
                     progress = 1f
+                    uploadCompletedFiles = uploadState.uploadedCount
+                    uploadFailedFiles = uploadState.failures.size
+                    uploadTotalFiles = uploadState.uploadedCount + uploadState.failures.size
+                    uploadCurrentFileName = if (uploadState.failures.isEmpty()) "All uploads completed" else "Upload finished with failures"
                     val previouslyBlocked = pendingUploads.filter { it.retryBlocked }
                     val failedItems = uploadState.failures.map { failure ->
                         PendingDocumentUploadV2New(
@@ -353,11 +388,14 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
                 is DocumentUploadUiState.Failed -> {
                     uploading = false
+                    uploadFailedFiles = (uploadTotalFiles - uploadCompletedFiles).coerceAtLeast(1)
+                    uploadCurrentFileName = "Upload failed"
                     message = "Upload failed: ${uploadState.message}"
                     DocumentUploadForegroundService.acknowledgeResult()
                 }
                 is DocumentUploadUiState.Cancelled -> {
                     uploading = false
+                    uploadCurrentFileName = "Upload cancelled"
                     message = "Upload cancelled because the app was closed."
                     DocumentUploadForegroundService.acknowledgeResult()
                 }
@@ -1053,10 +1091,22 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     fun shareDocument(doc: DocumentRecordV2) {
-        scope.launch {
+        activeDocumentTransferJob?.cancel()
+        activeDocumentTransferJob = scope.launch {
             busyDocument = true
+            isPreparingShare = true
+            isDownloadingFile = true
+            downloadingFileName = doc.title.ifBlank { doc.originalFileName }
+            downloadingFileType = doc.contentType.substringAfterLast('/').uppercase(Locale.ROOT)
+                .takeIf { it.isNotBlank() } ?: "DOCUMENT"
+            downloadTransferredBytes = 0L
+            downloadTotalBytes = doc.sizeBytes.coerceAtLeast(0L)
             try {
-                val file = repository.downloadToCache(context.cacheDir, vaultId, doc)
+                val file = repository.downloadToCache(context.cacheDir, vaultId, doc) { transferred, total ->
+                    downloadTransferredBytes = transferred.coerceAtLeast(0L)
+                    if (total > 0L) downloadTotalBytes = total
+                }
+                currentCoroutineContext().ensureActive()
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                 val mimeType = doc.contentType.takeIf {
                     it.isNotBlank() && it != "application/octet-stream"
@@ -1069,12 +1119,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     clipData = ClipData.newUri(context.contentResolver, doc.originalFileName, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
+                isDownloadingFile = false
+                isPreparingShare = false
                 context.startActivity(Intent.createChooser(sendIntent, "Share document"))
                 selectedDocument = null
+            } catch (error: CancellationException) {
+                message = "Preparing document to share cancelled."
             } catch (error: Exception) {
                 message = error.localizedMessage ?: error.message ?: "Unable to share document."
             } finally {
                 busyDocument = false
+                isDownloadingFile = false
+                isPreparingShare = false
+                activeDocumentTransferJob = null
             }
         }
     }
@@ -1125,6 +1182,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val skipped = selectedDocumentIds.size - targets.size
         scope.launch {
             busyDocument = true
+            isEmptyingRecycleBin = true
+            recycleBinProgressTitle = "Deleting Documents"
+            recycleBinMoveFileName = if (targets.size == 1) "Deleting document..." else "Deleting ${targets.size} selected documents..."
             var succeeded = 0
             try {
                 targets.forEach { doc ->
@@ -1138,6 +1198,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } finally {
                 selectedDocumentIds.clear()
                 selectionMode = false
+                isEmptyingRecycleBin = false
+                recycleBinMoveFileName = ""
                 busyDocument = false
             }
         }
@@ -1150,9 +1212,13 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
         val skipped = selectedDocumentIds.size - targets.size
         scope.launch {
             busyDocument = true
+            isRestoringFromRecycleBin = true
+            recycleBinProgressTitle = "Restoring documents"
+            recycleBinMoveFileName = "Preparing to restore ${targets.size} documents"
             var succeeded = 0
             try {
                 targets.forEach { doc ->
+                    recycleBinMoveFileName = if (targets.size > 1) "Restoring ${succeeded + 1} of ${targets.size} documents" else doc.originalFileName.ifBlank { doc.title }
                     repository.restore(vaultId, doc.id)
                     succeeded++
                 }
@@ -1163,6 +1229,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } finally {
                 selectedDocumentIds.clear()
                 selectionMode = false
+                isRestoringFromRecycleBin = false
+                recycleBinMoveFileName = ""
                 busyDocument = false
             }
         }
@@ -1176,6 +1244,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             var succeeded = 0
             try {
                 targets.forEach { doc ->
+                    isMovingToRecycleBin = true
+                    recycleBinMoveFileName = if (targets.size > 1) "Moving ${succeeded + 1} of ${targets.size} documents" else doc.originalFileName.ifBlank { doc.title }
                     repository.moveToRecycleBin(vaultId, doc)
                     succeeded++
                 }
@@ -1186,6 +1256,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             } finally {
                 selectedDocumentIds.clear()
                 selectionMode = false
+                isMovingToRecycleBin = false
+                recycleBinMoveFileName = ""
                 busyDocument = false
             }
         }
@@ -1250,11 +1322,26 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     val headerSubtitle = null
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+
+    val menuBlurRadius by animateFloatAsState(
+        targetValue = if (showAddOptions) 8f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "addMenuBackgroundBlur"
+    )
+    val menuScrimAlpha by animateFloatAsState(
+        targetValue = if (showAddOptions) 0.22f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "addMenuBackgroundScrim"
+    )
     LaunchedEffect(category, currentFolderId, showAllDocuments, recycleBin) { listState.scrollToItem(0) }
     val mutedColor = palette.muted
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        // The parent dashboard Scaffold already applies system-bar insets.
+        // Do not reserve the navigation-bar inset a second time here: that
+        // creates the empty horizontal strip above the dashboard bottom bar.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        containerColor = if (isDarkUi) Color(0xFF17121D) else MaterialTheme.colorScheme.background,
         topBar = {
             var menuExpanded by remember { mutableStateOf(false) }
             VaultCompactHeader(
@@ -1274,14 +1361,41 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                         }
                     } else {
-                        IconButton(onClick = { showDocumentSearch = !showDocumentSearch; if (!showDocumentSearch) { search = ""; advancedSearchExpanded = false } }) {
-                            Icon(if (showDocumentSearch) Icons.Outlined.Close else Icons.Outlined.Search,
-                                contentDescription = if (showDocumentSearch) "Close search" else "Search documents")
-                        }
                         Box {
-                            IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "More options") }
-                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                DropdownMenuItem(text = { Text("New folder") }, leadingIcon = { Icon(Icons.Outlined.FolderOpen, null) }, onClick = { menuExpanded = false; startCreateFolder() })
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                "Create Folder",
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = documentAccent
+                                            )
+                                            Text(
+                                                "Organize your documents",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = documentAccent.copy(alpha = 0.82f)
+                                            )
+                                        }
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Outlined.FolderOpen,
+                                            contentDescription = null,
+                                            tint = documentAccent
+                                        )
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        startCreateFolder()
+                                    }
+                                )
                             }
                         }
                     }
@@ -1289,28 +1403,192 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             )
         },
         floatingActionButton = {
-            if (!recycleBin) ExtendedFloatingActionButton(
-                onClick = { showAddOptions = true },
-                expanded = fabExpanded,
-                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                text = { Text("Add") },
-                containerColor = documentAccent,
-                contentColor = palette.onAccent,
-                shape = RoundedCornerShape(18.dp)
-            )
-        }
+            if (!recycleBin) {
+                                if (showAddOptions) {
+                                            val uploadTint = Color(0xFF9B45D5)
+                                            val folderTint = Color(0xFF3478D4)
+                                            val scanTint = Color(0xFF269B62)
+                                            val cameraTint = Color(0xFFD58A2B)
+                                            val pillColor = if (isDarkUi) Color(0xFF2B2135) else Color.White
+                                            val pillTextColor = if (isDarkUi) Color(0xFFF2ECF8) else Color(0xFF211536)
+                
+                                            // Fan geometry (dp), measured from the Close button centre.
+                                            val fanRadius = 195f
+                                            val closeSize = 60f
+                                            val actionSize = 52f
+                
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(380.dp)
+                                                    .height(260.dp)
+                                            ) {
+                                                @Composable
+                                                fun FanAction(
+                                                    title: String,
+                                                    tint: Color,
+                                                    icon: ImageVector,
+                                                    angleDeg: Float,
+                                                    modifier: Modifier = Modifier,
+                                                    onClick: () -> Unit
+                                                ) {
+                                                    val rad = Math.toRadians(angleDeg.toDouble())
+                                                    val dx = (fanRadius * cos(rad)).toFloat()
+                                                    val dy = (-fanRadius * sin(rad)).toFloat()
+                                                    val offsetX = dx + (actionSize - closeSize) / 2f
+                                                    val offsetY = dy + (actionSize - closeSize) / 2f
+                
+                                                    Row(
+                                                        modifier = modifier
+                                                            .offset(x = offsetX.dp, y = offsetY.dp)
+                                                            .clip(RoundedCornerShape(26.dp))
+                                                            .clickable(onClick = onClick),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    ) {
+                                                        Surface(
+                                                            modifier = Modifier.height(24.dp),
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            color = pillColor
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier.padding(horizontal = 10.dp),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Text(
+                                                                    title,
+                                                                    color = pillTextColor,
+                                                                    fontSize = 12.sp,
+                                                                    fontWeight = FontWeight.Medium,
+                                                                    maxLines = 1,
+                                                                    softWrap = false
+                                                                )
+                                                            }
+                                                        }
+                                                        Surface(
+                                                            modifier = Modifier.size(actionSize.dp),
+                                                            shape = CircleShape,
+                                                            color = tint,
+                                                            contentColor = Color.White,
+                                                            shadowElevation = 5.dp
+                                                        ) {
+                                                            Box(contentAlignment = Alignment.Center) {
+                                                                Icon(
+                                                                    icon,
+                                                                    contentDescription = title,
+                                                                    modifier = Modifier.size(27.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                
+                                                FanAction(
+                                                    "Upload Files", uploadTint, Icons.Outlined.Description, 112.5f,
+                                                    modifier = Modifier.align(Alignment.BottomEnd)
+                                                ) {
+                                                    showAddOptions = false
+                                                    VaultExternalActivityState.documentPickerActive = true
+                                                    picker.launch(arrayOf("*/*"))
+                                                }
+                                                FanAction(
+                                                    "Create Folder", folderTint, Icons.Outlined.FolderOpen, 135f,
+                                                    modifier = Modifier.align(Alignment.BottomEnd)
+                                                ) {
+                                                    showAddOptions = false
+                                                    startCreateFolder()
+                                                }
+                                                FanAction(
+                                                    "Scan Document", scanTint, Icons.Outlined.DocumentScanner, 157.5f,
+                                                    modifier = Modifier.align(Alignment.BottomEnd)
+                                                ) {
+                                                    showAddOptions = false
+                                                    val activity = context as? Activity
+                                                    if (activity == null) {
+                                                        message = "Unable to open the document scanner from this screen."
+                                                    } else {
+                                                        VaultExternalActivityState.documentPickerActive = true
+                                                        GmsDocumentScanning.getClient(scannerOptions)
+                                                            .getStartScanIntent(activity)
+                                                            .addOnSuccessListener { intentSender ->
+                                                                scannerLauncher.launch(
+                                                                    IntentSenderRequest.Builder(intentSender).build()
+                                                                )
+                                                            }
+                                                            .addOnFailureListener { error ->
+                                                                VaultExternalActivityState.documentPickerActive = false
+                                                                message = error.localizedMessage
+                                                                    ?: "Unable to start document scanning. Check Google Play services and try again."
+                                                            }
+                                                    }
+                                                }
+                                                FanAction(
+                                                    "Take Photo", cameraTint, Icons.Outlined.PhotoCamera, 180f,
+                                                    modifier = Modifier.align(Alignment.BottomEnd)
+                                                ) {
+                                                    showAddOptions = false
+                                                    launchPhotoCapture()
+                                                }
+                
+                                                FloatingActionButton(
+                                                    onClick = { showAddOptions = false },
+                                                    modifier = Modifier.align(Alignment.BottomEnd).size(closeSize.dp),
+                                                    containerColor = documentAccent,
+                                                    contentColor = palette.onAccent,
+                                                    shape = CircleShape
+                                                ) {
+                                                    Icon(Icons.Outlined.Close, contentDescription = "Close add actions")
+                                                }
+                                            }
+                                } else {
+                                    ExtendedFloatingActionButton(
+                                        onClick = { showAddOptions = true },
+                                        expanded = fabExpanded,
+                                        icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                                        text = { Text("Add") },
+                                        containerColor = documentAccent,
+                                        contentColor = palette.onAccent,
+                                        shape = RoundedCornerShape(18.dp)
+                                    )
+                                }
+            }
+        },
     ) { padding ->
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(if (isDarkUi) Color(0xFF17121D) else MaterialTheme.colorScheme.background)
+        ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                // Paint an opaque surface into the same layer that receives the blur.
+                // Without this, RenderEffect can expose transparent/black pixels at
+                // the LazyColumn's lower edge while the add-action menu is expanded.
+                .background(if (isDarkUi) Color(0xFF17121D) else MaterialTheme.colorScheme.background)
+                .graphicsLayer {
+                    renderEffect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && menuBlurRadius > 0.1f) {
+                        PlatformRenderEffect.createBlurEffect(
+                            menuBlurRadius,
+                            menuBlurRadius,
+                            Shader.TileMode.CLAMP
+                        ).asComposeRenderEffect()
+                    } else {
+                        null
+                    }
+                },
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 0.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Upload progress is shown only inside Add Documents, not on the dashboard.
-            if (uploading && !isHome) {
+            // Keep the foreground upload status visible in both the Documents dashboard
+            // and Add Documents while the background upload service is running.
+            if (uploading) {
                 item(key = "uploading") {
                     Card(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .clickable { showUploadDetailsDialog = true },
                         shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(containerColor = palette.container)
                     ) {
@@ -1422,7 +1700,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 DocumentDashboardStatCardV2New("Document", dashboardOverviewDocs.size.toString(),
                                     Icons.Outlined.Description, Modifier.weight(1f), Color(0xFFF0E5FF), Color(0xFF7136B8))
-                                DocumentDashboardStatCardV2New("Storage", formatDocumentBytesNew(dashboardOverviewDocs.sumOf { it.sizeBytes }),
+                                DocumentDashboardStatCardV2New("Storage", formatDashboardStorageV2New(dashboardOverviewDocs.sumOf { it.sizeBytes }),
                                     Icons.Outlined.Storage, Modifier.weight(1f), Color(0xFFE3F0FF), Color(0xFF2875D0))
                                 DocumentDashboardStatCardV2New("Only Me", personalCount.toString(),
                                     Icons.Outlined.Person, Modifier.weight(1f), Color(0xFFE7F7E9), Color(0xFF269B52))
@@ -1579,6 +1857,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 name = name,
                                 icon = categoryIconV2New(id),
                                 count = count,
+                                folderCount = folders.count { it.categoryId == id },
                                 tileBg = tileBg,
                                 tileFg = tileFg,
                                 palette = palette,
@@ -1614,7 +1893,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         DocumentRowV2New(
                             doc, false, memberUid,
                             onClick = { openDocument(doc) },
-                            onMore = { selectedDocument = doc }
+                            onMore = { selectedDocument = doc },
+                            categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
                         )
                     }
                 }
@@ -1622,45 +1902,146 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 // ── Category / folder / all / recycle bin ──
                 if (recycleBin) {
                     item(key = "recycle_bin_overview") {
-                        val totalBytes = deleted.sumOf { it.sizeBytes }
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                            shape = RoundedCornerShape(26.dp),
-                            colors = CardDefaults.cardColors(containerColor = palette.surface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, documentAccent.copy(alpha = 0.22f))
+                        // Keep the overview statistics in sync with the exact list shown below.
+                        val recycleBinItems = visible
+                        val totalBytes = recycleBinItems.sumOf { it.sizeBytes }
+                        val recycleStorageLabel = when {
+                            totalBytes < 1024L -> "$totalBytes B"
+                            totalBytes < 1024L * 1024L ->
+                                String.format(Locale.US, "%.2f KB", totalBytes / 1024.0)
+                            totalBytes < 1024L * 1024L * 1024L ->
+                                String.format(Locale.US, "%.2f MB", totalBytes / (1024.0 * 1024.0))
+                            else ->
+                                String.format(Locale.US, "%.2f GB", totalBytes / (1024.0 * 1024.0 * 1024.0))
+                        }
+                        val overviewSurface = if (isDarkUi) Color(0xFF21152B) else Color(0xFFF8F2FF)
+                        val statSurface = if (isDarkUi) Color(0xFF34213F) else Color(0xFFEFE3FA)
+                        val overviewAccent = if (isDarkUi) Color(0xFFD59AFF) else Color(0xFF7835B5)
+                        val backWaveColor = if (isDarkUi) Color(0xFF633184) else Color(0xFFD9B9F0)
+                        val frontWaveColor = if (isDarkUi) Color(0xFF9A49C5) else Color(0xFFE9D2FA)
+
+                        Column(
+                            Modifier.fillMaxWidth().padding(top = 6.dp)
+                                .clip(RoundedCornerShape(28.dp))
+                                .background(overviewSurface)
+                                .border(1.dp, overviewAccent.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                                .drawBehind {
+                                    val width = size.width
+                                    val height = size.height
+                                    val backWave = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(0f, height - 48.dp.toPx())
+                                        cubicTo(width * 0.18f, height - 72.dp.toPx(),
+                                            width * 0.34f, height - 4.dp.toPx(),
+                                            width * 0.56f, height - 34.dp.toPx())
+                                        cubicTo(width * 0.76f, height - 58.dp.toPx(),
+                                            width * 0.88f, height - 72.dp.toPx(),
+                                            width, height - 46.dp.toPx())
+                                        lineTo(width, height)
+                                        lineTo(0f, height)
+                                        close()
+                                    }
+                                    drawPath(backWave, backWaveColor)
+                                    val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(0f, height - 24.dp.toPx())
+                                        cubicTo(width * 0.20f, height - 44.dp.toPx(),
+                                            width * 0.38f, height - 4.dp.toPx(),
+                                            width * 0.57f, height - 22.dp.toPx())
+                                        cubicTo(width * 0.78f, height - 38.dp.toPx(),
+                                            width * 0.90f, height - 48.dp.toPx(),
+                                            width, height - 24.dp.toPx())
+                                        lineTo(width, height)
+                                        lineTo(0f, height)
+                                        close()
+                                    }
+                                    drawPath(frontWave, frontWaveColor)
+                                }
+                                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 58.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Column(Modifier.fillMaxWidth().padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(Modifier.size(58.dp), shape = RoundedCornerShape(18.dp),
-                                        color = if (isDarkUi) Color(0xFF40252D) else Color(0xFFFFE8E8)) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Outlined.Delete, null, tint = Color(0xFFE36A75),
-                                                modifier = Modifier.size(30.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                @Composable
+                                fun RecycleStat(
+                                    icon: ImageVector,
+                                    value: String,
+                                    label: String
+                                ) {
+                                    Row(
+                                        Modifier.weight(1f)
+                                            .clip(RoundedCornerShape(22.dp))
+                                            .background(statSurface)
+                                            .border(1.dp, overviewAccent.copy(alpha = 0.55f), RoundedCornerShape(22.dp))
+                                            .padding(horizontal = 8.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                    ) {
+                                        Box(
+                                            Modifier.size(38.dp).clip(CircleShape)
+                                                .background(overviewAccent.copy(alpha = 0.16f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(icon, null, tint = overviewAccent, modifier = Modifier.size(22.dp))
+                                        }
+                                        Column(
+                                            Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            val valueFontSize = when {
+                                                value.length >= 10 -> 13.sp
+                                                value.length >= 8 -> 14.sp
+                                                value.length >= 6 -> 16.sp
+                                                else -> 20.sp
+                                            }
+                                            Text(
+                                                value,
+                                                style = MaterialTheme.typography.titleLarge.copy(
+                                                    fontSize = valueFontSize,
+                                                    lineHeight = (valueFontSize.value * 1.15f).sp
+                                                ),
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Clip
+                                            )
+                                            Text(
+                                                label,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = palette.muted,
+                                                maxLines = 2,
+                                                softWrap = true,
+                                                overflow = TextOverflow.Clip
+                                            )
                                         }
                                     }
-                                    Spacer(Modifier.width(14.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text("Recycle Bin", style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold)
-                                        Text("Deleted files stay here for 30 days",
-                                            color = palette.muted, style = MaterialTheme.typography.bodySmall)
-                                    }
                                 }
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(deleted.size.toString(), style = MaterialTheme.typography.headlineSmall,
-                                            fontWeight = FontWeight.Bold)
-                                        Text("Deleted items", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-                                    }
-                                    Column(Modifier.weight(1f)) {
-                                        Text(formatDocumentBytesNew(totalBytes), style = MaterialTheme.typography.headlineSmall,
-                                            fontWeight = FontWeight.Bold)
-                                        Text("Storage used", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-                                    }
-                                }
-                                Text("Items are automatically and permanently deleted 30 days after they were moved here.",
-                                    color = palette.muted, style = MaterialTheme.typography.bodySmall)
+                                RecycleStat(Icons.Outlined.Description, recycleBinItems.size.toString(), "Deleted items")
+                                RecycleStat(Icons.Outlined.Storage, recycleStorageLabel, "Storage used")
+                            }
+
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Info,
+                                    contentDescription = null,
+                                    tint = overviewAccent,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                                Box(
+                                    Modifier.width(2.dp).height(48.dp)
+                                        .background(overviewAccent.copy(alpha = 0.65f))
+                                )
+                                Text(
+                                    "Items are automatically and permanently deleted 30 days after they were moved here.",
+                                    Modifier.weight(1f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
                         }
                     }
@@ -1946,7 +2327,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             },
                             onMore = { selectedDocument = doc },
                             selectionMode = selectionMode,
-                            selected = doc.id in selectedDocumentIds
+                            selected = doc.id in selectedDocumentIds,
+                            categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
                         )
                     }
                 }
@@ -1970,75 +2352,23 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
 
             }
         }
-    }
-
-    if (showAddOptions) {
-        ModalBottomSheet(
-            onDismissRequest = { showAddOptions = false },
-            sheetState = addOptionsSheetState,
-            containerColor = documentSurface,
-            tonalElevation = 8.dp
-        ) {
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text("Add to Documents", style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold)
-                ListItem(
-                    headlineContent = { Text("Upload Files", fontWeight = FontWeight.SemiBold) },                    supportingContent = { Text("From device (PDF, images, documents, etc.)") },
-                    leadingContent = { Icon(Icons.Outlined.Description, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable {
-                        showAddOptions = false
-                        VaultExternalActivityState.documentPickerActive = true
-                        picker.launch(arrayOf("*/*"))
-                    }
-                )
-                ListItem(
-                    headlineContent = { Text("Create Folder", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Organise your documents") },
-                    leadingContent = { Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable {
-                        showAddOptions = false
-                        startCreateFolder()
-                    }
-                )
-                ListItem(
-                    headlineContent = { Text("Scan Document", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Use camera to scan (PDF)") },
-                    leadingContent = { Icon(Icons.Outlined.DocumentScanner, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable {
-                        showAddOptions = false
-                        val activity = context as? Activity
-                        if (activity == null) {
-                            message = "Unable to open the document scanner from this screen."
-                        } else {
-                            VaultExternalActivityState.documentPickerActive = true
-                            GmsDocumentScanning.getClient(scannerOptions)
-                                .getStartScanIntent(activity)
-                                .addOnSuccessListener { intentSender ->
-                                    scannerLauncher.launch(
-                                        IntentSenderRequest.Builder(intentSender).build()
-                                    )
-                                }
-                                .addOnFailureListener { error ->
-                                    VaultExternalActivityState.documentPickerActive = false
-                                    message = error.localizedMessage
-                                        ?: "Unable to start document scanning. Check Google Play services and try again."
-                                }
+        if (menuScrimAlpha > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = menuScrimAlpha))
+                    // Consume all pointer changes while the menu is expanded so
+                    // blurred documents cannot be tapped, selected, or scrolled.
+                    .pointerInput(showAddOptions) {
+                        awaitPointerEventScope {
+                            while (showAddOptions) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            }
                         }
                     }
-                )
-                ListItem(
-                    headlineContent = { Text("Take Photo", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Capture and save as document") },
-                    leadingContent = { Icon(Icons.Outlined.PhotoCamera, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable {
-                        showAddOptions = false
-                        launchPhotoCapture()
-                    }
-                )
-            }
+            )
+        }
         }
     }
 
@@ -3239,42 +3569,176 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     if (showRenameFolder) {
-        AlertDialog(
-
-            shape = RoundedCornerShape(24.dp),
-
-            containerColor = MaterialTheme.colorScheme.surface,
-
-            tonalElevation = 8.dp,
+        Dialog(
             onDismissRequest = { showRenameFolder = false },
-            title = { Text("Rename Folder") },
-            text = {
-                OutlinedTextField(
-                    value = renameFolderName,
-                    onValueChange = { renameFolderName = it.take(30) },
-                    label = { Text("Folder name") },
-                    supportingText = { Text(renameFolderName.length.toString() + "/30") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(enabled = renameFolderName.trim().isNotEmpty() && !busyDocument, onClick = {
-                    val folder = selectedFolder ?: return@TextButton
-                    scope.launch {
-                        busyDocument = true
-                        try {
-                            repository.renameFolder(vaultId, folder, renameFolderName)
-                            showRenameFolder = false
-                            message = "Folder renamed."
-                        } catch (error: Exception) {
-                            showRenameFolder = false
-                            message = error.localizedMessage ?: error.message ?: "Unable to rename folder."
-                        } finally { busyDocument = false }
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = true
+            )
+        ) {
+            val dialogDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+            val dialogSurface = if (dialogDark) Color(0xFF241B30) else Color(0xFFF8F3FF)
+            val dialogAccent = if (dialogDark) Color(0xFFB979E8) else Color(0xFF7622C8)
+            val dialogButtonText = if (dialogDark) Color(0xFF24152F) else Color.White
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.90f)
+                    .widthIn(max = 420.dp)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(dialogSurface)
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 34.dp.toPx())
+                            cubicTo(
+                                width * 0.18f, height - 48.dp.toPx(),
+                                width * 0.34f, height - 2.dp.toPx(),
+                                width * 0.55f, height - 20.dp.toPx()
+                            )
+                            cubicTo(
+                                width * 0.76f, height - 34.dp.toPx(),
+                                width * 0.88f, height - 50.dp.toPx(),
+                                width, height - 34.dp.toPx()
+                            )
+                            lineTo(width, height)
+                            lineTo(0f, height)
+                            close()
+                        }
+                        drawPath(backWave, if (dialogDark) Color(0xFF542A73) else Color(0xFFD7B8EF))
+
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 16.dp.toPx())
+                            cubicTo(
+                                width * 0.20f, height - 30.dp.toPx(),
+                                width * 0.38f, height - 2.dp.toPx(),
+                                width * 0.56f, height - 12.dp.toPx()
+                            )
+                            cubicTo(
+                                width * 0.78f, height - 22.dp.toPx(),
+                                width * 0.90f, height - 28.dp.toPx(),
+                                width, height - 16.dp.toPx()
+                            )
+                            lineTo(width, height)
+                            lineTo(0f, height)
+                            close()
+                        }
+                        drawPath(frontWave, if (dialogDark) Color(0xFF8846AC) else Color(0xFFE8D1F8))
                     }
-                }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { showRenameFolder = false }) { Text("Cancel") } }
-        )
+                    .padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 54.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(58.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(if (dialogDark) Color(0xFF583174) else Color(0xFFEAD8FA)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.FolderOpen,
+                            contentDescription = null,
+                            tint = if (dialogDark) Color(0xFFE8C8FF) else Color(0xFF7025A8),
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                    Text(
+                        "Rename Folder",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedTextField(
+                        value = renameFolderName,
+                        onValueChange = { renameFolderName = it.take(30) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Folder name") },
+                        trailingIcon = {
+                            if (renameFolderName.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { renameFolderName = "" },
+                                    modifier = Modifier.clip(CircleShape)
+                                ) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear folder name")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    Text(
+                        "${renameFolderName.length}/30",
+                        modifier = Modifier.padding(start = 16.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { showRenameFolder = false },
+                        modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50)),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (dialogDark) Color(0xFFDDB8F2) else Color(0xFFEAD8FA),
+                            contentColor = Color(0xFF281936)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                    ) {
+                        Text("Cancel", fontWeight = FontWeight.Medium)
+                    }
+                    Button(
+                        enabled = renameFolderName.trim().isNotEmpty() && !busyDocument,
+                        onClick = {
+                            val folder = selectedFolder ?: return@Button
+                            scope.launch {
+                                busyDocument = true
+                                isRenamingFolder = true
+                                recycleBinProgressTitle = "Renaming Folder"
+                                recycleBinMoveFileName = renameFolderName.trim()
+                                try {
+                                    repository.renameFolder(vaultId, folder, renameFolderName)
+                                    showRenameFolder = false
+                                    message = "Folder renamed."
+                                } catch (error: Exception) {
+                                    showRenameFolder = false
+                                    message = error.localizedMessage ?: error.message ?: "Unable to rename folder."
+                                } finally {
+                                    isRenamingFolder = false
+                                    recycleBinMoveFileName = ""
+                                    busyDocument = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50)),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF9700E8),
+                            contentColor = Color.White,
+                            disabledContainerColor = dialogAccent.copy(alpha = 0.35f),
+                            disabledContentColor = Color.White.copy(alpha = 0.7f)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                    ) {
+                        Text("Save", fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
     }
 
     if (showMoveFolder) {
@@ -3296,116 +3760,262 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     (folder.scope == "SHARED" || it.ownerUid == folder.ownerUid) &&
                     it.id != folder.parentFolderId
             }
-            AlertDialog(
+            Dialog(
+                onDismissRequest = { if (!busyDocument) showMoveFolder = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                val moveDialogDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+                val moveDialogSurface = if (moveDialogDark) Color(0xFF241B30) else Color(0xFFF8F3FF)
+                val moveDialogBackWave = if (moveDialogDark) Color(0xFF542A73) else Color(0xFFD7B8EF)
+                val moveDialogFrontWave = if (moveDialogDark) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+                val rootLabel = allCategories.firstOrNull { it.first == folder.categoryId }?.second ?: "Category"
 
-                shape = RoundedCornerShape(24.dp),
+                Column(
+                    modifier = Modifier.fillMaxWidth(0.90f).widthIn(max = 420.dp)
+                        .wrapContentHeight().clip(RoundedCornerShape(28.dp))
+                        .background(moveDialogSurface)
+                        .drawBehind {
+                            val width = size.width
+                            val height = size.height
+                            val backWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, height - 34.dp.toPx())
+                                cubicTo(width * 0.18f, height - 48.dp.toPx(), width * 0.34f, height - 2.dp.toPx(), width * 0.55f, height - 20.dp.toPx())
+                                cubicTo(width * 0.76f, height - 34.dp.toPx(), width * 0.88f, height - 50.dp.toPx(), width, height - 34.dp.toPx())
+                                lineTo(width, height); lineTo(0f, height); close()
+                            }
+                            drawPath(backWave, moveDialogBackWave)
+                            val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, height - 16.dp.toPx())
+                                cubicTo(width * 0.20f, height - 30.dp.toPx(), width * 0.38f, height - 2.dp.toPx(), width * 0.56f, height - 12.dp.toPx())
+                                cubicTo(width * 0.78f, height - 22.dp.toPx(), width * 0.90f, height - 28.dp.toPx(), width, height - 16.dp.toPx())
+                                lineTo(width, height); lineTo(0f, height); close()
+                            }
+                            drawPath(frontWave, moveDialogFrontWave)
+                        }
+                        .padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 54.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                            .background(if (moveDialogDark) Color(0xFF583174) else Color(0xFFEAD8FA)),
+                            contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.DriveFileMove, null,
+                                tint = if (moveDialogDark) Color(0xFFE8C8FF) else Color(0xFF7025A8),
+                                modifier = Modifier.size(30.dp))
+                        }
+                        Text("Move Folder", modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Text("Choose a destination. All subfolders and documents will move with this folder.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                containerColor = MaterialTheme.colorScheme.surface,
-
-                tonalElevation = 8.dp,
-                onDismissRequest = { showMoveFolder = false },
-                title = { Text("Move Folder") },
-                text = {
-                    Column(
-                        Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text("Choose a destination. All subfolders and documents will move with this folder.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        val rootLabel = allCategories.firstOrNull { it.first == folder.categoryId }?.second ?: "Category"
-                        Row(
-                            Modifier.fillMaxWidth().clickable {
-                                moveParentFolderId = null
-                                moveTargetChosen = true
-                            }.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = moveTargetChosen && moveParentFolderId == null, onClick = {
-                                moveParentFolderId = null
-                                moveTargetChosen = true
-                            })
-                            Text(rootLabel + " (Root)")
+                    Column(Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        @Composable
+                        fun DestinationOption(label: String, selected: Boolean, onSelect: () -> Unit) {
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                    .background(if (selected) moveDialogBackWave.copy(alpha = 0.20f) else Color.Transparent)
+                                    .border(if (selected) 1.dp else 0.dp,
+                                        if (selected) moveDialogBackWave else Color.Transparent, RoundedCornerShape(16.dp))
+                                    .clickable(onClick = onSelect).padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                RadioButton(selected = selected, onClick = onSelect)
+                                Text(label, color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+                        DestinationOption(rootLabel + " (Root)", moveTargetChosen && moveParentFolderId == null) {
+                            moveParentFolderId = null
+                            moveTargetChosen = true
                         }
                         destinations.forEach { destination ->
-                            Row(
-                                Modifier.fillMaxWidth().clickable {
-                                    moveParentFolderId = destination.id
-                                    moveTargetChosen = true
-                                }.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(selected = moveTargetChosen && moveParentFolderId == destination.id, onClick = {
-                                    moveParentFolderId = destination.id
-                                    moveTargetChosen = true
-                                })
-                                Text(destination.name)
+                            DestinationOption(destination.name, moveTargetChosen && moveParentFolderId == destination.id) {
+                                moveParentFolderId = destination.id
+                                moveTargetChosen = true
                             }
                         }
                     }
-                },
-                confirmButton = {
-                    TextButton(enabled = moveTargetChosen && !busyDocument, onClick = {
-                        scope.launch {
-                            busyDocument = true
-                            try {
-                                repository.moveFolder(vaultId, folder, moveParentFolderId)
-                                showMoveFolder = false
-                                if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
-                                message = "Folder moved."
-                            } catch (error: Exception) {
-                                message = error.localizedMessage ?: error.message ?: "Unable to move folder."
-                            } finally { busyDocument = false }
-                        }
-                    }) { Text("Move") }
-                },
-                dismissButton = { TextButton(onClick = { showMoveFolder = false }) { Text("Cancel") } }
-            )
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = { showMoveFolder = false },
+                            modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50.dp)),
+                            shape = RoundedCornerShape(50.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (moveDialogDark) Color(0xFFDDB8F2) else Color(0xFFEAD8FA),
+                                contentColor = Color(0xFF281936)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                        ) { Text("Cancel", fontWeight = FontWeight.Medium) }
+                        Button(
+                            enabled = moveTargetChosen && !busyDocument,
+                            onClick = {
+                                scope.launch {
+                                    busyDocument = true
+                                    isMovingFolder = true
+                                    recycleBinProgressTitle = "Moving Folder"
+                                    recycleBinMoveFileName = folder.name
+                                    try {
+                                        repository.moveFolder(vaultId, folder, moveParentFolderId)
+                                        showMoveFolder = false
+                                        if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
+                                        message = "Folder moved."
+                                    } catch (error: Exception) {
+                                        message = error.localizedMessage ?: error.message ?: "Unable to move folder."
+                                    } finally {
+                                        isMovingFolder = false
+                                        recycleBinMoveFileName = ""
+                                        busyDocument = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50.dp)),
+                            shape = RoundedCornerShape(50.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF9700E8), contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                        ) { Text("Move", fontWeight = FontWeight.Medium) }
+                    }
+                }
+            }
         }
     }
 
     if (showDeleteFolderConfirm) {
-        AlertDialog(
-
-            shape = RoundedCornerShape(24.dp),
-
-            containerColor = MaterialTheme.colorScheme.surface,
-
-            tonalElevation = 8.dp,
+        Dialog(
             onDismissRequest = { showDeleteFolderConfirm = false; deleteFolderError = null },
-            title = { Text("Delete Empty Folder?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Only an empty folder can be deleted. Documents and subfolders must be moved first.")
-                    deleteFolderError?.let { errorText ->
-                        Text(
-                            errorText,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            val deleteDialogDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+            val deleteDialogSurface = if (deleteDialogDark) Color(0xFF241B30) else Color(0xFFF8F3FF)
+            val deleteDialogBackWave = if (deleteDialogDark) Color(0xFF542A73) else Color(0xFFD7B8EF)
+            val deleteDialogFrontWave = if (deleteDialogDark) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.90f)
+                    .widthIn(max = 420.dp)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(deleteDialogSurface)
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 34.dp.toPx())
+                            cubicTo(width * 0.18f, height - 48.dp.toPx(),
+                                width * 0.34f, height - 2.dp.toPx(), width * 0.55f, height - 20.dp.toPx())
+                            cubicTo(width * 0.76f, height - 34.dp.toPx(),
+                                width * 0.88f, height - 50.dp.toPx(), width, height - 34.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(backWave, deleteDialogBackWave)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 16.dp.toPx())
+                            cubicTo(width * 0.20f, height - 30.dp.toPx(),
+                                width * 0.38f, height - 2.dp.toPx(), width * 0.56f, height - 12.dp.toPx())
+                            cubicTo(width * 0.78f, height - 22.dp.toPx(),
+                                width * 0.90f, height - 28.dp.toPx(), width, height - 16.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(frontWave, deleteDialogFrontWave)
+                    }
+                    .padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 54.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                            .background(if (deleteDialogDark) Color(0xFF583174) else Color(0xFFEAD8FA)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.Delete,
+                            contentDescription = null,
+                            tint = if (deleteDialogDark) Color(0xFFE8C8FF) else Color(0xFF7025A8),
+                            modifier = Modifier.size(30.dp)
                         )
                     }
+                    Text(
+                        "Delete Empty Folder?",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
-            },
-            confirmButton = {
-                TextButton(enabled = !busyDocument, onClick = {
-                    val folder = selectedFolder ?: return@TextButton
-                    scope.launch {
-                        busyDocument = true
-                        try {
-                            repository.deleteEmptyFolder(vaultId, folder.id)
-                            showDeleteFolderConfirm = false
-                            if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
-                            message = "Folder deleted."
-                        } catch (error: Exception) {
-                            val failure = error.localizedMessage ?: error.message ?: "Folder could not be deleted."
-                            showDeleteFolderConfirm = false
-                            deleteFolderError = null
-                            VaultSnackbarController.show(failure, VaultSnackbarType.ERROR)
-                        } finally { busyDocument = false }
-                    }
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { showDeleteFolderConfirm = false; deleteFolderError = null }) { Text("Cancel") } }
-        )
+
+                Text(
+                    "Only an empty folder can be deleted. Documents and subfolders must be moved first.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                deleteFolderError?.let { errorText ->
+                    Text(errorText, color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { showDeleteFolderConfirm = false; deleteFolderError = null },
+                        modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50.dp)),
+                        shape = RoundedCornerShape(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (deleteDialogDark) Color(0xFFDDB8F2) else Color(0xFFEAD8FA),
+                            contentColor = Color(0xFF281936)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                    ) { Text("Cancel", fontWeight = FontWeight.Medium) }
+
+                    Button(
+                        enabled = !busyDocument,
+                        onClick = {
+                            val folder = selectedFolder ?: return@Button
+                            scope.launch {
+                                busyDocument = true
+                                isEmptyingRecycleBin = true
+                                recycleBinProgressTitle = "Deleting Folder"
+                                recycleBinMoveFileName = folder.name
+                                try {
+                                    repository.deleteEmptyFolder(vaultId, folder.id)
+                                    showDeleteFolderConfirm = false
+                                    if (currentFolderId == folder.id) currentFolderId = folder.parentFolderId
+                                    message = "Folder deleted."
+                                } catch (error: Exception) {
+                                    val failure = error.localizedMessage ?: error.message ?: "Folder could not be deleted."
+                                    showDeleteFolderConfirm = false
+                                    deleteFolderError = null
+                                    VaultSnackbarController.show(failure, VaultSnackbarType.ERROR)
+                                } finally {
+                                    isEmptyingRecycleBin = false
+                                    recycleBinMoveFileName = ""
+                                    busyDocument = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50.dp)),
+                        shape = RoundedCornerShape(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF9700E8),
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                    ) { Text("Delete", fontWeight = FontWeight.Medium) }
+                }
+            }
+        }
     }
 
     if (showCreateFolder) {
@@ -3450,7 +4060,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             ) {
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-                        .padding(top = 26.dp, bottom = 76.dp),
+                        .padding(top = 26.dp, bottom = 56.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically,
@@ -3468,33 +4078,49 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Folder Name", style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(
-                            value = newFolderName,
-                            onValueChange = { newFolderName = it.take(30); createFolderError = null },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Enter folder name") },
-                            supportingText = { Text("${newFolderName.length}/30") },
-                            singleLine = true, shape = RoundedCornerShape(16.dp)
-                        )
-                    }
+                    OutlinedTextField(
+                        value = newFolderName,
+                        onValueChange = { newFolderName = it.take(30); createFolderError = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Folder Name") },
+                        placeholder = { Text("Enter folder name") },
+                        trailingIcon = {
+                            if (newFolderName.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    newFolderName = ""
+                                    createFolderError = null
+                                }) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear folder name")
+                                }
+                            }
+                        },
+                        supportingText = { Text("${newFolderName.length}/30") },
+                        singleLine = true, shape = RoundedCornerShape(16.dp)
+                    )
 
                     if (category == "all" && currentFolderId == null) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Category", style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        Column {
                             Box {
-                                OutlinedButton(onClick = { folderCategoryMenuExpanded = true },
-                                    modifier = Modifier.fillMaxWidth().height(54.dp),
-                                    shape = RoundedCornerShape(16.dp)) {
-                                    Icon(Icons.Outlined.GridView, null, tint = folderAccent)
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other",
-                                        modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
-                                    Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
-                                }
+                                OutlinedTextField(
+                                    value = allCategories.firstOrNull { it.first == newFolderCategory }?.second ?: "Other",
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text("Category") },
+                                    leadingIcon = {
+                                        Icon(Icons.Outlined.GridView, null, tint = folderAccent)
+                                    },
+                                    trailingIcon = {
+                                        Icon(Icons.Outlined.ArrowDropDown, contentDescription = "Choose category")
+                                    },
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                Box(
+                                    Modifier.matchParentSize().clip(RoundedCornerShape(16.dp)).clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { folderCategoryMenuExpanded = true }
+                                )
                                 DropdownMenu(expanded = folderCategoryMenuExpanded,
                                     onDismissRequest = { folderCategoryMenuExpanded = false }) {
                                     allCategories.forEach { (id, label) ->
@@ -3507,9 +4133,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Visibility", style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                    Column {
                         if (parentScope != null) {
                             Surface(shape = RoundedCornerShape(14.dp), color = palette.surface2) {
                                 Text(if (parentScope == "SHARED") "Shared (inherited from parent folder)"
@@ -3633,96 +4257,468 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 }
                 appendChildren(null)
             }
-            AlertDialog(
+            val moveSurface = if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF)
+            val moveWaveBack = if (isDarkUi) Color(0xFF63347F) else Color(0xFFDCC0F5)
+            val moveWaveFront = if (isDarkUi) Color(0xFF8D52B4) else Color(0xFFE9D5FA)
+            val moveAccent = if (isDarkUi) Color(0xFFD7B5FF) else Color(0xFF7136B8)
+            val moveDialogShape = RoundedCornerShape(30.dp)
 
-                shape = RoundedCornerShape(24.dp),
-
-                containerColor = MaterialTheme.colorScheme.surface,
-
-                tonalElevation = 8.dp,
-                onDismissRequest = { showMoveDocument = false; documentToMove = null },
-                title = { Text("Move Document") },
-                text = {
+            Dialog(
+                onDismissRequest = { if (!busyDocument) { showMoveDocument = false; documentToMove = null } },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Box(
+                    Modifier.fillMaxWidth(0.92f)
+                        .clip(moveDialogShape)
+                        .background(moveSurface)
+                        .drawBehind {
+                            val waveHeight = 48.dp.toPx()
+                            val backWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, size.height - waveHeight * 0.78f)
+                                cubicTo(size.width * 0.24f, size.height - waveHeight * 1.35f,
+                                    size.width * 0.36f, size.height - waveHeight * 0.05f,
+                                    size.width * 0.58f, size.height - waveHeight * 0.45f)
+                                cubicTo(size.width * 0.78f, size.height - waveHeight * 0.85f,
+                                    size.width * 0.86f, size.height - waveHeight * 1.18f,
+                                    size.width, size.height - waveHeight * 0.62f)
+                                lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                            }
+                            drawPath(backWave, moveWaveBack)
+                            val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, size.height - waveHeight * 0.38f)
+                                cubicTo(size.width * 0.22f, size.height - waveHeight * 0.85f,
+                                    size.width * 0.42f, size.height - waveHeight * 0.02f,
+                                    size.width * 0.62f, size.height - waveHeight * 0.28f)
+                                cubicTo(size.width * 0.80f, size.height - waveHeight * 0.50f,
+                                    size.width * 0.88f, size.height - waveHeight * 0.68f,
+                                    size.width, size.height - waveHeight * 0.32f)
+                                lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                            }
+                            drawPath(frontWave, moveWaveFront)
+                        }
+                ) {
                     Column(
-                        Modifier.fillMaxWidth().heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        Modifier.fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .padding(top = 26.dp, bottom = 58.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                                    .background(if (isDarkUi) Color(0xFF594078) else Color(0xFFE9DDFB)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.DriveFileMove, null, tint = moveAccent,
+                                    modifier = Modifier.size(32.dp))
+                            }
+                            Text(
+                                "Move Document",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                         Text(
                             "Choose a folder in ${allCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "this category"}. Personal and Shared access cannot be mixed inside a folder.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
+
+                        Column(
+                            Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val rootSelected = moveDocumentTargetChosen && moveDocumentTargetId == null
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = ripple()
+                                    ) {
+                                        moveDocumentTargetId = null
+                                        moveDocumentTargetChosen = true
+                                    },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (rootSelected) moveAccent.copy(alpha = 0.16f)
+                                    else if (isDarkUi) Color(0xFF30263B) else Color(0xFFF1EAF8),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, if (rootSelected) moveAccent else moveAccent.copy(alpha = 0.16f)
+                                )
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = rootSelected,
+                                        onClick = { moveDocumentTargetId = null; moveDocumentTargetChosen = true },
+                                        colors = RadioButtonDefaults.colors(selectedColor = moveAccent)
+                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text("Category root", fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface)
+                                        Text("Move out of the current folder",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+
+                            orderedEligibleFolders.forEach { folder ->
+                                val depth = generateSequence(folder.parentFolderId) { parentId ->
+                                    eligibleFolders.firstOrNull { it.id == parentId }?.parentFolderId
+                                }.take(8).count()
+                                val selected = moveDocumentTargetChosen && moveDocumentTargetId == folder.id
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = ripple()
+                                        ) {
+                                            moveDocumentTargetId = folder.id
+                                            moveDocumentTargetChosen = true
+                                        },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (selected) moveAccent.copy(alpha = 0.16f)
+                                        else if (isDarkUi) Color(0xFF30263B) else Color(0xFFF1EAF8),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp, if (selected) moveAccent else moveAccent.copy(alpha = 0.16f)
+                                    )
+                                ) {
+                                    Row(
+                                        Modifier.fillMaxWidth()
+                                            .padding(start = (12 + depth * 14).dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = selected,
+                                            onClick = { moveDocumentTargetId = folder.id; moveDocumentTargetChosen = true },
+                                            colors = RadioButtonDefaults.colors(selectedColor = moveAccent)
+                                        )
+                                        Icon(Icons.Outlined.FolderOpen, null, tint = moveAccent)
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(folder.name, color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                            if (eligibleFolders.isEmpty()) {
+                                Text(
+                                    "No eligible folders. Create a folder in this category first.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+
                         Row(
-                            Modifier.fillMaxWidth().clickable {
-                                moveDocumentTargetId = null
-                                moveDocumentTargetChosen = true
-                            }.padding(vertical = 8.dp),
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(
-                                selected = moveDocumentTargetChosen && moveDocumentTargetId == null,
-                                onClick = { moveDocumentTargetId = null; moveDocumentTargetChosen = true }
-                            )
-                            Column {
-                                Text("Category root", fontWeight = FontWeight.SemiBold)
-                                Text("Move out of the current folder", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        orderedEligibleFolders.forEach { folder ->
-                            val depth = generateSequence(folder.parentFolderId) { parentId ->
-                                eligibleFolders.firstOrNull { it.id == parentId }?.parentFolderId
-                            }.take(8).count()
-                            Row(
-                                Modifier.fillMaxWidth().clickable {
-                                    moveDocumentTargetId = folder.id
-                                    moveDocumentTargetChosen = true
-                                }.padding(
-    start = (depth * 14).dp,
-    top = 7.dp,
-    bottom = 7.dp
-),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = moveDocumentTargetChosen && moveDocumentTargetId == folder.id,
-                                    onClick = { moveDocumentTargetId = folder.id; moveDocumentTargetChosen = true }
+                            Button(
+                                onClick = { showMoveDocument = false; documentToMove = null },
+                                enabled = !busyDocument,
+                                modifier = Modifier.weight(1f).height(54.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDarkUi) Color(0xFFDCC0F5) else Color(0xFFE9D5FA),
+                                    contentColor = if (isDarkUi) Color(0xFF30203F) else Color(0xFF54217F)
                                 )
-                                Icon(Icons.Outlined.FolderOpen, null, tint = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.width(8.dp))
-                                Text(folder.name)
+                            ) {
+                                Text("Cancel", fontWeight = FontWeight.SemiBold)
                             }
-                        }
-                        if (eligibleFolders.isEmpty()) {
-                            Text("No eligible folders. Create a folder in this category first.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        busyDocument = true
+                                        try {
+                                            repository.moveDocumentToFolder(vaultId, doc, moveDocumentTargetId)
+                                            showMoveDocument = false
+                                            documentToMove = null
+                                            message = if (moveDocumentTargetId == null) "Document moved to category root."
+                                                else "Document moved to folder."
+                                        } catch (error: Exception) {
+                                            message = error.localizedMessage ?: error.message ?: "Unable to move document."
+                                        } finally { busyDocument = false }
+                                    }
+                                },
+                                enabled = moveDocumentTargetChosen && !busyDocument,
+                                modifier = Modifier.weight(1f).height(54.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDarkUi) Color(0xFF9B28F4) else Color(0xFF8A35D1),
+                                    contentColor = Color.White,
+                                    disabledContainerColor = if (isDarkUi) Color(0xFF51445C) else Color(0xFFE5DCEB),
+                                    disabledContentColor = if (isDarkUi) Color(0xFF9B8FA5) else Color(0xFF9A8FA3)
+                                )
+                            ) {
+                                if (busyDocument) CircularProgressIndicator(Modifier.size(20.dp),
+                                    color = Color.White, strokeWidth = 2.dp)
+                                else Text("Move", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
-                },
-                confirmButton = {
-                    TextButton(enabled = moveDocumentTargetChosen && !busyDocument, onClick = {
-                        scope.launch {
-                            busyDocument = true
-                            try {
-                                repository.moveDocumentToFolder(vaultId, doc, moveDocumentTargetId)
-                                showMoveDocument = false
-                                documentToMove = null
-                                message = if (moveDocumentTargetId == null) "Document moved to category root."
-                                    else "Document moved to folder."
-                            } catch (error: Exception) {
-                                message = error.localizedMessage ?: error.message ?: "Unable to move document."
-                            } finally { busyDocument = false }
-                        }
-                    }) { Text("Move") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showMoveDocument = false; documentToMove = null }) { Text("Cancel") }
                 }
-            )
+            }
         }
     }
 
-    selectedDocument?.let { doc ->
+    selectedDocument?.takeIf { it.isDeleted }?.let { doc ->
+        val categoryName = allCategories.firstOrNull { it.first == doc.categoryId }?.second
+            ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+        val locationText = buildString {
+            append("Documents / ")
+            append(if (doc.scope == "SHARED") "Shared" else "Personal")
+            val names = mutableListOf<String>()
+            var cursor = doc.folderId
+            val visited = mutableSetOf<String>()
+            while (cursor != null && visited.add(cursor)) {
+                val folder = folders.firstOrNull { it.id == cursor } ?: break
+                names.add(0, folder.name)
+                cursor = folder.parentFolderId
+            }
+            names.forEach { append(" / "); append(it) }
+        }
+        val deletedText = doc.deletedAt?.toDate()?.let {
+            SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+        } ?: "—"
+        val autoDeleteText = doc.purgeAt?.toDate()?.let {
+            SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+        } ?: "—"
+        val daysLeft = doc.purgeAt?.toDate()?.time?.let {
+            kotlin.math.ceil((it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0).toInt()
+        }
+        val fileName = doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) }
+        val dialogSurface = if (isDarkUi) Color(0xFF21182B) else Color(0xFFF8F3FF)
+        val dialogPanel = if (isDarkUi) Color(0xFF2B2036) else Color(0xFFEFE6F8)
+        val dialogAccent = if (isDarkUi) Color(0xFFD3A0FF) else Color(0xFF7136B8)
+
+        Dialog(
+            onDismissRequest = { if (!busyDocument) selectedDocument = null },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = true
+            )
+        ) {
+            Column(
+                Modifier.fillMaxWidth(0.94f).widthIn(max = 560.dp)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(dialogSurface)
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 34.dp.toPx())
+                            cubicTo(width * 0.18f, height - 48.dp.toPx(), width * 0.34f, height - 2.dp.toPx(),
+                                width * 0.55f, height - 20.dp.toPx())
+                            cubicTo(width * 0.76f, height - 34.dp.toPx(), width * 0.88f, height - 50.dp.toPx(),
+                                width, height - 34.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(backWave, if (isDarkUi) Color(0xFF542A73) else Color(0xFFD7B8EF))
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 16.dp.toPx())
+                            cubicTo(width * 0.20f, height - 30.dp.toPx(), width * 0.38f, height - 2.dp.toPx(),
+                                width * 0.56f, height - 12.dp.toPx())
+                            cubicTo(width * 0.78f, height - 22.dp.toPx(), width * 0.90f, height - 28.dp.toPx(),
+                                width, height - 16.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(frontWave, if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8))
+                    }
+                    .padding(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 54.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "File Information",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    IconButton(
+                        onClick = { selectedDocument = null },
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
+                        Icon(Icons.Outlined.Close, contentDescription = "Close file information",
+                            tint = dialogAccent)
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
+                        .background(dialogPanel).padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    DocumentTypeIconNew(doc.contentType, Modifier.size(76.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        val fileNameFontSize = when {
+                            fileName.length > 60 -> 10.sp
+                            fileName.length > 50 -> 11.sp
+                            fileName.length > 40 -> 12.sp
+                            fileName.length > 30 -> 14.sp
+                            else -> MaterialTheme.typography.titleLarge.fontSize
+                        }
+                        Text(
+                            fileName,
+                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontSize = fileNameFontSize,
+                                lineHeight = (fileNameFontSize.value * 1.22f).sp
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = true
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                            Surface(
+                                shape = RoundedCornerShape(50.dp),
+                                color = if (isDarkUi) Color(0xFF512331) else Color(0xFFFFE1E6)
+                            ) {
+                                val fileTypeLabel = documentTypeDisplayNameV2New(doc)
+                                val fileTypeFontSize = when {
+                                    fileTypeLabel.length > 16 -> 9.sp
+                                    fileTypeLabel.length > 12 -> 10.sp
+                                    fileTypeLabel.length > 9 -> 11.sp
+                                    else -> 12.sp
+                                }
+                                Text(
+                                    fileTypeLabel,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                    color = if (isDarkUi) Color(0xFFFFA0B4) else Color(0xFFB42345),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontSize = fileTypeFontSize,
+                                        lineHeight = (fileTypeFontSize.value * 1.15f).sp
+                                    ),
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Clip
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
+                        .background(dialogPanel)
+                        .border(1.dp, dialogAccent.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    @Composable
+                    fun recycleInfoRow(label: String, value: String, icon: ImageVector, divider: Boolean = true) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(icon, contentDescription = null, tint = dialogAccent, modifier = Modifier.size(24.dp))
+                            Text(
+                                label,
+                                modifier = Modifier.weight(1f),
+                                color = dialogAccent,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1
+                            )
+                            if (label == "Location") {
+                                Box(
+                                    Modifier.weight(1.55f).horizontalScroll(rememberScrollState()),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        value,
+                                        modifier = Modifier.wrapContentWidth(),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    value,
+                                    modifier = Modifier.weight(1.55f),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (divider) HorizontalDivider(
+                            Modifier.padding(start = 42.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                        )
+                    }
+                    recycleInfoRow("Deleted On", deletedText, Icons.Outlined.CalendarToday)
+                    recycleInfoRow("Auto Delete On", autoDeleteText, Icons.Outlined.History)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Outlined.History, null, tint = dialogAccent, modifier = Modifier.size(24.dp))
+                        Text("Days Left", Modifier.weight(1f), color = dialogAccent,
+                            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        val urgent = daysLeft != null && daysLeft < 5
+                        Surface(
+                            shape = RoundedCornerShape(50.dp),
+                            color = when {
+                                daysLeft == null -> MaterialTheme.colorScheme.surfaceVariant
+                                urgent -> if (isDarkUi) Color(0xFF512331) else Color(0xFFFFE1E6)
+                                else -> if (isDarkUi) Color(0xFF174D24) else Color(0xFFE1F5E7)
+                            }
+                        ) {
+                            Text(
+                                daysLeft?.let { if (it <= 0) "Due" else "$it days left" } ?: "—",
+                                Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                color = when {
+                                    daysLeft == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    urgent -> if (isDarkUi) Color(0xFFFFA0B4) else Color(0xFFB42345)
+                                    else -> if (isDarkUi) Color(0xFF8BEA9B) else Color(0xFF21834A)
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                    HorizontalDivider(Modifier.padding(start = 42.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    recycleInfoRow("Location", locationText, Icons.Outlined.FolderOpen)
+                    recycleInfoRow("Category", categoryName, Icons.Outlined.FolderOpen)
+                    recycleInfoRow("Size", formatDocumentBytesNew(doc.sizeBytes),
+                        Icons.Outlined.Description, divider = false)
+                }
+            }
+        }
+    }
+
+    selectedDocument?.takeUnless { it.isDeleted }?.let { doc ->
         ModalBottomSheet(
             onDismissRequest = { if (!busyDocument) selectedDocument = null },
             containerColor = if (isDarkUi) Color(0xFF1D1725) else Color(0xFFF7F1FC),
@@ -3760,14 +4756,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     val remainingDays = doc.purgeAt?.toDate()?.time?.let {
                         kotlin.math.ceil((it - System.currentTimeMillis()).coerceAtLeast(0L) / 86400000.0).toInt()
                     }
-                    val typeLabel = when {
-                        doc.contentType.contains("pdf", true) -> "PDF Document"
-                        doc.contentType.startsWith("image/") -> "${doc.contentType.substringAfter('/').uppercase()} Image"
-                        doc.contentType.contains("word", true) -> "Word Document"
-                        doc.contentType.contains("sheet", true) || doc.contentType.contains("excel", true) -> "Spreadsheet"
-                        else -> doc.contentType.substringAfter('/').replace('-', ' ').replace('_', ' ')
-                            .replaceFirstChar { it.uppercase() } + " File"
-                    }
+                    val typeLabel = documentTypeDisplayNameV2New(doc)
                     Column(
                         Modifier.fillMaxWidth().padding(horizontal = 4.dp).padding(bottom = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -3789,12 +4778,19 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
+                                val displayFileName = doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) }
                                 Text(
-                                    documentDisplayNameV2New(doc),
-                                    style = MaterialTheme.typography.titleLarge,
+                                    displayFileName,
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontSize = when {
+                                            displayFileName.length > 50 -> 15.sp
+                                            displayFileName.length > 38 -> 17.sp
+                                            else -> MaterialTheme.typography.titleLarge.fontSize
+                                        }
+                                    ),
                                     fontWeight = FontWeight.Bold,
-                                    maxLines = 4,
-                                    overflow = TextOverflow.Clip,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
                                     softWrap = true
                                 )
                                 Row(
@@ -3848,79 +4844,109 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             verticalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             @Composable
-                            fun detailRow(label: String, value: String, icon: ImageVector, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
+                            fun detailRow(
+                                label: String,
+                                value: String,
+                                icon: ImageVector,
+                                showDivider: Boolean = true
+                            ) {
                                 Row(
                                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Icon(icon, null, tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
-                                        modifier = Modifier.size(24.dp))
-                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text(label, style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        Text(value, style = MaterialTheme.typography.bodyLarge,
-                                            color = valueColor, fontWeight = FontWeight.Medium)
-                                    }
+                                    Icon(
+                                        icon,
+                                        contentDescription = null,
+                                        tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        label,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (isDarkUi) Color(0xFFD2A8FF) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        value,
+                                        modifier = Modifier.weight(1.6f),
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
-                                if (label != "Size") HorizontalDivider(
+                                if (showDivider) HorizontalDivider(
                                     Modifier.padding(start = 54.dp),
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                                 )
                             }
+
                             detailRow("Deleted On", deletedAtText, Icons.Outlined.CalendarToday)
+                            detailRow("Auto Delete On", purgeAtText, Icons.Outlined.History)
+
                             Row(
                                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Icon(
                                     Icons.Outlined.History,
-                                    null,
+                                    contentDescription = null,
                                     tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
                                     modifier = Modifier.size(24.dp)
                                 )
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "Days Left",
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (isDarkUi) Color(0xFFD2A8FF) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                val isUrgentRetention = remainingDays != null && remainingDays < 5
+                                val retentionBadgeBackground = when {
+                                    remainingDays == null -> MaterialTheme.colorScheme.surfaceVariant
+                                    isUrgentRetention -> if (isDarkUi) Color(0xFF512331) else Color(0xFFFFE1E6)
+                                    else -> if (isDarkUi) Color(0xFF174D24) else Color(0xFFE1F5E7)
+                                }
+                                val retentionBadgeForeground = when {
+                                    remainingDays == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    isUrgentRetention -> if (isDarkUi) Color(0xFFFFA0B4) else Color(0xFFB42345)
+                                    else -> if (isDarkUi) Color(0xFF8BEA9B) else Color(0xFF21834A)
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(50.dp),
+                                    color = retentionBadgeBackground
+                                ) {
                                     Text(
-                                        "Auto Delete On",
+                                        remainingDays?.let {
+                                            if (it <= 0) "Due" else "$it days left"
+                                        } ?: "—",
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                        color = retentionBadgeForeground,
                                         style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            purgeAtText,
-                                            modifier = Modifier.weight(1f, fill = false),
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
-                                        if (remainingDays != null) {
-                                            Spacer(Modifier.width(6.dp))
-                                            Text(
-                                                if (remainingDays <= 0) "Due" else "($remainingDays days left)",
-                                                color = if (remainingDays <= 0) MaterialTheme.colorScheme.error else Color(0xFF65D82F),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
-                                        }
-                                    }
                                 }
                             }
                             HorizontalDivider(
                                 Modifier.padding(start = 54.dp),
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                             )
-                            detailRow("Original Location", originalLocation, Icons.Outlined.FolderOpen)
+                            detailRow("Location", originalLocation, Icons.Outlined.FolderOpen)
                             detailRow("Category", categoryName, Icons.Outlined.FolderOpen)
-                            detailRow("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Description)
+                            detailRow(
+                                "Size",
+                                formatDocumentBytesNew(doc.sizeBytes),
+                                Icons.Outlined.Description,
+                                showDivider = false
+                            )
                         }
                         if (doc.scope != "SHARED" && doc.ownerUid == memberUid) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -3934,13 +4960,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 onClick = {
                                     scope.launch {
                                         busyDocument = true
+                                        isRestoringFromRecycleBin = true
+                                        recycleBinProgressTitle = "Restoring document"
+                                        recycleBinMoveFileName = doc.originalFileName.ifBlank { doc.title }
                                         try {
                                             repository.restore(vaultId, doc.id)
                                             selectedDocument = null
                                             message = "Document restored."
                                         } catch (error: Exception) {
                                             message = error.localizedMessage ?: error.message ?: "Restore failed."
-                                        } finally { busyDocument = false }
+                                        } finally {
+                                            isRestoringFromRecycleBin = false
+                                            recycleBinMoveFileName = ""
+                                            busyDocument = false
+                                        }
                                     }
                                 }
                             ) {
@@ -4025,19 +5058,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     Box(
                         Modifier.fillMaxWidth()
                             .background(sheetBackground)
-                            .drawBehind {
-                                val wave = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(0f, size.height * 0.965f)
-                                    cubicTo(size.width * 0.24f, size.height, size.width * 0.38f, size.height * 0.975f,
-                                        size.width * 0.58f, size.height * 0.965f)
-                                    cubicTo(size.width * 0.78f, size.height * 0.94f, size.width * 0.88f,
-                                        size.height * 0.95f, size.width, size.height * 0.975f)
-                                    lineTo(size.width, size.height)
-                                    lineTo(0f, size.height)
-                                    close()
-                                }
-                                drawPath(wave, if (isDarkUi) Color(0xFF563273) else Color(0xFFE5D1F7))
-                            }
                     ) {
                         Column(
                             Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
@@ -4068,12 +5088,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         color = MaterialTheme.colorScheme.onSurface,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Ellipsis
+                                        maxLines = 3,
+                                        softWrap = true,
+                                        overflow = TextOverflow.Clip
                                     )
                                     Text(
-                                        "${formatDocumentBytesNew(doc.sizeBytes)}  •  ${doc.contentType.substringAfter('/').uppercase()}",
+                                        "${formatDocumentBytesNew(doc.sizeBytes)}  •  ${doc.originalFileName.substringAfterLast('.', "").uppercase(Locale.ROOT).ifBlank { documentTypeDisplayNameV2New(doc) }}",
                                         color = muted,
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 1
@@ -4139,11 +5159,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                         if (doc.scope == "SHARED") "Shared with household members" else "Only you can access this document",
                                         trailing = true
                                     ) {
-                                        editTitle = doc.title
-                                        editDescription = doc.description
-                                        editCategory = doc.categoryId
-                                        editScope = doc.scope
-                                        editingDocument = doc
+                                        accessDocument = doc
+                                        accessScope = doc.scope
                                         selectedDocument = null
                                     }
                                     actionCard(
@@ -4166,13 +5183,18 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                     ) {
                                         scope.launch {
                                             busyDocument = true
+                                            isMovingToRecycleBin = true
+                                            recycleBinMoveFileName = doc.originalFileName.ifBlank { doc.title }
                                             try {
                                                 repository.moveToRecycleBin(vaultId, doc)
                                                 selectedDocument = null
                                                 message = "Moved to Recycle Bin. Retained for 30 days."
                                             } catch (error: Exception) {
                                                 message = error.localizedMessage ?: error.message ?: "Delete failed."
-                                            } finally { busyDocument = false }
+                                            } finally {
+                                                isMovingToRecycleBin = false
+                                                busyDocument = false
+                                            }
                                         }
                                     }
                                 }
@@ -4180,13 +5202,20 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                 actionCard(Icons.Outlined.Restore, "Restore Document", "Return this document to its original location") {
                                     scope.launch {
                                         busyDocument = true
+                                        isRestoringFromRecycleBin = true
+                                        recycleBinProgressTitle = "Restoring document"
+                                        recycleBinMoveFileName = doc.originalFileName.ifBlank { doc.title }
                                         try {
                                             repository.restore(vaultId, doc.id)
                                             selectedDocument = null
                                             message = "Document restored."
                                         } catch (error: Exception) {
                                             message = error.localizedMessage ?: error.message ?: "Restore failed."
-                                        } finally { busyDocument = false }
+                                        } finally {
+                                            isRestoringFromRecycleBin = false
+                                            recycleBinMoveFileName = ""
+                                            busyDocument = false
+                                        }
                                     }
                                 }
                                 actionCard(Icons.Outlined.DeleteForever, "Delete Permanently", "This action cannot be undone", tint = danger) {
@@ -4236,6 +5265,75 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                 TextButton(onClick = { showDocumentPreview = false }) { Text("Close") }
             }
         )
+    }
+
+    if (isMovingToRecycleBin || isRestoringFromRecycleBin || isEmptyingRecycleBin || isMovingFolder || isRenamingFolder) {
+        Dialog(
+            onDismissRequest = { },
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            val darkMoveUi = MaterialTheme.colorScheme.background.luminance() < 0.5f
+            val moveAccent = if (darkMoveUi) Color(0xFFD6A5FF) else Color(0xFF7438B8)
+            val moveTrack = if (darkMoveUi) Color(0xFF49385C) else Color(0xFFE5D7F5)
+            val progressSurface = if (darkMoveUi) Color(0xFF241B30) else Color(0xFFF8F3FF)
+            val progressWaveBack = if (darkMoveUi) Color(0xFF542A73) else Color(0xFFD7B8EF)
+            val progressWaveFront = if (darkMoveUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+            Column(
+                Modifier.fillMaxWidth(0.88f).widthIn(max = 420.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(progressSurface)
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 34.dp.toPx())
+                            cubicTo(width * 0.18f, height - 48.dp.toPx(), width * 0.34f, height - 2.dp.toPx(), width * 0.55f, height - 20.dp.toPx())
+                            cubicTo(width * 0.76f, height - 34.dp.toPx(), width * 0.88f, height - 50.dp.toPx(), width, height - 34.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(backWave, progressWaveBack)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 16.dp.toPx())
+                            cubicTo(width * 0.20f, height - 30.dp.toPx(), width * 0.38f, height - 2.dp.toPx(), width * 0.56f, height - 12.dp.toPx())
+                            cubicTo(width * 0.78f, height - 22.dp.toPx(), width * 0.90f, height - 28.dp.toPx(), width, height - 16.dp.toPx())
+                            lineTo(width, height); lineTo(0f, height); close()
+                        }
+                        drawPath(frontWave, progressWaveFront)
+                    }
+                    .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 54.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    when {
+                        isMovingFolder || isRenamingFolder || isRestoringFromRecycleBin || isEmptyingRecycleBin -> recycleBinProgressTitle
+                        else -> "Moving to Recycle Bin"
+                    },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(recycleBinMoveFileName, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis)
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
+                    color = moveAccent, trackColor = moveTrack
+                )
+                Text(
+                    when {
+                        isMovingFolder -> "Moving folder…"
+                        isRenamingFolder -> "Renaming folder…"
+                        isRestoringFromRecycleBin -> "Restoring…"
+                        isEmptyingRecycleBin && recycleBinProgressTitle == "Deleting Folder" -> "Deleting folder…"
+                        else -> "Please wait…"
+                    },
+                    style = MaterialTheme.typography.labelLarge, color = moveAccent
+                )
+            }
+        }
     }
 
     if (isDownloadingFile) {
@@ -4292,21 +5390,36 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     .clip(RoundedCornerShape(34.dp))
                     .background(dialogBackground)
                     .drawBehind {
-                        val wave = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(0f, size.height * 0.88f)
-                            cubicTo(size.width * 0.22f, size.height * 0.99f, size.width * 0.42f, size.height * 0.94f, size.width * 0.58f, size.height * 0.92f)
-                            cubicTo(size.width * 0.76f, size.height * 0.87f, size.width * 0.88f, size.height * 0.88f, size.width, size.height * 0.93f)
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - 58.dp.toPx())
+                            cubicTo(size.width * 0.20f, size.height - 76.dp.toPx(), size.width * 0.38f, size.height - 42.dp.toPx(), size.width * 0.56f, size.height - 50.dp.toPx())
+                            cubicTo(size.width * 0.75f, size.height - 64.dp.toPx(), size.width * 0.88f, size.height - 68.dp.toPx(), size.width, size.height - 54.dp.toPx())
                             lineTo(size.width, size.height)
                             lineTo(0f, size.height)
                             close()
                         }
-                        drawPath(wave, waveColor)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - 30.dp.toPx())
+                            cubicTo(size.width * 0.20f, size.height - 44.dp.toPx(), size.width * 0.39f, size.height - 18.dp.toPx(), size.width * 0.57f, size.height - 26.dp.toPx())
+                            cubicTo(size.width * 0.76f, size.height - 38.dp.toPx(), size.width * 0.89f, size.height - 42.dp.toPx(), size.width, size.height - 28.dp.toPx())
+                            lineTo(size.width, size.height)
+                            lineTo(0f, size.height)
+                            close()
+                        }
+                        drawPath(
+                            backWave,
+                            if (darkDownloadUi) Color(0xFF633184) else Color(0xFFD9B9F0)
+                        )
+                        drawPath(
+                            frontWave,
+                            if (darkDownloadUi) Color(0xFF9A49C5) else Color(0xFFE9D2FA)
+                        )
                     }
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 34.dp),
+                        .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 90.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Row(
@@ -4333,7 +5446,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Text(
-                                "Downloading Document",
+                                if (isPreparingShare) "Preparing Document to Share" else "Downloading Document",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -4376,7 +5489,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                if (total > 0L) "${(progressValue * 100).toInt()}% Downloaded" else "Downloading…",
+                                if (total > 0L) "${(progressValue * 100).toInt()}% ${if (isPreparingShare) "Ready to share soon" else "Downloaded"}" else if (isPreparingShare) "Preparing to share…" else "Downloading…",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = downloadAccent
@@ -4414,7 +5527,7 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         } else {
                             Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(22.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Cancel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(if (isPreparingShare) "Cancel" else "Cancel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -4432,10 +5545,6 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("All deleted documents owned by you will be permanently removed, including their stored files. This cannot be undone.")
-                    if (busyDocument) {
-                        LinearProgressIndicator(Modifier.fillMaxWidth())
-                        Text("Emptying Recycle Bin…", style = MaterialTheme.typography.bodySmall)
-                    }
                 }
             },
             confirmButton = {
@@ -4444,6 +5553,9 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                     onClick = {
                         scope.launch {
                             busyDocument = true
+                            isEmptyingRecycleBin = true
+                            recycleBinProgressTitle = "Emptying Recycle Bin"
+                            recycleBinMoveFileName = "Deleting all recycled documents"
                             try {
                                 val count = repository.emptyRecycleBin(vaultId)
                                 showEmptyRecycleBinConfirm = false
@@ -4460,6 +5572,8 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             } catch (error: Exception) {
                                 message = error.localizedMessage ?: error.message ?: "Unable to empty Recycle Bin."
                             } finally {
+                                isEmptyingRecycleBin = false
+                                recycleBinMoveFileName = ""
                                 busyDocument = false
                             }
                         }
@@ -4475,215 +5589,918 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
     }
 
     if (showBulkPermanentDeleteConfirm) {
-        AlertDialog(
-            shape = RoundedCornerShape(24.dp),
-            containerColor = MaterialTheme.colorScheme.surface,
+        val deleteSurface = if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF)
+        val deleteWaveBack = if (isDarkUi) Color(0xFF63347F) else Color(0xFFDCC0F5)
+        val deleteWaveFront = if (isDarkUi) Color(0xFF8D52B4) else Color(0xFFE9D5FA)
+        val deleteAccent = if (isDarkUi) Color(0xFFD7B5FF) else Color(0xFF7136B8)
+        Dialog(
             onDismissRequest = { if (!busyDocument) showBulkPermanentDeleteConfirm = false },
-            title = { Text("Delete selected documents permanently?") },
-            text = { Text("The selected personal documents owned by you and their stored files will be permanently deleted. This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    enabled = !busyDocument,
-                    onClick = {
-                        showBulkPermanentDeleteConfirm = false
-                        runBulkPermanentDelete()
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                Modifier.fillMaxWidth(0.92f)
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(deleteSurface)
+                    .drawBehind {
+                        val waveHeight = 48.dp.toPx()
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.78f)
+                            cubicTo(size.width * 0.24f, size.height - waveHeight * 1.35f,
+                                size.width * 0.36f, size.height - waveHeight * 0.05f,
+                                size.width * 0.58f, size.height - waveHeight * 0.45f)
+                            cubicTo(size.width * 0.78f, size.height - waveHeight * 0.85f,
+                                size.width * 0.86f, size.height - waveHeight * 1.18f,
+                                size.width, size.height - waveHeight * 0.62f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawPath(backWave, deleteWaveBack)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.38f)
+                            cubicTo(size.width * 0.22f, size.height - waveHeight * 0.85f,
+                                size.width * 0.42f, size.height - waveHeight * 0.02f,
+                                size.width * 0.62f, size.height - waveHeight * 0.28f)
+                            cubicTo(size.width * 0.80f, size.height - waveHeight * 0.50f,
+                                size.width * 0.88f, size.height - waveHeight * 0.68f,
+                                size.width, size.height - waveHeight * 0.32f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawPath(frontWave, deleteWaveFront)
                     }
-                ) { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !busyDocument,
-                    onClick = { showBulkPermanentDeleteConfirm = false }
-                ) { Text("Cancel") }
+            ) {
+                Column(
+                    Modifier.fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 26.dp, bottom = 58.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                                .background(if (isDarkUi) Color(0xFF594078) else Color(0xFFE9DDFB)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.DeleteForever, null, tint = deleteAccent,
+                                modifier = Modifier.size(32.dp))
+                        }
+                        Text(
+                            "Delete Permanently?",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Text(
+                        "Selected documents will be permanently deleted.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = { showBulkPermanentDeleteConfirm = false },
+                            enabled = !busyDocument,
+                            modifier = Modifier.weight(1f).height(54.dp)
+                                .clip(RoundedCornerShape(50)),
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFFDCC0F5) else Color(0xFFE9D5FA),
+                                contentColor = if (isDarkUi) Color(0xFF30203F) else Color(0xFF54217F)
+                            )
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
+                        }
+                        Button(
+                            onClick = {
+                                showBulkPermanentDeleteConfirm = false
+                                runBulkPermanentDelete()
+                            },
+                            enabled = !busyDocument,
+                            modifier = Modifier.weight(1f).height(54.dp)
+                                .clip(RoundedCornerShape(50)),
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFF9B28F4) else Color(0xFF8A35D1),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Text("Delete", fontWeight = FontWeight.Bold,
+                                maxLines = 1, softWrap = false)
+                        }
+                    }
+                }
             }
-        )
+        }
     }
 
     permanentDeleteTarget?.let { doc ->
-        AlertDialog(
-
-            shape = RoundedCornerShape(24.dp),
-
-            containerColor = MaterialTheme.colorScheme.surface,
-
-            tonalElevation = 8.dp,
+        val deleteSurface = if (isDarkUi) Color(0xFF241D30) else Color(0xFFF8F3FF)
+        val deleteWaveBack = if (isDarkUi) Color(0xFF63347F) else Color(0xFFDCC0F5)
+        val deleteWaveFront = if (isDarkUi) Color(0xFF8D52B4) else Color(0xFFE9D5FA)
+        val deleteAccent = if (isDarkUi) Color(0xFFD7B5FF) else Color(0xFF7136B8)
+        Dialog(
             onDismissRequest = { if (!busyDocument) permanentDeleteTarget = null },
-            title = { Text("Permanently Delete Document?") },
-            text = { Text("'"+doc.title+"' and its stored file will be deleted permanently. This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    enabled = !busyDocument,
-                    onClick = {
-                        scope.launch {
-                            busyDocument = true
-                            try {
-                                repository.permanentlyDelete(vaultId, doc.id)
-                                selectedDocument = null
-                                permanentDeleteTarget = null
-                                message = "Document permanently deleted."
-                            } catch (error: Exception) {
-                                message = error.localizedMessage ?: error.message ?: "Permanent deletion failed."
-                            } finally {
-                                busyDocument = false
-                            }
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                Modifier.fillMaxWidth(0.92f).clip(RoundedCornerShape(30.dp))
+                    .background(deleteSurface)
+                    .drawBehind {
+                        val waveHeight = 48.dp.toPx()
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.78f)
+                            cubicTo(size.width * 0.24f, size.height - waveHeight * 1.35f,
+                                size.width * 0.36f, size.height - waveHeight * 0.05f,
+                                size.width * 0.58f, size.height - waveHeight * 0.45f)
+                            cubicTo(size.width * 0.78f, size.height - waveHeight * 0.85f,
+                                size.width * 0.86f, size.height - waveHeight * 1.18f,
+                                size.width, size.height - waveHeight * 0.62f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
                         }
+                        drawPath(backWave, deleteWaveBack)
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, size.height - waveHeight * 0.38f)
+                            cubicTo(size.width * 0.22f, size.height - waveHeight * 0.85f,
+                                size.width * 0.42f, size.height - waveHeight * 0.02f,
+                                size.width * 0.62f, size.height - waveHeight * 0.28f)
+                            cubicTo(size.width * 0.80f, size.height - waveHeight * 0.50f,
+                                size.width * 0.88f, size.height - waveHeight * 0.68f,
+                                size.width, size.height - waveHeight * 0.32f)
+                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                        }
+                        drawPath(frontWave, deleteWaveFront)
                     }
-                ) { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(enabled = !busyDocument, onClick = { permanentDeleteTarget = null }) {
-                    Text("Cancel")
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+                        .padding(top = 26.dp, bottom = 58.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                            .background(if (isDarkUi) Color(0xFF594078) else Color(0xFFE9DDFB)),
+                            contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.DeleteForever, null, tint = deleteAccent, modifier = Modifier.size(32.dp))
+                        }
+                        Text("Delete Permanently?", style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Text("Selected documents will be permanently deleted.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Button(
+                            onClick = { permanentDeleteTarget = null },
+                            enabled = !busyDocument,
+                            modifier = Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(50)),
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFFDCC0F5) else Color(0xFFE9D5FA),
+                                contentColor = if (isDarkUi) Color(0xFF30203F) else Color(0xFF54217F))
+                        ) { Text("Cancel", fontWeight = FontWeight.SemiBold) }
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    busyDocument = true
+                                    isEmptyingRecycleBin = true
+                                    recycleBinProgressTitle = "Deleting permanently"
+                                    recycleBinMoveFileName = doc.originalFileName.ifBlank { doc.title }
+                                    try {
+                                        repository.permanentlyDelete(vaultId, doc.id)
+                                        selectedDocument = null
+                                        permanentDeleteTarget = null
+                                        message = "Document permanently deleted."
+                                    } catch (error: Exception) {
+                                        message = error.localizedMessage ?: error.message ?: "Permanent deletion failed."
+                                    } finally {
+                                        isEmptyingRecycleBin = false
+                                        recycleBinMoveFileName = ""
+                                        busyDocument = false
+                                    }
+                                }
+                            },
+                            enabled = !busyDocument,
+                            modifier = Modifier.weight(1.35f).height(54.dp).clip(RoundedCornerShape(50)),
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkUi) Color(0xFF9B28F4) else Color(0xFF8A35D1),
+                                contentColor = Color.White)
+                        ) { Text("Delete", fontWeight = FontWeight.Bold, maxLines = 1) }
+                    }
                 }
             }
-        )
+        }
+    }
+
+    accessDocument?.let { doc ->
+        val accessDialogBackground = if (isDarkUi) Color(0xFF21162C) else Color(0xFFF8F2FF)
+        val accessOptionBackground = if (isDarkUi) Color(0xFF30213F) else Color(0xFFF0E6FA)
+        val accessAccent = if (isDarkUi) Color(0xFFC77DFF) else Color(0xFF813CC0)
+        val personalAccent = if (isDarkUi) Color(0xFF78E2B4) else Color(0xFF25865D)
+        val sharedAccent = if (isDarkUi) Color(0xFF8FC5FF) else Color(0xFF397CC4)
+
+        Dialog(
+            onDismissRequest = {
+                if (!busyDocument) accessDocument = null
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(accessDialogBackground),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, top = 22.dp, end = 24.dp, bottom = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(66.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(if (isDarkUi) Color(0xFF49305F) else Color(0xFFE9D8FA)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.People,
+                            contentDescription = null,
+                            tint = accessAccent,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "Change Access",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            "Choose who can access this document.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                listOf(
+                    Triple("PERSONAL", "Personal", "Only you can access this document."),
+                    Triple("SHARED", "Shared", "Make this document available to household members.")
+                ).forEach { (value, label, description) ->
+                    val selected = accessScope == value
+                    val accent = if (value == "PERSONAL") personalAccent else sharedAccent
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(accessOptionBackground)
+                            .border(
+                                width = if (selected) 2.dp else 1.dp,
+                                color = if (selected) accessAccent else accessAccent.copy(alpha = 0.22f),
+                                shape = RoundedCornerShape(22.dp)
+                            )
+                            .clickable(enabled = !busyDocument) { accessScope = value }
+                            .padding(horizontal = 16.dp, vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(accent.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (value == "PERSONAL") Icons.Outlined.Person else Icons.Outlined.People,
+                                contentDescription = null,
+                                tint = accent,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        RadioButton(
+                            selected = selected,
+                            onClick = { accessScope = value },
+                            enabled = !busyDocument,
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = accessAccent,
+                                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = { accessDocument = null },
+                        enabled = !busyDocument,
+                        modifier = Modifier.weight(1f).height(54.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isDarkUi) Color(0xFFD8B5E9) else Color(0xFFE5D2F2),
+                            contentColor = Color(0xFF2A1935),
+                            disabledContainerColor = Color(0xFF4B3A53),
+                            disabledContentColor = Color(0xFFBDAFC4)
+                        )
+                    ) {
+                        Text("Cancel", fontWeight = FontWeight.Medium)
+                    }
+                    Button(
+                        enabled = !busyDocument && accessScope != doc.scope,
+                        onClick = {
+                            scope.launch {
+                                busyDocument = true
+                                try {
+                                    repository.updateMetadata(
+                                        vaultId = vaultId,
+                                        document = doc,
+                                        title = doc.title,
+                                        description = doc.description,
+                                        categoryId = doc.categoryId,
+                                        scope = accessScope
+                                    )
+                                    message = if (accessScope == "SHARED") {
+                                        "Document access changed to Shared."
+                                    } else {
+                                        "Document access changed to Personal."
+                                    }
+                                    accessDocument = null
+                                } catch (error: Exception) {
+                                    message = error.localizedMessage ?: error.message
+                                        ?: "Could not update document access."
+                                } finally {
+                                    busyDocument = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(54.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF8D2BD0),
+                            contentColor = Color.White,
+                            disabledContainerColor = Color(0xFF4C285D),
+                            disabledContentColor = Color(0xFFC7B3D1)
+                        )
+                    ) {
+                        if (busyDocument) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Save", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .drawBehind {
+                            val width = size.width
+                            val height = size.height
+
+                            // Back wave: a shallow crest at both ends with a broad center dip.
+                            val backWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, height * 0.30f)
+                                cubicTo(
+                                    width * 0.16f, height * 0.10f,
+                                    width * 0.29f, height * 0.98f,
+                                    width * 0.51f, height * 0.68f
+                                )
+                                cubicTo(
+                                    width * 0.72f, height * 0.42f,
+                                    width * 0.84f, height * 0.02f,
+                                    width, height * 0.30f
+                                )
+                                lineTo(width, height)
+                                lineTo(0f, height)
+                                close()
+                            }
+                            drawPath(
+                                backWave,
+                                if (isDarkUi) Color(0xFF542A73) else Color(0xFFD7B8EF)
+                            )
+
+                            // Front wave: a lighter, lower curve, matching the reference footer.
+                            val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, height * 0.72f)
+                                cubicTo(
+                                    width * 0.18f, height * 0.48f,
+                                    width * 0.34f, height * 0.98f,
+                                    width * 0.54f, height * 0.86f
+                                )
+                                cubicTo(
+                                    width * 0.75f, height * 0.72f,
+                                    width * 0.88f, height * 0.48f,
+                                    width, height * 0.70f
+                                )
+                                lineTo(width, height)
+                                lineTo(0f, height)
+                                close()
+                            }
+                            drawPath(
+                                frontWave,
+                                if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+                            )
+                        }
+                )
+            }
+        }
+    }
+
+    if (showUploadDetailsDialog) {
+        val totalFiles = uploadTotalFiles.coerceAtLeast(uploadCompletedFiles + uploadFailedFiles)
+        val completedFiles = uploadCompletedFiles.coerceAtMost(totalFiles)
+        val failedFiles = uploadFailedFiles.coerceAtMost((totalFiles - completedFiles).coerceAtLeast(0))
+        val remainingFiles = (totalFiles - completedFiles - failedFiles).coerceAtLeast(0)
+        val percent = (progress.coerceIn(0f, 1f) * 100f).toInt()
+        val uploadDialogSurface = if (isDarkUi) Color(0xFF21152B) else Color(0xFFF8F2FF)
+        val uploadDialogCard = if (isDarkUi) Color(0xFF34213F) else Color(0xFFEFE3FA)
+        val uploadDialogAccent = if (isDarkUi) Color(0xFFD59AFF) else Color(0xFF7835B5)
+
+        Dialog(
+            onDismissRequest = { showUploadDetailsDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                Modifier.fillMaxWidth(0.94f)
+                    .wrapContentHeight()
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(uploadDialogSurface)
+                    .border(1.dp, uploadDialogAccent.copy(alpha = 0.55f), RoundedCornerShape(30.dp))
+                    .drawBehind {
+                        val width = size.width
+                        val height = size.height
+                        val backWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 54.dp.toPx())
+                            cubicTo(width * 0.18f, height - 78.dp.toPx(), width * 0.36f, height - 8.dp.toPx(),
+                                width * 0.56f, height - 34.dp.toPx())
+                            cubicTo(width * 0.76f, height - 60.dp.toPx(), width * 0.9f, height - 76.dp.toPx(),
+                                width, height - 48.dp.toPx())
+                            lineTo(width, height)
+                            lineTo(0f, height)
+                            close()
+                        }
+                        drawPath(backWave, if (isDarkUi) Color(0xFF633184) else Color(0xFFD9B9F0))
+                        val frontWave = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, height - 28.dp.toPx())
+                            cubicTo(width * 0.2f, height - 48.dp.toPx(), width * 0.38f, height - 8.dp.toPx(),
+                                width * 0.58f, height - 24.dp.toPx())
+                            cubicTo(width * 0.78f, height - 42.dp.toPx(), width * 0.9f, height - 50.dp.toPx(),
+                                width, height - 26.dp.toPx())
+                            lineTo(width, height)
+                            lineTo(0f, height)
+                            close()
+                        }
+                        drawPath(frontWave, if (isDarkUi) Color(0xFF9A49C5) else Color(0xFFE9D2FA))
+                    }
+                    .padding(start = 20.dp, top = 22.dp, end = 20.dp, bottom = 66.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    "Uploading Documents",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Column(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(uploadDialogCard)
+                        .border(1.dp, uploadDialogAccent.copy(alpha = 0.45f), RoundedCornerShape(24.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            Modifier.size(54.dp).clip(RoundedCornerShape(16.dp))
+                                .background(uploadDialogAccent.copy(alpha = 0.16f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.CloudUpload, null, tint = uploadDialogAccent, modifier = Modifier.size(32.dp))
+                        }
+                        Text(
+                            "Upload Progress",
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(50.dp),
+                            color = uploadDialogAccent.copy(alpha = 0.22f)
+                        ) {
+                            Text("$percent%", Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                color = uploadDialogAccent, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50.dp)),
+                        color = uploadDialogAccent,
+                        trackColor = uploadDialogAccent.copy(alpha = 0.22f)
+                    )
+                    Text(
+                        "$completedFiles of $totalFiles files uploaded",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                Column(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(uploadDialogCard)
+                        .border(1.dp, uploadDialogAccent, RoundedCornerShape(24.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        "Upload Details",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    @Composable
+                    fun UploadDetailRow(
+                        label: String,
+                        value: String,
+                        icon: ImageVector,
+                        tint: Color,
+                        divider: Boolean = true
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(icon, null, tint = tint, modifier = Modifier.size(27.dp))
+                            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                value,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.End,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (divider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    }
+                    UploadDetailRow("Completed", "$completedFiles files", Icons.Filled.CheckCircle, Color(0xFF4DD782))
+                    UploadDetailRow("Remaining", "$remainingFiles files", Icons.Outlined.Schedule, Color(0xFF55B9F2))
+                    UploadDetailRow("Failed", "$failedFiles files", Icons.Outlined.ErrorOutline, Color(0xFFFF625F))
+                    UploadDetailRow(
+                        "Current file",
+                        uploadCurrentFileName.ifBlank { if (uploading) "Preparing upload…" else "—" },
+                        Icons.Outlined.Description,
+                        uploadDialogAccent,
+                        divider = false
+                    )
+                }
+
+                Button(
+                    onClick = { showUploadDetailsDialog = false },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                        .fillMaxWidth(0.42f)
+                        .height(54.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFDCC0F5),
+                        contentColor = Color(0xFF30203F)
+                    )
+                ) {
+                    Text("Close", fontWeight = FontWeight.Medium)
+                }
+            }
+        }
     }
 
     if (showDocumentDetails) {
         val doc = selectedDocument
         if (doc != null) {
-            AlertDialog(
-                modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.88f),
-                properties = DialogProperties(usePlatformDefaultWidth = false),
-                shape = RoundedCornerShape(28.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
+            val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
+                ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
+            val locationPath = buildString {
+                append("My Documents / ")
+                append(categoryLabel)
+                val folderNames = mutableListOf<String>()
+                var folderCursor = doc.folderId
+                val visitedFolderIds = mutableSetOf<String>()
+                while (folderCursor != null && visitedFolderIds.add(folderCursor)) {
+                    val folder = folders.firstOrNull { it.id == folderCursor } ?: break
+                    folderNames.add(0, folder.name)
+                    folderCursor = folder.parentFolderId
+                }
+                folderNames.forEach { append(" / "); append(it) }
+            }
+            val fullFileName = doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) }
+            val fileType = documentTypeDisplayNameV2New(doc)
+            val detailsSurface = if (isDarkUi) Color(0xFF21182B) else Color(0xFFF8F3FF)
+            val detailsCard = if (isDarkUi) Color(0xFF30243D) else Color(0xFFEFE6F8)
+            val detailsAccent = if (isDarkUi) Color(0xFFD3A0FF) else Color(0xFF7136B8)
+
+            Dialog(
                 onDismissRequest = { showDocumentDetails = false },
-                title = {
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Column(
+                    Modifier.fillMaxWidth(0.94f)
+                        .wrapContentHeight()
+                        .clip(RoundedCornerShape(30.dp))
+                        .background(detailsSurface)
+                        .drawBehind {
+                                    val width = size.width
+                                    val height = size.height
+    
+                                    val backWave = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(0f, height - 34.dp.toPx())
+                                        cubicTo(
+                                            width * 0.18f, height - 48.dp.toPx(),
+                                            width * 0.34f, height - 2.dp.toPx(),
+                                            width * 0.55f, height - 20.dp.toPx()
+                                        )
+                                        cubicTo(
+                                            width * 0.76f, height - 34.dp.toPx(),
+                                            width * 0.88f, height - 50.dp.toPx(),
+                                            width, height - 34.dp.toPx()
+                                        )
+                                        lineTo(width, height)
+                                        lineTo(0f, height)
+                                        close()
+                                    }
+                                    drawPath(
+                                        backWave,
+                                        if (isDarkUi) Color(0xFF542A73) else Color(0xFFD7B8EF)
+                                    )
+    
+                                    val frontWave = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(0f, height - 16.dp.toPx())
+                                        cubicTo(
+                                            width * 0.2f, height - 30.dp.toPx(),
+                                            width * 0.38f, height - 2.dp.toPx(),
+                                            width * 0.56f, height - 12.dp.toPx()
+                                        )
+                                        cubicTo(
+                                            width * 0.78f, height - 22.dp.toPx(),
+                                            width * 0.9f, height - 28.dp.toPx(),
+                                            width, height - 16.dp.toPx()
+                                        )
+                                        lineTo(width, height)
+                                        lineTo(0f, height)
+                                        close()
+                                    }
+                                    drawPath(
+                                        frontWave,
+                                        if (isDarkUi) Color(0xFF8846AC) else Color(0xFFE8D1F8)
+                                    )
+                        }
+                        .padding(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 48.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Row(
                         Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("FILE INFORMATION", style = MaterialTheme.typography.labelSmall,
-                                color = palette.accent, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
-                            Text("File Details", style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        }
+                        Text(
+                            "File Information",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         IconButton(onClick = { showDocumentDetails = false }) {
-                            Icon(Icons.Outlined.Close, contentDescription = "Close file details",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(
+                                Icons.Outlined.Close,
+                                contentDescription = "Close file details",
+                                tint = detailsAccent
+                            )
                         }
                     }
-                },
-                text = {
+
                     Column(
-                        Modifier.fillMaxWidth().fillMaxHeight(0.94f),
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(detailsCard)
+                            .padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(
-                            Modifier.fillMaxWidth().weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Row(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                                    .background(palette.surface2)
-                                    .border(1.dp, palette.line, RoundedCornerShape(20.dp))
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                DocumentTypeIconNew(doc.contentType, Modifier.size(58.dp))
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(
-                                        documentDisplayNameV2New(doc),
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        doc.originalFileName.ifBlank { documentDisplayNameV2New(doc) },
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            val categoryLabel = allCategories.firstOrNull { it.first == doc.categoryId }?.second
-                                ?: customCategories.firstOrNull { it.first == doc.categoryId }?.second ?: "Other"
-
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
-                                Surface(shape = RoundedCornerShape(50), color = palette.container) {
-                                    Text(
-                                        categoryLabel,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                        color = palette.accent,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
+                            DocumentTypeIconNew(doc.contentType, Modifier.size(76.dp))
                             Column(
-                                Modifier.fillMaxWidth().weight(1f)
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(palette.surface2)
-                                    .border(1.dp, palette.line, RoundedCornerShape(20.dp))
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
+                                val fileNameFontSize = when {
+                                    fullFileName.length > 60 -> 10.sp
+                                    fullFileName.length > 50 -> 11.sp
+                                    fullFileName.length > 40 -> 12.sp
+                                    fullFileName.length > 30 -> 14.sp
+                                    else -> MaterialTheme.typography.titleMedium.fontSize
+                                }
                                 Text(
-                                    "DETAILS",
-                                    Modifier.padding(start = 12.dp, top = 6.dp, bottom = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = palette.accent,
+                                    fullFileName,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = fileNameFontSize,
+                                        lineHeight = (fileNameFontSize.value * 1.22f).sp
+                                    ),
                                     fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.1.sp
+                                    textAlign = TextAlign.Start,
+                                    maxLines = 2,
+                                    softWrap = true,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                                DocumentDetailRowV2New(
-                                    "File type",
-                                    doc.contentType.substringAfter('/').uppercase().ifBlank { "File" },
-                                    Icons.Outlined.Description
-                                )
-                                DocumentDetailRowV2New("File size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
-                                DocumentDetailRowV2New(
-                                    "Location",
-                                    "My Documents / $categoryLabel",
-                                    Icons.Outlined.FolderOpen
-                                )
-                                DocumentDetailRowV2New(
-                                    "Date added",
-                                    doc.uploadedAt?.toDate()?.let {
-                                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                                    } ?: "—",
-                                    Icons.Outlined.CalendarToday
-                                )
-                                DocumentDetailRowV2New(
-                                    "Last modified",
-                                    doc.updatedAt?.toDate()?.let {
-                                        SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
-                                    } ?: "—",
-                                    Icons.Outlined.History
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    ScopePillV2New(doc, doc.ownerUid == memberUid, palette)
+                                    val categoryFontSize = when {
+                                        categoryLabel.length > 22 -> 9.sp
+                                        categoryLabel.length > 16 -> 10.sp
+                                        else -> MaterialTheme.typography.labelSmall.fontSize
+                                    }
+                                    Surface(
+                                        modifier = Modifier.wrapContentWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isDarkUi) Color(0xFF352347) else Color(0xFFF0E5FF)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.wrapContentWidth()
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.FolderOpen,
+                                                contentDescription = null,
+                                                tint = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                categoryLabel,
+                                                color = if (isDarkUi) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontSize = categoryFontSize
+                                                ),
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Clip
+                                            )
+                                        }
+                                    }
+                                }
                             }
-                        }
-
-                        Button(
-                            onClick = { showDocumentDetails = false },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = palette.accent,
-                                contentColor = palette.onAccent
-                            )
-                        ) {
-                            Text("Done", fontWeight = FontWeight.SemiBold)
                         }
                     }
-                },
-                confirmButton = {}
-            )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(detailsCard)
+                            .border(1.dp, detailsAccent.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                            .padding(horizontal = 12.dp, vertical = 3.dp)
+                    ) {
+                        @Composable
+                        fun fileInformationRow(
+                            label: String,
+                            value: String,
+                            icon: ImageVector,
+                            showDivider: Boolean = true
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = null,
+                                    tint = detailsAccent,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Text(
+                                    label,
+                                    modifier = Modifier.weight(1f),
+                                    color = detailsAccent,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                                if (label == "Location") {
+                                    Box(
+                                        Modifier.weight(1.6f).horizontalScroll(rememberScrollState()),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Text(
+                                            value,
+                                            modifier = Modifier.wrapContentWidth(),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Clip
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        value,
+                                        modifier = Modifier.weight(1.6f),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            if (showDivider) HorizontalDivider(
+                                Modifier.padding(start = 42.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                            )
+                        }
+
+                        fileInformationRow("File Type", fileType, Icons.Outlined.Description)
+                        fileInformationRow("File Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Storage)
+                        fileInformationRow("Location", locationPath, Icons.Outlined.FolderOpen)
+                        fileInformationRow(
+                            "Date Added",
+                            doc.uploadedAt?.toDate()?.let {
+                                SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                            } ?: "—",
+                            Icons.Outlined.CalendarToday
+                        )
+                        fileInformationRow(
+                            "Last Modified",
+                            doc.updatedAt?.toDate()?.let {
+                                SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(it)
+                            } ?: "—",
+                            Icons.Outlined.History,
+                            showDivider = false
+                        )
+                    }
+
+                }
+            }
         }
     }
 
@@ -5065,6 +6882,45 @@ private fun sortLabelV2New(sort: DocumentSortV2New): String = when (sort) {
     DocumentSortV2New.SMALLEST -> "Smallest first"
 }
 
+private fun documentTypeDisplayNameV2New(document: DocumentRecordV2): String {
+    val extension = document.originalFileName.substringAfterLast('.', "")
+        .lowercase(Locale.ROOT)
+    val mimeType = document.contentType.lowercase(Locale.ROOT)
+
+    return when (extension) {
+        "pdf" -> "PDF Document"
+        "xlsx", "xls", "xlsm", "xlsb" -> "Excel Spreadsheet"
+        "docx", "doc", "rtf" -> "Word Document"
+        "pptx", "ppt" -> "PowerPoint Presentation"
+        "jpg", "jpeg" -> "JPEG Image"
+        "png" -> "PNG Image"
+        "gif" -> "GIF Image"
+        "bmp" -> "Bitmap Image"
+        "webp" -> "WebP Image"
+        "svg" -> "SVG Image"
+        "txt" -> "Text File"
+        "csv" -> "CSV Spreadsheet"
+        "mp3", "wav", "m4a", "aac", "ogg", "flac" -> "Audio File"
+        "mp4", "m4v", "mov", "avi", "mkv", "webm" -> "Video File"
+        "zip" -> "ZIP Archive"
+        "rar" -> "RAR Archive"
+        "7z" -> "7Z Archive"
+        else -> when {
+            mimeType == "application/pdf" -> "PDF Document"
+            mimeType.contains("spreadsheet") || mimeType.contains("excel") -> "Excel Spreadsheet"
+            mimeType.contains("word") || mimeType.contains("msword") -> "Word Document"
+            mimeType.contains("presentation") || mimeType.contains("powerpoint") -> "PowerPoint Presentation"
+            mimeType.startsWith("image/") -> "${mimeType.substringAfter('/').substringBefore(';').uppercase(Locale.ROOT)} Image"
+            mimeType.startsWith("audio/") -> "Audio File"
+            mimeType.startsWith("video/") -> "Video File"
+            mimeType == "text/plain" -> "Text File"
+            mimeType == "text/csv" -> "CSV Spreadsheet"
+            mimeType.contains("zip") -> "ZIP Archive"
+            else -> "File"
+        }
+    }
+}
+
 private fun documentMetaV2New(document: DocumentRecordV2): String {
     val extension = document.originalFileName.substringAfterLast('.', "")
         .uppercase(Locale.ROOT).take(5)
@@ -5120,6 +6976,15 @@ private fun Modifier.dashedBorderV2New(
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
         )
     )
+}
+
+private fun formatDashboardStorageV2New(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024L * 1024L -> String.format(Locale.US, "%.0f KB", bytes / 1024.0)
+    // Switch to GB once the rounded MB value would reach 1,000 MB.
+    bytes < (999.5 * 1024.0 * 1024.0).toLong() ->
+        String.format(Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
+    else -> String.format(Locale.US, "%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0))
 }
 
 private fun formatDocumentBytesNew(bytes: Long): String = when {
@@ -5179,16 +7044,8 @@ private fun DocumentDashboardStatCardV2New(
 }
 
 private fun documentDisplayNameV2New(document: DocumentRecordV2): String {
-    val displayName = document.title.ifBlank { document.originalFileName }.trim()
-    val originalName = document.originalFileName.trim()
-    val extension = originalName.substringAfterLast('.', "")
-        .takeIf { it.isNotBlank() && originalName.lastIndexOf('.') > 0 }
-        ?: return displayName
-
-    return if (displayName.endsWith(".$extension", ignoreCase = true)) {
-        displayName
-    } else {
-        "$displayName.$extension"
+    return document.originalFileName.trim().ifBlank {
+        document.title.trim()
     }
 }
 
@@ -5226,24 +7083,43 @@ private fun ScopeLabelV2New(scope: String, palette: DocPaletteV2New) {
 }
 
 @Composable
-private fun DocumentDetailRowV2New(label: String, value: String, icon: ImageVector) {
-    ListItem(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp),
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        headlineContent = {
-            Text(label, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        },
-        supportingContent = {
-            Text(value, style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface)
-        },
-        leadingContent = {
-            Icon(icon, contentDescription = null,
-                tint = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
-                    Color(0xFFD2A8FF) else Color(0xFF7136B8))
+private fun DocumentDetailRowV2New(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    showDivider: Boolean = true
+) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (dark) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                modifier = Modifier.size(28.dp)
+            )
+            Text(
+                label,
+                modifier = Modifier.weight(0.82f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                value,
+                modifier = Modifier.weight(1.18f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                softWrap = true
+            )
         }
-    )
+        if (showDivider) {
+            Divider(color = if (dark) Color(0xFF493A56) else Color(0xFFDDD2E8), thickness = 1.dp)
+        }
+    }
 }
 
 @Composable
@@ -5260,7 +7136,8 @@ private fun DocumentRowV2New(
     onLongClick: () -> Unit = {},
     onMore: () -> Unit,
     selectionMode: Boolean = false,
-    selected: Boolean = false
+    selected: Boolean = false,
+    categoryLabel: String = "Other"
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val palette = documentPaletteV2New(dark)
@@ -5285,13 +7162,25 @@ private fun DocumentRowV2New(
             DocumentTypeIconNew(document.contentType, Modifier.size(46.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                val displayName = documentDisplayNameV2New(document)
+                val displayNameFontSize = when {
+                    displayName.length > 60 -> 11.sp
+                    displayName.length > 50 -> 12.sp
+                    displayName.length > 40 -> 13.sp
+                    displayName.length > 30 -> 14.sp
+                    else -> MaterialTheme.typography.bodyLarge.fontSize
+                }
                 Text(
-                    documentDisplayNameV2New(document),
+                    displayName,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
+                    softWrap = true,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = displayNameFontSize,
+                        lineHeight = (displayNameFontSize.value * 1.22f).sp
+                    )
                 )
                 Text(
                     documentMetaV2New(document),
@@ -5305,6 +7194,31 @@ private fun DocumentRowV2New(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ScopePillV2New(document, mine, palette)
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (dark) Color(0xFF352347) else Color(0xFFF0E5FF)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.FolderOpen,
+                                contentDescription = null,
+                                tint = if (dark) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                categoryLabel,
+                                color = if (dark) Color(0xFFD2A8FF) else Color(0xFF7136B8),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                     if (isRecycleBin) {
                         val remainingDays = document.purgeAt?.toDate()?.time?.let {
                             kotlin.math.ceil(
@@ -5312,8 +7226,15 @@ private fun DocumentRowV2New(
                             ).toInt()
                         }
                         if (remainingDays != null) {
-                            val retentionBackground = if (dark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
-                            val retentionForeground = if (dark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+                            val isUrgentRetention = remainingDays < 5
+                            val retentionBackground = when {
+                                isUrgentRetention -> if (dark) Color(0xFF512331) else Color(0xFFFFE1E6)
+                                else -> if (dark) Color(0xFF1D3A2C) else Color(0xFFE4F5E9)
+                            }
+                            val retentionForeground = when {
+                                isUrgentRetention -> if (dark) Color(0xFFFFA0B4) else Color(0xFFB42345)
+                                else -> if (dark) Color(0xFF8FE0A7) else Color(0xFF21834A)
+                            }
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = retentionBackground
@@ -5379,12 +7300,24 @@ private fun DocumentGridCardV2New(
                 }
             }
             Spacer(Modifier.height(6.dp))
+            val displayName = documentDisplayNameV2New(document)
+            val displayNameFontSize = when {
+                displayName.length > 60 -> 10.sp
+                displayName.length > 50 -> 11.sp
+                displayName.length > 40 -> 12.sp
+                displayName.length > 30 -> 13.sp
+                else -> MaterialTheme.typography.bodyMedium.fontSize
+            }
             Text(
-                documentDisplayNameV2New(document),
+                displayName,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
+                softWrap = true,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = displayNameFontSize,
+                    lineHeight = (displayNameFontSize.value * 1.22f).sp
+                )
             )
             Text(
                 documentMetaV2New(document),
@@ -5411,6 +7344,7 @@ private fun CategoryCardV2New(
     name: String,
     icon: ImageVector,
     count: Int,
+    folderCount: Int,
     tileBg: Color,
     tileFg: Color,
     palette: DocPaletteV2New,
@@ -5444,7 +7378,18 @@ private fun CategoryCardV2New(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                Text("$count files", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    buildString {
+                        append("$count ${if (count == 1) "File" else "Files"}")
+                        if (folderCount > 0) {
+                            append(" · $folderCount ${if (folderCount == 1) "Folder" else "Folders"}")
+                        }
+                    },
+                    color = palette.muted,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -5470,7 +7415,7 @@ private fun FolderCardV2New(
         colors = CardDefaults.cardColors(containerColor = palette.surface)
     ) {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Outlined.FolderOpen, null, tint = palette.accent, modifier = Modifier.size(24.dp))
@@ -5485,16 +7430,20 @@ private fun FolderCardV2New(
                 )
                 Text(
                     buildString {
-                        append("$fileCount files")
-                        if (subfolderCount > 0) append(" · $subfolderCount folders")
+                        append("$fileCount ${if (fileCount == 1) "File" else "Files"}")
+                        if (subfolderCount > 0) {
+                            append(" · $subfolderCount ${if (subfolderCount == 1) "Folder" else "Folders"}")
+                        }
                     },
                     color = palette.muted,
                     style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = onMore) {
-                Icon(Icons.Outlined.MoreVert, contentDescription = "Folder options", tint = palette.muted)
+            IconButton(onClick = onMore, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Outlined.MoreVert, contentDescription = "Folder options", tint = palette.muted,
+                    modifier = Modifier.size(20.dp))
             }
         }
     }
