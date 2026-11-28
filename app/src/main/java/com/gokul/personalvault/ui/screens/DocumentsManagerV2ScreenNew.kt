@@ -4466,70 +4466,84 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             verticalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             @Composable
-                            fun detailRow(label: String, value: String, icon: ImageVector, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
+                            fun detailRow(
+                                label: String,
+                                value: String,
+                                icon: ImageVector,
+                                showDivider: Boolean = true
+                            ) {
                                 Row(
                                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Icon(icon, null, tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
-                                        modifier = Modifier.size(24.dp))
-                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text(label, style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        Text(value, style = MaterialTheme.typography.bodyLarge,
-                                            color = valueColor, fontWeight = FontWeight.Medium)
-                                    }
+                                    Icon(
+                                        icon,
+                                        contentDescription = null,
+                                        tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        label,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (isDarkUi) Color(0xFFD2A8FF) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        value,
+                                        modifier = Modifier.weight(1.35f),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.End,
+                                        softWrap = true
+                                    )
                                 }
-                                if (label != "Size") HorizontalDivider(
+                                if (showDivider) HorizontalDivider(
                                     Modifier.padding(start = 54.dp),
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                                 )
                             }
+
                             detailRow("Deleted On", deletedAtText, Icons.Outlined.CalendarToday)
+                            detailRow("Auto Delete On", purgeAtText, Icons.Outlined.History)
+
                             Row(
                                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Icon(
-                                    Icons.Outlined.History,
-                                    null,
+                                    Icons.Outlined.HourglassEmpty,
+                                    contentDescription = null,
                                     tint = if (isDarkUi) Color(0xFFD2A8FF) else documentAccent,
                                     modifier = Modifier.size(24.dp)
                                 )
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "Days Left",
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (isDarkUi) Color(0xFFD2A8FF) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(50.dp),
+                                    color = if (remainingDays != null && remainingDays > 0)
+                                        Color(0xFF174D24) else Color(0xFF512331)
+                                ) {
                                     Text(
-                                        "Auto Delete On",
+                                        remainingDays?.let {
+                                            if (it <= 0) "Due" else "$it days left"
+                                        } ?: "—",
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                        color = if (remainingDays != null && remainingDays > 0)
+                                            Color(0xFF8BEA9B) else Color(0xFFFFA0B4),
                                         style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            purgeAtText,
-                                            modifier = Modifier.weight(1f, fill = false),
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
-                                        if (remainingDays != null) {
-                                            Spacer(Modifier.width(6.dp))
-                                            Text(
-                                                if (remainingDays <= 0) "Due" else "($remainingDays days left)",
-                                                color = if (remainingDays <= 0) MaterialTheme.colorScheme.error else Color(0xFF65D82F),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
-                                        }
-                                    }
                                 }
                             }
                             HorizontalDivider(
@@ -4538,7 +4552,12 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                             )
                             detailRow("Original Location", originalLocation, Icons.Outlined.FolderOpen)
                             detailRow("Category", categoryName, Icons.Outlined.FolderOpen)
-                            detailRow("Size", formatDocumentBytesNew(doc.sizeBytes), Icons.Outlined.Description)
+                            detailRow(
+                                "Size",
+                                formatDocumentBytesNew(doc.sizeBytes),
+                                Icons.Outlined.Description,
+                                showDivider = false
+                            )
                         }
                         if (doc.scope != "SHARED" && doc.ownerUid == memberUid) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
