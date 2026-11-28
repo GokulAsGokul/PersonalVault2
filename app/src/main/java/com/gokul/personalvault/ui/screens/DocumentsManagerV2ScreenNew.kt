@@ -1877,6 +1877,15 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                         // Keep the overview statistics in sync with the exact list shown below.
                         val recycleBinItems = visible
                         val totalBytes = recycleBinItems.sumOf { it.sizeBytes }
+                        val recycleStorageLabel = when {
+                            totalBytes < 1024L -> "$totalBytes B"
+                            totalBytes < 1024L * 1024L ->
+                                String.format(Locale.US, "%.2f KB", totalBytes / 1024.0)
+                            totalBytes < 1024L * 1024L * 1024L ->
+                                String.format(Locale.US, "%.2f MB", totalBytes / (1024.0 * 1024.0))
+                            else ->
+                                String.format(Locale.US, "%.2f GB", totalBytes / (1024.0 * 1024.0 * 1024.0))
+                        }
                         val overviewSurface = if (isDarkUi) Color(0xFF21152B) else Color(0xFFF8F2FF)
                         val statSurface = if (isDarkUi) Color(0xFF34213F) else Color(0xFFEFE3FA)
                         val overviewAccent = if (isDarkUi) Color(0xFFD59AFF) else Color(0xFF7835B5)
@@ -1936,39 +1945,52 @@ fun DocumentsManagerV2ScreenNew(vaultId: String, memberUid: String) {
                                             .clip(RoundedCornerShape(22.dp))
                                             .background(statSurface)
                                             .border(1.dp, overviewAccent.copy(alpha = 0.55f), RoundedCornerShape(22.dp))
-                                            .padding(horizontal = 12.dp, vertical = 16.dp),
+                                            .padding(horizontal = 8.dp, vertical = 14.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                                     ) {
                                         Box(
-                                            Modifier.size(48.dp).clip(CircleShape)
+                                            Modifier.size(38.dp).clip(CircleShape)
                                                 .background(overviewAccent.copy(alpha = 0.16f)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(icon, null, tint = overviewAccent, modifier = Modifier.size(26.dp))
+                                            Icon(icon, null, tint = overviewAccent, modifier = Modifier.size(22.dp))
                                         }
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Column(
+                                            Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            val valueFontSize = when {
+                                                value.length >= 10 -> 13.sp
+                                                value.length >= 8 -> 14.sp
+                                                value.length >= 6 -> 16.sp
+                                                else -> 20.sp
+                                            }
                                             Text(
                                                 value,
-                                                style = MaterialTheme.typography.titleLarge,
+                                                style = MaterialTheme.typography.titleLarge.copy(
+                                                    fontSize = valueFontSize,
+                                                    lineHeight = (valueFontSize.value * 1.15f).sp
+                                                ),
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 1,
                                                 softWrap = false,
-                                                overflow = TextOverflow.Ellipsis
+                                                overflow = TextOverflow.Clip
                                             )
                                             Text(
                                                 label,
-                                                style = MaterialTheme.typography.labelMedium,
+                                                style = MaterialTheme.typography.labelSmall,
                                                 color = palette.muted,
-                                                maxLines = 1,
-                                                softWrap = false
+                                                maxLines = 2,
+                                                softWrap = true,
+                                                overflow = TextOverflow.Clip
                                             )
                                         }
                                     }
                                 }
                                 RecycleStat(Icons.Outlined.Description, recycleBinItems.size.toString(), "Deleted items")
-                                RecycleStat(Icons.Outlined.Storage, formatDocumentBytesNew(totalBytes), "Storage used")
+                                RecycleStat(Icons.Outlined.Storage, recycleStorageLabel, "Storage used")
                             }
 
                             Row(
